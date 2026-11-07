@@ -127,15 +127,15 @@ namespace Reborn.Presentation
             {
                 Block("Back_Art", root.transform, new Vector3(0f, 0.076f, 0f),
                     new Vector3(width - 0.20f, 0.012f, height - 0.22f), Artwork(null));
-                Text("R E B O R N", root.transform, -height * 0.36f, 0.092f, 0.10f, Color.white);
+                Text("R E B O R N", root.transform, -height * 0.36f, 0.092f, 0.054f, Color.white);
             }
             else
             {
                 Material header = Solid("header_" + card.Kind, Color.Lerp(type, Color.white, 0.20f));
                 Block("Title_Ribbon", root.transform, new Vector3(0f, 0.077f, height * 0.405f),
                     new Vector3(width - 0.16f, 0.014f, height * 0.15f), header);
-                Text(ShortName(card.Name, 17), root.transform, height * 0.405f, 0.091f,
-                    0.079f, Color.white);
+                Text(ShortName(card.Name, 10), root.transform, height * 0.405f, 0.091f,
+                    0.045f, Color.white);
                 Block("Artwork_Frame", root.transform, new Vector3(0f, 0.078f, height * 0.045f),
                     new Vector3(width - 0.16f, 0.012f, height * 0.52f), rim);
                 Block("Artwork", root.transform, new Vector3(0f, 0.087f, height * 0.045f),
@@ -143,12 +143,12 @@ namespace Reborn.Presentation
                 Block("Category_Ribbon", root.transform, new Vector3(0f, 0.078f, -height * 0.295f),
                     new Vector3(width - 0.16f, 0.014f, height * 0.11f), header);
                 Text(KindLabel(card.Kind), root.transform, -height * 0.295f, 0.094f,
-                    0.065f, Color.white);
+                    0.042f, Color.white);
                 string stats = card.Kind == CardKind.Monster
-                    ? "ATK " + card.Attack + "  DEF " + card.Defense
+                    ? card.Attack + " / " + card.Defense
                     : "ID " + card.Id;
-                Text(ShortName(stats, 23), root.transform, -height * 0.407f, 0.089f,
-                    0.060f, new Color(1f, 0.93f, 0.70f));
+                Text(ShortName(stats, 15), root.transform, -height * 0.407f, 0.089f,
+                    0.038f, new Color(1f, 0.93f, 0.70f));
             }
             var view = root.AddComponent<CardView>();
             view.Initialize(card, handIndex, border, frame, glow, facedown);
