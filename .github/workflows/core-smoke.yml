@@ -21,3 +21,26 @@ jobs:
 
       - name: Check 0.6 card visuals (static only)
         run: python3 tools/check_card_visuals.py
+
+      - name: Validate private disc importer entry point
+        run: |
+          python3 -m py_compile tools/import_fm_disc.py
+          python3 tools/import_fm_disc.py --help > /dev/null
+          python3 tools/test_disc_import.py
+
+      - name: Archive clean Unity source (never ROMs or private content)
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Reborn-0.7-Clean-Source
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            .github/
+            .gitignore
+            Assets/
+            Docs/
+            Packages/
+            ProjectSettings/
+            tools/
+            README.md
