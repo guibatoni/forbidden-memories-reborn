@@ -19,6 +19,7 @@ with tempfile.TemporaryDirectory() as base:
     assert module.find_upstream(pc) == pc
     fake = root / "file.bin"
     fake.write_bytes(b"hello binary")
-    assert module.sha256(fake) == "c5292bff933f122dcd86f7787beaf169553ec0d495d05736a14cc2b7f6ba39b0"
+    import hashlib
+    assert module.sha256(fake) == hashlib.sha256(b"hello binary").hexdigest()
     print("PASS: local parser discovery and SHA-256 helpers")
 print("NOTE: no disc extraction attempted by CI.")
