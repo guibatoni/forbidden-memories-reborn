@@ -1,3 +1,15 @@
+# Forbidden Memories Reborn — Prototype 0.5
+
+Combat presentation increment: attacks are preview-validated and shown before the
+rules engine resolves damage; LP and Guardian Star feedback now have their own overlay.
+No camera adjustment, field-slot changes or licensed content is included.
+
+See [Docs/PROTOTYPE_0_5.md](Docs/PROTOTYPE_0_5.md). The GitHub Actions workflow
+compiles and checks the pure C# rules engine, **not Unity's presentation assemblies**.
+Full Unity Play Mode verification is required on the user's 6000.3.28f1 editor.
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.4.1
 
 Correcao de interface da versao 0.4: fim de duelo sem botoes sobrepostos, nomes compactos nas cartas, comandos bloqueados apos a partida e iluminacao mais equilibrada. **A camera aprovada permanece inalterada.**

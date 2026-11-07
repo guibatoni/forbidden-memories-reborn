@@ -18,6 +18,10 @@ namespace Reborn.Presentation
         public bool UseSecondaryStar { get; private set; }
         public int FusionCount { get; set; }
         public bool OpponentBusy { get; private set; }
+        public bool PlayerAttackBusy { get; private set; }
+        public bool InputLocked => OpponentBusy || PlayerAttackBusy;
+        public event Action<int, int> PlayerAttackRequested;
+        public void SetPlayerAttackBusy(bool active) { PlayerAttackBusy = active; }
         private int opponentPaceIndex; // 0 detalhado, 1 normal, 2 rapido
         public float OpponentPace => opponentPaceIndex == 0 ? 1.4f :
             (opponentPaceIndex == 1 ? 0.9f : 0.45f);
@@ -74,12 +78,13 @@ namespace Reborn.Presentation
             if (match == null) return;
             DuelModeActive = active;
             OpponentBusy = false;
+            PlayerAttackBusy = false;
             recentActions.Clear();
             SelectedHandIndex = -1;
             SelectedAttacker = -1;
             FusionCount = 0;
             AttackMode = false;
-            Message = active ? "MODO DUELO 0.4: motor experimental, cartas ficticias." :
+            Message = active ? "MODO DUELO 0.5: motor experimental, cartas ficticias." :
                 "Sandbox visual 0.3 restaurado.";
             ModeChanged?.Invoke(active);
         }
@@ -88,6 +93,7 @@ namespace Reborn.Presentation
         {
             match = model;
             OpponentBusy = false;
+            PlayerAttackBusy = false;
             recentActions.Clear();
             SelectedHandIndex = -1;
             SelectedAttacker = -1;
@@ -97,15 +103,22 @@ namespace Reborn.Presentation
             Message = "Duelo experimental reiniciado.";
         }
 
+        public void RequestPlayerAttack(int fromSlot, int targetSlot)
+        {
+            if (match == null || !DuelModeActive || InputLocked) return;
+            if (!match.CanAttack(DuelSide.Player, fromSlot, targetSlot, out var reason))
+            {
+                Message = reason;
+                return;
+            }
+            SelectedAttacker = -1;
+            PlayerAttackRequested?.Invoke(fromSlot, targetSlot);
+        }
+
         public void TryDirectAttack()
         {
-            if (match == null || !DuelModeActive || OpponentBusy || SelectedAttacker < 0) return;
-            if (match.TryAttack(DuelSide.Player,SelectedAttacker,-1,out var reason))
-            {
-                Message = "Ataque direto declarado.";
-                SelectedAttacker = -1;
-            }
-            else Message = reason;
+            if (SelectedAttacker >= 0) RequestPlayerAttack(SelectedAttacker, -1);
+            else Message = "Selecione um monstro atacante antes do ataque direto.";
         }
 
         public bool IsPointerOverHud(Vector2 pointer)
@@ -208,7 +221,7 @@ namespace Reborn.Presentation
                 SandboxRemovalMode ? "Remover teste: ON" : "Remover teste: OFF",button))
                 SandboxRemovalMode = !SandboxRemovalMode;
             GUI.Label(new Rect(right+13,425,175,32),"* Sandbox: sem motor real de duelos",small);
-            if (GUI.Button(new Rect(right+12,468,170,38),"Duelo experimental 0.4",button))
+            if (GUI.Button(new Rect(right+12,468,170,38),"Duelo experimental 0.5",button))
                 SetDuelMode(true);
 
             var width = Mathf.Min(850, Screen.width - 550);
@@ -231,7 +244,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.4",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.5",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -262,7 +275,7 @@ namespace Reborn.Presentation
                     (i+1) + ". " + recentActions[sourceIndex],small);
             }
             Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.4",heading);
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.5",heading);
             if (finished)
             {
                 GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
@@ -281,6 +294,15 @@ namespace Reborn.Presentation
                     AnimationsEnabled = !AnimationsEnabled;
                 GUI.Label(new Rect(right+13,374,175,100),
                     "Os comandos de combate ficam bloqueados apos o fim da partida.",small);
+            }
+            else if (PlayerAttackBusy)
+            {
+                GUI.Label(new Rect(right+13,56,176,33),"Ataque em andamento",body);
+                GUI.Label(new Rect(right+13,104,174,105),
+                    "Acompanhe a trajetoria, o impacto e a resolucao do dano. " +
+                    "As regras serao executadas apos o impacto.",small);
+                GUI.Label(new Rect(right+13,250,174,95),
+                    "Comandos temporariamente bloqueados para evitar ataques duplicados.",small);
             }
             else if (OpponentBusy)
             {

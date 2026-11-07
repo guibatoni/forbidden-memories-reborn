@@ -65,6 +65,38 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void CanAttackPreviewDoesNotChangeStateOrEmitEvents()
+        {
+            var match = Match(Monster("p",1700,1100),Monster("o",1500,1000));
+            Play(match,DuelSide.Player);
+            Begin(match,DuelSide.Player);
+            long eventsBefore=match.Events.Count;
+            Assert.IsTrue(match.CanAttack(DuelSide.Player,0,-1,out var reason),reason);
+            Assert.AreEqual(8000,match.Opponent.Life);
+            Assert.IsFalse(match.Player.Monster(0).AttackedThisTurn);
+            Assert.AreEqual(eventsBefore,match.Events.Count);
+            Assert.IsTrue(match.TryAttack(DuelSide.Player,0,-1,out reason),reason);
+            Assert.AreEqual(6300,match.Opponent.Life);
+            Assert.IsFalse(match.CanAttack(DuelSide.Player,0,-1,out _));
+        }
+
+        [Test]
+        public void PreviewRejectsBlockedDirectAttackAndWrongPhaseWithoutMutation()
+        {
+            var match = WithOpponentOnField(Monster("p",1600,1300),Monster("o",1000,700));
+            int eventsBefore=match.Events.Count;
+            Assert.IsFalse(match.CanAttack(DuelSide.Player,0,-1,out _));
+            Assert.IsFalse(match.CanAttack(DuelSide.Player,0,0,out _));
+            Assert.AreEqual(eventsBefore,match.Events.Count);
+            Begin(match,DuelSide.Player);
+            eventsBefore=match.Events.Count;
+            Assert.IsFalse(match.CanAttack(DuelSide.Player,0,-1,out _));
+            Assert.IsFalse(match.CanAttack(DuelSide.Player,-1,0,out _));
+            Assert.IsTrue(match.CanAttack(DuelSide.Player,0,0,out _));
+            Assert.AreEqual(eventsBefore,match.Events.Count);
+        }
+
+        [Test]
         public void AiPlanningDoesNotMutateStateAndRequiresOpponentTurn()
         {
             var match = new DuelMatch(Deck(Monster("mine",1200,900)),

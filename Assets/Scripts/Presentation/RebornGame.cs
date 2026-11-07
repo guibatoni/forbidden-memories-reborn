@@ -1,4 +1,3 @@
-using System.Collections;
 using Reborn.Core;
 using UnityEngine;
 
@@ -42,47 +41,38 @@ namespace Reborn.Presentation
             }
             var opponentDirector = gameObject.AddComponent<OpponentTurnDirector>();
             opponentDirector.Initialize(arena,hud);
+            var playerDirector = gameObject.AddComponent<PlayerAttackDirector>();
+            playerDirector.Initialize(arena,hud);
+            var feedback = gameObject.AddComponent<CombatFeedbackOverlay>();
+            feedback.Initialize(hud);
             hud.OpponentTurnRequested += () => opponentDirector.PlayTurn(hud.Match);
+            hud.PlayerAttackRequested += (fromSlot,targetSlot) =>
+                playerDirector.RequestAttack(hud.Match,fromSlot,targetSlot);
+            hud.ModeChanged += active => { if (!active) playerDirector.Cancel(); };
             void BindMatch(DuelMatch duel)
             {
                 hud.InitializeMatch(duel);
                 interaction.InitializeMatch(duel);
-                DuelSide lastAttackingSide = DuelSide.Player;
+                feedback.Bind(duel);
                 duel.EventEmitted += evt =>
                 {
                     if (!hud.DuelModeActive || !hud.AnimationsEnabled || hud.Match != duel) return;
-                    if (evt.Kind == MatchEventKind.Attack)
-                    {
-                        lastAttackingSide = evt.Side;
-                        // A IA ja reproduziu o ataque ANTES de aplicar dano no motor.
-                        if (evt.Side == DuelSide.Player)
-                            arena.PlayMatchAttack(evt.Side,evt.Slot,evt.Value);
-                    }
-                    else if (evt.Kind == MatchEventKind.Destroy)
-                    {
-                        if (lastAttackingSide == DuelSide.Player)
-                            StartCoroutine(DelayedDestruction(arena,hud,duel,evt.Side,evt.Slot));
-                        else arena.PlayMatchDestruction(evt.Side,evt.Slot);
-                    }
+                    // Both directors launch their projectiles BEFORE TryAttack; once
+                    // damage is committed, destruction VFX can play immediately.
+                    if (evt.Kind == MatchEventKind.Destroy)
+                        arena.PlayMatchDestruction(evt.Side,evt.Slot);
                 };
             }
             BindMatch(CreateExperimentalMatch());
             hud.NewMatchRequested += () =>
             {
                 opponentDirector.Cancel();
-                StopAllCoroutines(); // descarta efeitos adiados do duelo anterior
+                playerDirector.Cancel();
                 var newDuel = CreateExperimentalMatch();
                 BindMatch(newDuel);
                 hud.ResetMatch(newDuel);
             };
         }
 
-        private static IEnumerator DelayedDestruction(ArenaFactory arena, ArenaHud hud,
-            DuelMatch duel, DuelSide side, int slot)
-        {
-            yield return new WaitForSeconds(0.66f);
-            if (hud != null && hud.Match == duel && hud.DuelModeActive && hud.AnimationsEnabled)
-                arena.PlayMatchDestruction(side,slot);
-        }
     }
 }

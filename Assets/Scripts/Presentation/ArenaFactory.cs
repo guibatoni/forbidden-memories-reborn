@@ -47,7 +47,7 @@ namespace Reborn.Presentation
             ArenaVisuals.Cube("Golden_Side_Left", root, new Vector3(-6.65f,0.20f,0), new Vector3(0.15f,0.25f,13.5f), gold);
             ArenaVisuals.Cube("Golden_Side_Right", root, new Vector3(6.65f,0.20f,0), new Vector3(0.15f,0.25f,13.5f), gold);
             ArenaVisuals.Cube("Golden_Center", root, new Vector3(0,0.18f,0.12f), new Vector3(12.8f,0.05f,0.06f), gold);
-            ArenaVisuals.Label("RE B O R N   |   A R E N A   0.1", root, new Vector3(0,0.22f,0), ArenaVisuals.Gold, 0.11f);
+            ArenaVisuals.Label("RE B O R N   |   A R E N A   0.5", root, new Vector3(0,0.22f,0), ArenaVisuals.Gold, 0.11f);
             BuildTemple(); BuildZones(); BuildDecks(); BuildLightsAndCamera();
             dynamicRoot = new GameObject("DynamicCards").transform;
             dynamicRoot.SetParent(root, false);

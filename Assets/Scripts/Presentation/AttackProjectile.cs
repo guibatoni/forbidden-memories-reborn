@@ -81,6 +81,9 @@ namespace Reborn.Presentation
             emission.rateOverTime = 0f;
             emission.SetBursts(new [] { new ParticleSystem.Burst(0f, 28) });
             particles.Play();
+            var ring = new GameObject("Attack_Shockwave");
+            ring.transform.position = destination;
+            ring.AddComponent<ImpactRing>().Initialize(tint);
             Destroy(fx, 1.3f);
         }
     }

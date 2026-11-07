@@ -86,7 +86,8 @@ namespace Reborn.Presentation
                    SimpleOpponentAi.TryChooseAttack(game, out int attackerSlot, out int targetSlot))
             {
                 var monster = game.Opponent.Monster(attackerSlot);
-                if (monster == null) break;
+                if (monster == null || !game.CanAttack(DuelSide.Opponent,attackerSlot,targetSlot,out _))
+                    break;
                 arena.HighlightAttacker(DuelSide.Opponent, attackerSlot);
                 hud.Announce("IA selecionou: " + monster.Card.Name + " (zona " + (attackerSlot + 1) + ").");
                 yield return Pause(1.00f);

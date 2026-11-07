@@ -8,3 +8,10 @@ Pasta persistente na Biblioteca do ChatGPT: **/Forbidden Memories Reborn/Backups
 - `2026-11-07_reborn-v0.4_backup-manifest.json` — SHA-256 e inventario dos pacotes.
 
 **Fluxo para as proximas etapas:** preservar a ultima versao funcional > executar alteracoes > testes possiveis > publicar no GitHub > gerar pacote completo e patch > gerar manifest com hashes > arquivar na Biblioteca. Nao sobrescrever backups anteriores.
+
+- `Prototype 0.5/` — novo pacote completo, patch incremental, manifesto com hashes de integridade.
+  - `2026-11-07_reborn-v0.5_prototype.zip`: projeto completo Unity.
+  - `2026-11-07_reborn-v0.5_patch.zip`: somente arquivos atualizados da versao 0.4.2.1.
+  - `2026-11-07_reborn-v0.5_backup-manifest.json`: hashes SHA-256 dos pacotes.
+
+A interface Unity so e considerada validada depois dos testes locais do editor.

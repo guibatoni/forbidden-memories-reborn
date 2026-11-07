@@ -49,9 +49,16 @@ internal static class Program
         Check(!m.TryPlay(DuelSide.Player,new [] {0},FieldLane.Monster,1,
             BattlePosition.Attack,GuardianStar.None,out _),"one play per turn");
         Battle(m,DuelSide.Player);
+        long previewEvents = m.Events.Count;
+        Check(m.CanAttack(DuelSide.Player,0,-1,out _) && m.Opponent.Life==8000,
+            "attack preview is legal without resolving damage");
+        Check(!m.Player.Monster(0).AttackedThisTurn && m.Events.Count==previewEvents,
+            "attack preview cannot mark a monster or emit events");
         Check(m.TryAttack(DuelSide.Player,0,-1,out _) && m.Opponent.Life==6000,
             "direct attack and damage");
         Check(!m.TryAttack(DuelSide.Player,0,-1,out _),"one attack per monster per turn");
+        Check(!m.CanAttack(DuelSide.Player,0,-1,out _),
+            "attack preview rejects monsters already used this turn");
         End(m,DuelSide.Player);
         Check(m.CurrentSide==DuelSide.Opponent,"opponent turn");
         Check(SimpleOpponentAi.TryChoosePlay(m,out int chosenHand,out int chosenSlot) &&

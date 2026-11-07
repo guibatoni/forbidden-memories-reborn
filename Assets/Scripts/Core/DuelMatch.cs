@@ -278,7 +278,11 @@ namespace Reborn.Core
             return true;
         }
 
-        public bool TryAttack(DuelSide side, int fromSlot, int targetSlot, out string reason)
+        /// <summary>
+        /// Read-only validation used by the presentation directors before playing
+        /// their animations. Must not emit events, mark monsters or alter LP.
+        /// </summary>
+        public bool CanAttack(DuelSide side, int fromSlot, int targetSlot, out string reason)
         {
             if (!Active(side, MatchPhase.Battle, out reason)) return false;
             if (fromSlot < 0 || fromSlot >= ZoneCount) return Reject(out reason, "Atacante invalido");
@@ -292,6 +296,16 @@ namespace Reborn.Core
             var defender = targetSlot == -1 ? null : enemy.Monster(targetSlot);
             if (defender == null && enemy.MonsterCount != 0)
                 return Reject(out reason, "Ataque direto bloqueado por monstros");
+            reason = "";
+            return true;
+        }
+
+        public bool TryAttack(DuelSide side, int fromSlot, int targetSlot, out string reason)
+        {
+            if (!CanAttack(side, fromSlot, targetSlot, out reason)) return false;
+            var owner = Side(side); var enemy = Side(Other(side));
+            var attacker = owner.Monster(fromSlot);
+            var defender = targetSlot == -1 ? null : enemy.Monster(targetSlot);
             attacker.AttackedThisTurn = true;
             Emit(MatchEventKind.Attack, side, attacker.Card.Id, FieldLane.Monster, fromSlot, targetSlot);
             if (defender == null)

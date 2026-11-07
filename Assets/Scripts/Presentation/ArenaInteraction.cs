@@ -160,7 +160,7 @@ namespace Reborn.Presentation
         private void UpdateMatchInput()
         {
             if (match == null || arena.Camera == null) return;
-            if (match.Phase == MatchPhase.Finished || hud.OpponentBusy ||
+            if (match.Phase == MatchPhase.Finished || hud.InputLocked ||
                 match.CurrentSide != DuelSide.Player)
             {
                 // Bloqueia cliques na vez da IA e na tela final.
@@ -225,11 +225,7 @@ namespace Reborn.Presentation
                     }
                     else if (hud.SelectedAttacker >= 0)
                     {
-                        if (match.TryAttack(DuelSide.Player,hud.SelectedAttacker,zone.Index,out var error))
-                        {
-                            hud.Message = "Ataque resolvido."; hud.SelectedAttacker = -1;
-                        }
-                        else hud.Message = error;
+                        hud.RequestPlayerAttack(hud.SelectedAttacker,zone.Index);
                     }
                 }
                 else if (zone != null && !zone.Opponent && hud.SelectedHandIndex >= 0)

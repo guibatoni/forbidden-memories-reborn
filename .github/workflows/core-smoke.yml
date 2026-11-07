@@ -15,3 +15,6 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Compile and run deterministic Core checks
         run: dotnet run --project tools/Reborn.Core.Smoke/Reborn.Core.Smoke.csproj --configuration Release
+
+      - name: Check presentation boundaries (static only)
+        run: python3 tools/check_presentation_contracts.py
