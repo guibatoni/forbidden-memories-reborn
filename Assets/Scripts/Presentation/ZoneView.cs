@@ -32,6 +32,13 @@ namespace Reborn.Presentation
             UpdateHighlight();
         }
 
+        /// <summary>Enemy slots may be shown as targets only during experimental combat.</summary>
+        public void SetCombatTarget(bool active)
+        {
+            legalTarget = active;
+            UpdateHighlight();
+        }
+
         public void SetHighlight(bool highlight)
         {
             pointerHover = !Opponent && highlight;

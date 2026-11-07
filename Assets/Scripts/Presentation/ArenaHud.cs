@@ -1,5 +1,6 @@
 using Reborn.Core;
 using System.Collections.Generic;
+using System;
 using UnityEngine;
 
 namespace Reborn.Presentation
@@ -8,6 +9,15 @@ namespace Reborn.Presentation
     public sealed class ArenaHud : MonoBehaviour
     {
         private DuelSession session;
+        private DuelMatch match;
+        public DuelMatch Match => match;
+        public bool DuelModeActive { get; private set; }
+        public bool AttackMode { get; set; }
+        public int SelectedAttacker { get; set; } = -1;
+        public bool UseDefense { get; private set; }
+        public bool UseSecondaryStar { get; private set; }
+        public int FusionCount { get; set; }
+        public event Action<bool> ModeChanged;
         private ArenaFactory arena;
         private CampaignRuntime story;
         private readonly Dictionary<int, OpponentDefinition> opponents = new Dictionary<int, OpponentDefinition>();
@@ -38,11 +48,51 @@ namespace Reborn.Presentation
             Debug.Log("REBORN: " + importStatus);
         }
 
+        public void InitializeMatch(DuelMatch model)
+        {
+            match = model;
+        }
+
+        public void SetDuelMode(bool active)
+        {
+            if (match == null) return;
+            DuelModeActive = active;
+            SelectedHandIndex = -1;
+            SelectedAttacker = -1;
+            FusionCount = 0;
+            AttackMode = false;
+            Message = active ? "MODO DUELO 0.4: motor experimental, cartas ficticias." :
+                "Sandbox visual 0.3 restaurado.";
+            ModeChanged?.Invoke(active);
+        }
+
+        public void ResetMatch(DuelMatch model)
+        {
+            match = model;
+            SelectedHandIndex = -1;
+            SelectedAttacker = -1;
+            FusionCount = 0;
+            AttackMode = false;
+            ModeChanged?.Invoke(DuelModeActive);
+            Message = "Duelo experimental reiniciado.";
+        }
+
+        public void TryDirectAttack()
+        {
+            if (match == null || !DuelModeActive || SelectedAttacker < 0) return;
+            if (match.TryAttack(DuelSide.Player,SelectedAttacker,-1,out var reason))
+            {
+                Message = "Ataque direto declarado.";
+                SelectedAttacker = -1;
+            }
+            else Message = reason;
+        }
+
         public bool IsPointerOverHud(Vector2 pointer)
         {
             float x = pointer.x;
             float y = Screen.height - pointer.y;
-            return showStory || (x < 264f && y < 305f) || (x > Screen.width - 220f && y < 476f);
+            return showStory || (x < 264f && y < 315f) || (x > Screen.width - 220f && y < 570f);
         }
 
         private GUIStyle Style(int size, Color color, FontStyle weight = FontStyle.Normal)
@@ -83,6 +133,7 @@ namespace Reborn.Presentation
         {
             if (session == null) return;
             InitStyles();
+            if (DuelModeActive && match != null) { DrawMatchHud(); return; }
             float right = Screen.width - 208f;
             Panel(new Rect(12,12,251,279),new Color(0.015f,0.027f,0.06f,0.94f));
             GUI.Label(new Rect(23,17,220,32),"REBORN  |  0.3",heading);
@@ -101,7 +152,7 @@ namespace Reborn.Presentation
             {
                 GUI.Label(new Rect(24,150,220,106),"Clique em uma das cartas na parte inferior da arena para visualizar seus atributos.",small);
             }
-            Panel(new Rect(right,12,196,454),new Color(0.015f,0.027f,0.06f,0.94f));
+            Panel(new Rect(right,12,196,508),new Color(0.015f,0.027f,0.06f,0.94f));
             GUI.Label(new Rect(right+11,18,180,32),"CONTROLES",heading);
             if (GUI.Button(new Rect(right+12,66,170,38),"Repor mao",button))
             {
@@ -135,7 +186,9 @@ namespace Reborn.Presentation
             if (GUI.Button(new Rect(right+12,386,170,36),
                 SandboxRemovalMode ? "Remover teste: ON" : "Remover teste: OFF",button))
                 SandboxRemovalMode = !SandboxRemovalMode;
-            GUI.Label(new Rect(right+13,426,175,34),"* Sandbox: sem motor real de duelos",small);
+            GUI.Label(new Rect(right+13,425,175,32),"* Sandbox: sem motor real de duelos",small);
+            if (GUI.Button(new Rect(right+12,468,170,38),"Duelo experimental 0.4",button))
+                SetDuelMode(true);
 
             var width = Mathf.Min(850, Screen.width - 550);
             if (width > 280)
@@ -151,6 +204,81 @@ namespace Reborn.Presentation
             }
             if (showStory && story != null) DrawStory();
         }
+
+        private void DrawMatchHud()
+        {
+            float right = Screen.width-208f;
+            Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.4",heading);
+            GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
+            GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
+            GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
+                "   Cemiterio: " + match.Player.Graveyard.Count,small);
+            GUI.Label(new Rect(23,130,224,25),"Turno: " + match.Turn +
+                "   Fase: " + match.Phase,small);
+            GUI.Label(new Rect(23,156,230,24),"Selecao fusao: " + FusionCount + "/5",small);
+            if (SelectedHandIndex >= 0 && SelectedHandIndex < match.Player.Hand.Count)
+            {
+                var card = match.Player.Hand[SelectedHandIndex];
+                GUI.Label(new Rect(23,183,227,44),card.Name,body);
+                GUI.Label(new Rect(23,226,227,24),"#"+card.Id+"  "+card.Kind,small);
+                GUI.Label(new Rect(23,249,227,50),card.Description,small);
+            }
+            else GUI.Label(new Rect(23,186,223,100),
+                "Clique numa carta para selecionar. Shift+clique adiciona materiais na ordem.",small);
+            Panel(new Rect(right,12,196,549),new Color(0.015f,0.027f,0.06f,0.94f));
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.4",heading);
+            GUI.Label(new Rect(right+13,52,175,28),
+                match.CurrentSide == DuelSide.Player ? "Seu turno" : "Turno da IA",small);
+            bool finished = match.Phase == MatchPhase.Finished;
+            if (finished)
+                GUI.Label(new Rect(right+13,79,175,31),"Venceu: " + match.Winner,body);
+            if (GUI.Button(new Rect(right+12,91,170,34),"Iniciar combate",button) && !finished)
+            {
+                if (!match.TryBeginBattle(DuelSide.Player,out var error)) Message = error;
+                else Message = "Selecione seu monstro e depois um alvo.";
+            }
+            if (GUI.Button(new Rect(right+12,132,170,34),"Encerrar turno",button) && !finished)
+            {
+                if (!match.TryEndTurn(DuelSide.Player,out var error)) Message = error;
+                else
+                {
+                    AttackMode = false; SelectedAttacker = -1;
+                    SimpleOpponentAi.TakeTurn(match);
+                    Message = match.Phase == MatchPhase.Finished ? "Duelo encerrado." : "Oponente agiu. Seu turno.";
+                }
+            }
+            if (GUI.Button(new Rect(right+12,173,170,34),AttackMode ? "Ataque: ON" : "Selecionar ataque",button))
+            {
+                AttackMode = !AttackMode; SelectedAttacker = -1;
+            }
+            if (GUI.Button(new Rect(right+12,214,170,34),"Atacar diretamente",button))
+                TryDirectAttack();
+            if (GUI.Button(new Rect(right+12,255,170,34),
+                UseDefense ? "Posicao: DEF" : "Posicao: ATK",button))
+                UseDefense = !UseDefense;
+            if (GUI.Button(new Rect(right+12,296,170,34),
+                UseSecondaryStar ? "Guardian: segunda" : "Guardian: primeira",button))
+                UseSecondaryStar = !UseSecondaryStar;
+            if (GUI.Button(new Rect(right+12,337,170,34),"Novo duelo",button))
+                NewMatchRequested?.Invoke();
+            if (GUI.Button(new Rect(right+12,378,170,34),"Voltar ao Sandbox",button))
+                SetDuelMode(false);
+            if (GUI.Button(new Rect(right+12,419,170,34),
+                AnimationsEnabled ? "Animacoes: ON" : "Animacoes: OFF",button))
+                AnimationsEnabled = !AnimationsEnabled;
+            GUI.Label(new Rect(right+13,466,175,80),
+                "Motor experimental. Efeitos de magia, armadilha, equip e ritual ainda nao ativados.",small);
+            float width = Mathf.Min(820f,Screen.width-550f);
+            if (width > 280f)
+            {
+                Panel(new Rect((Screen.width-width)/2f,Screen.height-62,width,50),
+                    new Color(0.015f,0.027f,0.06f,0.88f));
+                GUI.Label(new Rect((Screen.width-width)/2f+12,Screen.height-56,width-24,39),Message,status);
+            }
+        }
+
+        public event Action NewMatchRequested;
 
         private void DrawStory()
         {

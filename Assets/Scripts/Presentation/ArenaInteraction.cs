@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Reborn.Core;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -9,6 +10,8 @@ namespace Reborn.Presentation
     public sealed class ArenaInteraction : MonoBehaviour
     {
         private DuelSession session;
+        private DuelMatch match;
+        private readonly List<int> fusionSelection = new List<int>();
         private ArenaFactory arena;
         private ArenaHud hud;
         private int pressedHand = -1;
@@ -31,12 +34,42 @@ namespace Reborn.Presentation
                 UpdateLegalHighlights();
             };
             arena.Refresh(session);
+            hud.ModeChanged += active =>
+            {
+                pressedHand = -1; dragging = false;
+                fusionSelection.Clear(); hud.FusionCount = 0;
+                hud.SelectedHandIndex = -1;
+                if (active && match != null) arena.RefreshMatch(match);
+                else arena.Refresh(session);
+                UpdateLegalHighlights();
+            };
+            UpdateLegalHighlights();
+        }
+
+        public void InitializeMatch(DuelMatch model)
+        {
+            if (match != null) match.Changed -= OnMatchChanged;
+            match = model;
+            match.Changed += OnMatchChanged;
+            fusionSelection.Clear();
+            hud.FusionCount = 0;
+        }
+
+        private void OnMatchChanged()
+        {
+            if (!hud.DuelModeActive) return;
+            hud.SelectedHandIndex = -1;
+            hud.SelectedAttacker = -1;
+            fusionSelection.Clear();
+            hud.FusionCount = 0;
+            arena.RefreshMatch(match);
             UpdateLegalHighlights();
         }
 
         private void Update()
         {
             if (session == null || arena.Camera == null || hud == null) return;
+            if (hud.DuelModeActive) { UpdateMatchInput(); return; }
             var mouse = Mouse.current;
             if (mouse == null) return;
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -124,6 +157,123 @@ namespace Reborn.Presentation
                 view.SetSelected(view.HandIndex == hud.SelectedHandIndex);
         }
 
+        private void UpdateMatchInput()
+        {
+            if (match == null || arena.Camera == null) return;
+            var mouse = Mouse.current;
+            if (mouse == null) return;
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            {
+                hud.SelectedHandIndex = -1;
+                hud.SelectedAttacker = -1;
+                fusionSelection.Clear(); hud.FusionCount = 0;
+                pressedHand = -1; dragging = false;
+                hud.Message = "Selecao cancelada.";
+            }
+            Vector2 pointer = mouse.position.ReadValue();
+            bool overHud = hud.IsPointerOverHud(pointer);
+            FindPointerTargets(pointer,dragging ? pressedHand : -1,
+                out CardView card,out ZoneView zone);
+            if (overHud) { card = null; zone = null; }
+            if (hoveredCard != card)
+            {
+                if (hoveredCard != null) hoveredCard.SetHovered(false);
+                hoveredCard = card;
+                if (hoveredCard != null && hoveredCard.HandIndex >= 0)
+                    hoveredCard.SetHovered(true);
+            }
+            if (mouse.leftButton.wasPressedThisFrame && !overHud)
+            {
+                if (card != null && card.HandIndex >= 0 && !hud.AttackMode)
+                {
+                    int index = card.HandIndex;
+                    bool shift = Keyboard.current != null &&
+                        (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
+                    if (!shift) fusionSelection.Clear();
+                    if (!fusionSelection.Contains(index)) fusionSelection.Add(index);
+                    hud.FusionCount = fusionSelection.Count;
+                    hud.SelectedHandIndex = index;
+                    pressedHand = index;
+                    pressStart = pointer;
+                    var outcome = match.PreviewResult(DuelSide.Player,fusionSelection);
+                    hud.Message = outcome == null ? "Selecao invalida." :
+                        "Selecionadas " + fusionSelection.Count + " carta(s). Resultado previsto: " + outcome.Name;
+                    UpdateLegalHighlights();
+                }
+                else if (zone != null && zone.Lane == FieldLane.Monster && hud.AttackMode)
+                {
+                    if (!zone.Opponent)
+                    {
+                        var monster = match.Player.Monster(zone.Index);
+                        if (monster == null) hud.Message = "Escolha um monstro seu.";
+                        else
+                        {
+                            hud.SelectedAttacker = zone.Index;
+                            hud.Message = "Atacante selecionado: " + monster.Card.Name + ". Clique no alvo.";
+                            UpdateLegalHighlights();
+                        }
+                    }
+                    else if (hud.SelectedAttacker >= 0)
+                    {
+                        if (match.TryAttack(DuelSide.Player,hud.SelectedAttacker,zone.Index,out var error))
+                        {
+                            hud.Message = "Ataque resolvido."; hud.SelectedAttacker = -1;
+                        }
+                        else hud.Message = error;
+                    }
+                }
+                else if (zone != null && !zone.Opponent && hud.SelectedHandIndex >= 0)
+                    PlaceMatchCard(zone);
+            }
+            if (pressedHand >= 0 && mouse.leftButton.isPressed &&
+                (dragging || (pointer-pressStart).sqrMagnitude >= 144f))
+            {
+                dragging = true;
+                var view = FindHandView(pressedHand);
+                if (view != null && !overHud)
+                {
+                    var plane = new Plane(Vector3.up,new Vector3(0,0.8f,0));
+                    var ray = arena.Camera.ScreenPointToRay(pointer);
+                    if (plane.Raycast(ray,out float distance))
+                        view.SetDragWorldPosition(ray.GetPoint(distance)+Vector3.up*0.35f);
+                }
+            }
+            if (mouse.leftButton.wasReleasedThisFrame && pressedHand >= 0)
+            {
+                var view = FindHandView(pressedHand);
+                FindPointerTargets(pointer,pressedHand,out _,out var releasedZone);
+                if (!overHud && dragging && releasedZone != null && !releasedZone.Opponent)
+                    PlaceMatchCard(releasedZone);
+                if (view != null) view.StopDragging();
+                pressedHand = -1;
+                dragging = false;
+            }
+            UpdateLegalHighlights();
+            foreach (var view in arena.HandViews)
+                view.SetSelected(fusionSelection.Contains(view.HandIndex));
+        }
+
+        private void PlaceMatchCard(ZoneView zone)
+        {
+            var selected = fusionSelection.Count > 0 ?
+                (IReadOnlyList<int>)fusionSelection : new [] { hud.SelectedHandIndex };
+            var result = match.PreviewResult(DuelSide.Player,selected);
+            if (result == null) { hud.Message = "Selecao invalida."; return; }
+            var star = hud.UseSecondaryStar ? result.StarB : result.StarA;
+            var position = hud.UseDefense ? BattlePosition.Defense : BattlePosition.Attack;
+            var source = FindHandView(hud.SelectedHandIndex);
+            var origin = source != null ? source.transform.position : zone.transform.position;
+            arena.StagePlacement(zone.Lane,zone.Index,origin,hud.AnimationsEnabled);
+            if (match.TryPlay(DuelSide.Player,selected,zone.Lane,zone.Index,position,star,out var reason))
+                hud.Message = "Carta colocada: " + result.Name + ".";
+            else
+            {
+                arena.ClearStagedPlacement();
+                hud.Message = reason;
+            }
+            UpdateLegalHighlights();
+        }
+
         private CardView FindHandView(int handIndex)
         {
             foreach (var view in arena.HandViews)
@@ -183,8 +333,31 @@ namespace Reborn.Presentation
             if (session == null || arena == null || hud == null) return;
             lastSelectedHand = hud.SelectedHandIndex;
             foreach (var zone in arena.Zones)
-                zone.SetLegal(!zone.Opponent &&
+            {
+                if (hud.DuelModeActive && match != null)
+                {
+                    if (hud.AttackMode && match.Phase == MatchPhase.Battle)
+                    {
+                        bool eligible = zone.Lane == FieldLane.Monster &&
+                            (zone.Opponent
+                                ? hud.SelectedAttacker >= 0 && match.Opponent.Monster(zone.Index) != null
+                                : match.Player.Monster(zone.Index) != null &&
+                                  !match.Player.Monster(zone.Index).AttackedThisTurn &&
+                                  match.Player.Monster(zone.Index).Position == BattlePosition.Attack);
+                        zone.SetCombatTarget(eligible);
+                        continue;
+                    }
+                    var selection = fusionSelection.Count > 0 ?
+                        (IReadOnlyList<int>)fusionSelection : new [] { lastSelectedHand };
+                    var card = match.PreviewResult(DuelSide.Player,selection);
+                    var star = card == null ? GuardianStar.None :
+                        (hud.UseSecondaryStar ? card.StarB : card.StarA);
+                    zone.SetLegal(!zone.Opponent &&
+                        match.CanPlay(DuelSide.Player,selection,zone.Lane,zone.Index,star,out _));
+                }
+                else zone.SetLegal(!zone.Opponent &&
                     session.CanPlace(lastSelectedHand, zone.Lane, zone.Index, out _));
+            }
         }
     }
 }

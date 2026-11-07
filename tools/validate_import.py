@@ -9,6 +9,7 @@ import re
 import sys
 
 VALID_KINDS = {"monster", "spell", "trap", "equip", "ritual"}
+VALID_STARS = {"mercury", "sun", "moon", "venus", "mars", "jupiter", "saturn", "uranus", "pluto", "neptune"}
 
 
 def validate(data):
@@ -34,12 +35,29 @@ def validate(data):
             errors.append(f'cards[{i}].name vazio')
         if str(card.get('kind','')).lower() not in VALID_KINDS:
             errors.append(f'cards[{i}].kind desconhecido')
+        stars = [str(card.get(k) or '').strip().lower() for k in ('guardianStarA', 'guardianStarB')]
+        if (bool(stars[0]) != bool(stars[1])) or any(star and star not in VALID_STARS for star in stars):
+            errors.append(f'cards[{i}] guardian stars invalidas/incompletas')
         for attr in ('attack','defense'):
             value = card.get(attr)
             if not isinstance(value,int) or value < 0:
                 errors.append(f'cards[{i}].{attr} invalido')
     if not cards:
         errors.append('lista de cartas vazia')
+    fusion_keys = set()
+    fusions = data.get('fusions') or []
+    lookup = {c.get('id'): c for c in cards}
+    for i, fusion in enumerate(fusions):
+        a,b,res = (fusion.get(k) for k in ('materialA','materialB','result'))
+        if type(a) is not int or type(b) is not int or type(res) is not int or \
+                a not in lookup or b not in lookup or res not in lookup or \
+                str(lookup[res].get('kind','')).lower() != 'monster' or fusion.get('verified') is not True:
+            errors.append(f'fusions[{i}] nao validada ou referencia inexistente')
+            continue
+        key = tuple(sorted((a,b)))
+        if key in fusion_keys:
+            errors.append(f'fusions[{i}] receita duplicada')
+        fusion_keys.add(key)
     opponents = data.get('opponents') or []
     op_ids = set()
     for i, op in enumerate(opponents):
@@ -79,7 +97,7 @@ def validate(data):
                     if choice.get('nextNodeId') not in refs:
                         errors.append(f'evento {node_id}: escolha aponta para node inexistente')
     return errors, dict(cards=len(cards), missingDescriptions=sum(not c.get('description','').strip() for c in cards),
-                       opponents=len(opponents), storyEvents=len(nodes))
+                       opponents=len(opponents), storyEvents=len(nodes), fusions=len(fusions))
 
 
 def main():

@@ -6,48 +6,134 @@
     "discSha256": ""
   },
   "cards": [
-    { "id": 1, "name": "CARTA DE TESTE", "kind": "Monster", "attack": 1000, "defense": 900, "description": "Texto ficticio para testar a importacao." },
-    { "id": 2, "name": "SUPORTE DE TESTE", "kind": "Equip", "attack": 0, "defense": 0, "description": "Teste de categoria Equip." },
-    { "id": 3, "name": "ARMADILHA DE TESTE", "kind": "Trap", "attack": 0, "defense": 0, "description": "Teste de categoria Trap." },
-    { "id": 4, "name": "MAGIA DE TESTE", "kind": "Spell", "attack": 0, "defense": 0, "description": "Teste de categoria Spell." },
-    { "id": 5, "name": "RITUAL DE TESTE", "kind": "Ritual", "attack": 0, "defense": 0, "description": "Teste de categoria Ritual." }
+    {
+      "id": 1,
+      "name": "CARTA DE TESTE",
+      "kind": "Monster",
+      "attack": 1000,
+      "defense": 900,
+      "description": "Texto ficticio para testar a importacao.",
+      "guardianStarA": "Mercury",
+      "guardianStarB": "Mars"
+    },
+    {
+      "id": 2,
+      "name": "SUPORTE DE TESTE",
+      "kind": "Equip",
+      "attack": 0,
+      "defense": 0,
+      "description": "Teste de categoria Equip."
+    },
+    {
+      "id": 3,
+      "name": "ARMADILHA DE TESTE",
+      "kind": "Trap",
+      "attack": 0,
+      "defense": 0,
+      "description": "Teste de categoria Trap."
+    },
+    {
+      "id": 4,
+      "name": "MAGIA DE TESTE",
+      "kind": "Spell",
+      "attack": 0,
+      "defense": 0,
+      "description": "Teste de categoria Spell."
+    },
+    {
+      "id": 5,
+      "name": "RITUAL DE TESTE",
+      "kind": "Ritual",
+      "attack": 0,
+      "defense": 0,
+      "description": "Teste de categoria Ritual."
+    }
   ],
   "opponents": [
-    { "id": 7, "name": "OPONENTE DE TESTE", "deckKey": "demo" }
+    {
+      "id": 7,
+      "name": "OPONENTE DE TESTE",
+      "deckKey": "demo"
+    }
   ],
   "story": {
     "startNodeId": "intro",
     "nodes": [
       {
-        "id": "intro", "location": "Lugar ficticio", "speaker": "Narrador",
+        "id": "intro",
+        "location": "Lugar ficticio",
+        "speaker": "Narrador",
         "text": "Escolha um caminho. Estes textos nao pertencem ao jogo original.",
-        "opponentId": -1, "winNodeId": "", "loseNodeId": "",
+        "opponentId": -1,
+        "winNodeId": "",
+        "loseNodeId": "",
         "choices": [
-          { "text": "Aceitar um duelo", "nextNodeId": "duel", "requiresFlag": "", "forbidsFlag": "", "setsFlag": "" },
-          { "text": "Conversar", "nextNodeId": "talk", "requiresFlag": "", "forbidsFlag": "", "setsFlag": "talked" }
+          {
+            "text": "Aceitar um duelo",
+            "nextNodeId": "duel",
+            "requiresFlag": "",
+            "forbidsFlag": "",
+            "setsFlag": ""
+          },
+          {
+            "text": "Conversar",
+            "nextNodeId": "talk",
+            "requiresFlag": "",
+            "forbidsFlag": "",
+            "setsFlag": "talked"
+          }
         ]
       },
       {
-        "id": "talk", "location": "Lugar ficticio", "speaker": "Guia",
+        "id": "talk",
+        "location": "Lugar ficticio",
+        "speaker": "Guia",
         "text": "Uma resposta exclusiva de teste.",
-        "opponentId": -1, "winNodeId": "", "loseNodeId": "",
-        "choices": [{ "text": "Voltar", "nextNodeId": "intro", "requiresFlag": "", "forbidsFlag": "", "setsFlag": "" }]
+        "opponentId": -1,
+        "winNodeId": "",
+        "loseNodeId": "",
+        "choices": [
+          {
+            "text": "Voltar",
+            "nextNodeId": "intro",
+            "requiresFlag": "",
+            "forbidsFlag": "",
+            "setsFlag": ""
+          }
+        ]
       },
       {
-        "id": "duel", "location": "Arena de teste", "speaker": "Guia",
+        "id": "duel",
+        "location": "Arena de teste",
+        "speaker": "Guia",
         "text": "Um duelo foi solicitado. Nao existe resultado simulado.",
-        "opponentId": 7, "winNodeId": "win", "loseNodeId": "lose", "winSetsFlag": "duel_won", "choices": []
+        "opponentId": 7,
+        "winNodeId": "win",
+        "loseNodeId": "lose",
+        "winSetsFlag": "duel_won",
+        "choices": []
       },
       {
-        "id": "win", "location": "Lugar ficticio", "speaker": "Guia",
-        "text": "Fim de teste: vitoria.", "opponentId": -1,
-        "winNodeId": "", "loseNodeId": "", "choices": []
+        "id": "win",
+        "location": "Lugar ficticio",
+        "speaker": "Guia",
+        "text": "Fim de teste: vitoria.",
+        "opponentId": -1,
+        "winNodeId": "",
+        "loseNodeId": "",
+        "choices": []
       },
       {
-        "id": "lose", "location": "Lugar ficticio", "speaker": "Guia",
-        "text": "Fim de teste: derrota.", "opponentId": -1,
-        "winNodeId": "", "loseNodeId": "", "choices": []
+        "id": "lose",
+        "location": "Lugar ficticio",
+        "speaker": "Guia",
+        "text": "Fim de teste: derrota.",
+        "opponentId": -1,
+        "winNodeId": "",
+        "loseNodeId": "",
+        "choices": []
       }
     ]
-  }
+  },
+  "fusions": []
 }

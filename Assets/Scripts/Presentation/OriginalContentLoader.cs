@@ -22,6 +22,7 @@ namespace Reborn.Presentation
             public CardData[] cards;
             public OpponentData[] opponents;
             public StoryData story;
+            public FusionData[] fusions;
         }
         [Serializable] private sealed class SourceData
         {
@@ -37,6 +38,15 @@ namespace Reborn.Presentation
             public int attack;
             public int defense;
             public string description;
+            public string guardianStarA;
+            public string guardianStarB;
+        }
+        [Serializable] private sealed class FusionData
+        {
+            public int materialA;
+            public int materialB;
+            public int result;
+            public bool verified;
         }
         [Serializable] private sealed class OpponentData
         {
@@ -97,8 +107,36 @@ namespace Reborn.Presentation
                         throw new InvalidDataException("ID fora do conjunto original de 1 a 722: " + entry.id);
                     if (!Enum.TryParse(entry.kind, true, out CardKind kind))
                         throw new InvalidDataException($"Tipo de carta desconhecido: {entry.kind} / #{entry.id}");
+                    GuardianStar a = ParseStar(entry.guardianStarA);
+                    GuardianStar b = ParseStar(entry.guardianStarB);
+                    if ((a == GuardianStar.None) != (b == GuardianStar.None))
+                        throw new InvalidDataException("Guardian Stars devem vir em par: #" + entry.id);
                     cards.Add(new CardDefinition(entry.id.ToString("000"),entry.name,kind,
-                        entry.attack,entry.defense,entry.description));
+                        entry.attack,entry.defense,entry.description,a,b));
+                }
+                // Only fusions explicitly flagged as verified are accepted.
+                // The flag is source metadata, not proof of binary equivalence.
+                var fusions = new FusionCatalog();
+                var lookup = new Dictionary<string,CardDefinition>(StringComparer.Ordinal);
+                foreach (var card in cards) lookup.Add(card.Id,card);
+                if (parsed.fusions != null)
+                {
+                    foreach (var entry in parsed.fusions)
+                    {
+                        if (!entry.verified)
+                            throw new InvalidDataException("Fusao sem verified=true");
+                        if (entry.materialA < 1 || entry.materialA > 722 ||
+                            entry.materialB < 1 || entry.materialB > 722 ||
+                            entry.result < 1 || entry.result > 722)
+                            throw new InvalidDataException("ID de fusao fora de 1..722");
+                        string aId=entry.materialA.ToString("000");
+                        string bId=entry.materialB.ToString("000");
+                        string rId=entry.result.ToString("000");
+                        if (!lookup.ContainsKey(aId) || !lookup.ContainsKey(bId) ||
+                            !lookup.TryGetValue(rId,out var result) || result.Kind != CardKind.Monster)
+                            throw new InvalidDataException("Fusao referencia cartas desconhecidas ou resultado nao monstro");
+                        fusions.Add(aId,bId,result);
+                    }
                 }
                 var opponents = new List<OpponentDefinition>();
                 if (parsed.opponents != null)
@@ -122,11 +160,12 @@ namespace Reborn.Presentation
                     script = new CampaignScript(parsed.story.startNodeId,nodes,opponents);
                 }
                 bundle = new GameContentBundle(parsed.source.edition,parsed.source.language,sha,
-                    cards,opponents,script);
+                    cards,opponents,script,fusions);
                 // Importacao de JSON nao garante que os bytes conferem com a ISO informada.
                 status = $"Importado (nao validado contra a ISO): {cards.Count}/722 cartas, " +
                     $"{bundle.MissingDescriptions} descricoes vazias, {opponents.Count} oponentes, " +
-                    $"{(script == null ? 0 : script.Nodes.Count)} eventos.";
+                    $"{(script == null ? 0 : script.Nodes.Count)} eventos, " +
+                    $"{fusions.Count} receitas importadas.";
                 return true;
             }
             catch (Exception ex)
@@ -135,6 +174,14 @@ namespace Reborn.Presentation
                 Debug.LogError("REBORN Content: " + status);
                 return false;
             }
+        }
+
+        private static GuardianStar ParseStar(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return GuardianStar.None;
+            if (!Enum.TryParse(value.Trim(),true,out GuardianStar star) || star == GuardianStar.None)
+                throw new InvalidDataException("Guardian Star desconhecida: " + value);
+            return star;
         }
 
         private static bool IsHex(string value)

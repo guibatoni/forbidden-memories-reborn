@@ -1,3 +1,11 @@
+# Forbidden Memories Reborn — Prototype 0.4
+
+**Unity recomendado:** 6.3 LTS `6000.3.28f1` • **Plataforma:** Windows x64 • **Status:** motor experimental, nao jogo finalizado.
+
+O Prototype 0.4 adiciona um modo de duelo alternativo, com dois lados, turnos, fusoes por receitas explicitas, Guardian Stars, ataques e efeitos de entrada/destruicao. **O sandbox 0.3 continua acessivel**.
+
+Leia [Docs/PROTOTYPE_0_4.md](Docs/PROTOTYPE_0_4.md) antes de testar. Os dados oficiais, efeitos, campanha completa, IA original e receitas extraidas da ISO ainda nao estao incluidos. Nao contem ROM/ISO nem assets oficiais.
+
 # Forbidden Memories Reborn — Prototype 0.3 (interacao e eventos de cartas)
 
 Protótipo **não oficial** de um jogo de cartas 3D inspirado na experiência de duelos clássicos e na apresentação de arenas digitais modernas. Projeto novo, independente do DUELTRACE, sem assets e código extraídos dos jogos originais.
@@ -77,7 +85,7 @@ python tools/validate_import.py Assets/StreamingAssets/RebornContent/original_ex
 
 ## Referência visual
 
-`Docs/conceito-visual-arena.jpg` é a imagem conceitual aprovada na conversa. **Não é uma captura da Unity** nem arte final do jogo.
+`Docs/conceito-visual-arena.png` é a imagem conceitual aprovada na conversa. **Não é uma captura da Unity** nem arte final do jogo.
 
 ## Arquitetura
 
@@ -97,11 +105,11 @@ tools/              # Validador offline do export
 
 Este repositório **não contém** arte oficial, música, modelos, marcas ou ROMs de Konami/Yu-Gi-Oh!. O material temporário tem nomes fictícios e primitivas originais. Não distribuir como remake oficial nem comercializar conteúdo protegido sem licença. Nome de projeto provisório.
 
-## Repositorio GitHub
+## Repositorio GitHub separado
 
-O codigo deste prototipo foi publicado com autorizacao no repositorio **publico** `guibatoni/forbidden-memories-reborn`. O projeto nao inclui conteudo proprietario do jogo original. A publicacao do codigo nao concede licenca de redistribuicao dos direitos autorais de terceiros.
+O repositorio `guibatoni/forbidden-memories-reborn` existe, mas foi identificado como **publico** em 7/nov/2026. Caso deseje manter a criacao fechada, acesse GitHub `Settings > General > Danger Zone > Change repository visibility` e altere para **Private antes de publicar o projeto**.
 
-Para clonar o projeto:
+Com a visibilidade ajustada, voce pode clonar o repositorio para uma pasta vazia e copiar este projeto para dentro da pasta clonada (nao copiar `Library`, `Temp`, `.git` antigo nem arquivos ISO):
 
 ```bash
 git clone https://github.com/guibatoni/forbidden-memories-reborn.git
@@ -111,4 +119,4 @@ git commit -m "feat: prototype 0.3 card interactions and duel events"
 git push origin main
 ```
 
-Nao compartilhe tokens, secrets ou arquivos originais licenciados. **O fato de o repositorio ser publico nao significa que tenha uma licenca open source definida.**
+O ZIP desta entrega foi preparado localmente; **nada foi publicado automaticamente no repositório público**. Nao compartilhe tokens, secrets ou arquivos originais licenciados.

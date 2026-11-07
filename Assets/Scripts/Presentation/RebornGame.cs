@@ -32,6 +32,30 @@ namespace Reborn.Presentation
             hud.Initialize(session,arena,loaded ? imported : null,importStatus);
             var interaction = gameObject.AddComponent<ArenaInteraction>();
             interaction.Initialize(session,arena,hud);
+            DuelMatch CreateExperimentalMatch()
+            {
+                // Placeholder decks/recipes ONLY; never claim these are original opponents.
+                var opponentDeck = loaded ? DemoDeck.FromCatalog(imported.Cards) : DemoDeck.Create();
+                return new DuelMatch(deck,opponentDeck,
+                    loaded ? imported.Fusions : DemoDeck.CreateSampleFusions());
+            }
+            void BindMatch(DuelMatch duel)
+            {
+                hud.InitializeMatch(duel);
+                interaction.InitializeMatch(duel);
+                duel.EventEmitted += evt =>
+                {
+                    if (evt.Kind == MatchEventKind.Destroy && hud.AnimationsEnabled && hud.DuelModeActive)
+                        arena.PlayMatchDestruction(evt.Side,evt.Slot);
+                };
+            }
+            BindMatch(CreateExperimentalMatch());
+            hud.NewMatchRequested += () =>
+            {
+                var newDuel = CreateExperimentalMatch();
+                BindMatch(newDuel);
+                hud.ResetMatch(newDuel);
+            };
         }
     }
 }

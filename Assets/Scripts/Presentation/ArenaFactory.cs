@@ -206,6 +206,86 @@ namespace Reborn.Presentation
             }
         }
 
+        /// <summary>Render experimental duel without changing the approved camera.</summary>
+        public void RefreshMatch(DuelMatch match)
+        {
+            if (dynamicRoot == null || match == null) return;
+            HandViews.Clear();
+            foreach (Transform child in dynamicRoot)
+            {
+                child.gameObject.SetActive(false);
+                Object.Destroy(child.gameObject);
+            }
+            var hand = match.Player.Hand;
+            for (int i = 0; i < hand.Count; i++)
+            {
+                float x = (i - (hand.Count-1)*0.5f)*1.63f;
+                float z = -7.22f + Mathf.Abs(i - (hand.Count-1)*0.5f)*0.10f;
+                var view = MakeCard("Match_Hand_" + (i+1),hand[i],i,
+                    new Vector3(x,0.45f,z),new Vector3(1.32f,0.12f,1.64f));
+                HandViews.Add(view);
+            }
+            foreach (var side in new [] { DuelSide.Player, DuelSide.Opponent })
+            {
+                var state = match.Side(side);
+                float sign = side == DuelSide.Player ? -1f : 1f;
+                for (int i=0; i<5; i++)
+                {
+                    var monster = state.Monster(i);
+                    if (monster != null)
+                    {
+                        var placed = MakeCard(side+"_Monster_"+i,monster.Card,-1,
+                            new Vector3((i-2)*2.4f,0.39f,sign*2.0f),
+                            new Vector3(1.51f,0.12f,1.71f));
+                        if (monster.Position == BattlePosition.Defense)
+                            placed.transform.rotation = Quaternion.Euler(0f,90f,0f);
+                        if (side == DuelSide.Player && hasPendingPlace && pendingAnimate &&
+                            pendingLane == FieldLane.Monster && pendingSlot == i)
+                            placed.gameObject.AddComponent<CardMotion>().Play(pendingOrigin,placed.transform.position);
+                    }
+                    var support = state.Support(i);
+                    if (support != null)
+                    {
+                        var placed = MakeCard(side+"_Support_"+i,support,-1,
+                            new Vector3((i-2)*2.4f,0.39f,sign*4.35f),
+                            new Vector3(1.51f,0.12f,1.71f),side == DuelSide.Opponent);
+                        if (side == DuelSide.Player && hasPendingPlace && pendingAnimate &&
+                            pendingLane == FieldLane.Support && pendingSlot == i)
+                            placed.gameObject.AddComponent<CardMotion>().Play(pendingOrigin,placed.transform.position);
+                    }
+                }
+            }
+            hasPendingPlace = false;
+        }
+
+        /// <summary>Pure presentation: impact does not change duel state.</summary>
+        public void PlayMatchDestruction(DuelSide side, int slot)
+        {
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent != (side == DuelSide.Opponent) ||
+                    zone.Lane != FieldLane.Monster || zone.Index != slot) continue;
+                var fx = new GameObject("Combat_Destruction_Particles");
+                fx.transform.SetParent(root,false);
+                fx.transform.position = zone.transform.position + Vector3.up * 0.5f;
+                var particles = fx.AddComponent<ParticleSystem>();
+                var main = particles.main;
+                main.loop = false;
+                main.playOnAwake = false;
+                main.startLifetime = 0.55f;
+                main.startSpeed = 1.7f;
+                main.startSize = 0.15f;
+                main.maxParticles = 64;
+                main.startColor = side == DuelSide.Player ? ArenaVisuals.Cyan : ArenaVisuals.Red;
+                var emission = particles.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new [] { new ParticleSystem.Burst(0f,30) });
+                particles.Play();
+                Object.Destroy(fx,2f);
+                break;
+            }
+        }
+
         public void Refresh(DuelSession session)
         {
             if (dynamicRoot == null) return;
