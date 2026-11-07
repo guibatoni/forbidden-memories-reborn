@@ -1,0 +1,6 @@
+{
+  "name": "Reborn.Core",
+  "rootNamespace": "Reborn.Core",
+  "references": [],
+  "noEngineReferences": true
+}

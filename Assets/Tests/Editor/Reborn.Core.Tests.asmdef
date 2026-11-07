@@ -1,0 +1,13 @@
+{
+  "name": "Reborn.Core.Tests",
+  "rootNamespace": "Reborn.Tests",
+  "references": [
+    "Reborn.Core"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}

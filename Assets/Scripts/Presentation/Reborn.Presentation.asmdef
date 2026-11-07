@@ -1,0 +1,8 @@
+{
+  "name": "Reborn.Presentation",
+  "rootNamespace": "Reborn.Presentation",
+  "references": [
+    "Reborn.Core",
+    "Unity.InputSystem"
+  ]
+}

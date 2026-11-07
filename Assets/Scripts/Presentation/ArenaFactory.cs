@@ -1,0 +1,251 @@
+using System.Collections.Generic;
+using Reborn.Core;
+using UnityEngine;
+
+namespace Reborn.Presentation
+{
+    /// <summary>Cenario procedural e placeholders; nao depende de modelos licenciados.</summary>
+    public sealed class ArenaFactory
+    {
+        public Camera Camera { get; private set; }
+        public OrbitCamera Orbit { get; private set; }
+        public readonly List<ZoneView> Zones = new List<ZoneView>();
+        public readonly List<CardView> HandViews = new List<CardView>();
+        private readonly Transform root;
+        private Transform dynamicRoot;
+        private bool hasPendingPlace;
+        private FieldLane pendingLane;
+        private int pendingSlot;
+        private Vector3 pendingOrigin;
+        private bool pendingAnimate;
+        private readonly Material stone = ArenaVisuals.Mat(ArenaVisuals.Stone);
+        private readonly Material dark = ArenaVisuals.Mat(ArenaVisuals.Dark);
+        private readonly Material midnight = ArenaVisuals.Mat(ArenaVisuals.Midnight);
+        private readonly Material gold = ArenaVisuals.Mat(ArenaVisuals.Gold, true);
+        private readonly Material cyan = ArenaVisuals.Mat(ArenaVisuals.Cyan, true);
+        private readonly Material red = ArenaVisuals.Mat(ArenaVisuals.Red, true);
+        private readonly Material paper = ArenaVisuals.Mat(new Color(0.80f, 0.71f, 0.55f));
+        private readonly Material orange = ArenaVisuals.Mat(new Color(0.55f, 0.31f, 0.16f));
+        private readonly Material violet = ArenaVisuals.Mat(new Color(0.32f, 0.20f, 0.43f));
+        private readonly Material green = ArenaVisuals.Mat(new Color(0.13f, 0.38f, 0.35f));
+        private readonly Material back = ArenaVisuals.Mat(new Color(0.12f, 0.09f, 0.16f));
+
+        public ArenaFactory(Transform parent)
+        {
+            var arena = new GameObject("Arena3D_Generated");
+            arena.transform.SetParent(parent, false);
+            root = arena.transform;
+        }
+
+        public void Build()
+        {
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.39f, 0.38f, 0.44f);
+            ArenaVisuals.Cube("Temple_Base", root, new Vector3(0,-0.9f,0), new Vector3(20, 1.6f, 18), stone);
+            ArenaVisuals.Cube("Battle_Table", root, new Vector3(0,-0.05f,0), new Vector3(13.25f,0.34f,13.4f), midnight);
+            ArenaVisuals.Cube("Golden_Side_Left", root, new Vector3(-6.65f,0.20f,0), new Vector3(0.15f,0.25f,13.5f), gold);
+            ArenaVisuals.Cube("Golden_Side_Right", root, new Vector3(6.65f,0.20f,0), new Vector3(0.15f,0.25f,13.5f), gold);
+            ArenaVisuals.Cube("Golden_Center", root, new Vector3(0,0.18f,0.12f), new Vector3(12.8f,0.05f,0.06f), gold);
+            ArenaVisuals.Label("RE B O R N   |   A R E N A   0.1", root, new Vector3(0,0.22f,0), ArenaVisuals.Gold, 0.11f);
+            BuildTemple(); BuildZones(); BuildDecks(); BuildLightsAndCamera();
+            dynamicRoot = new GameObject("DynamicCards").transform;
+            dynamicRoot.SetParent(root, false);
+        }
+
+        private void BuildTemple()
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (int z = -6; z <= 6; z += 4)
+                {
+                    var x = side * 9.0f;
+                    ArenaVisuals.Cylinder("Sandstone_Column", root, new Vector3(x,2,z), new Vector3(0.85f,2.3f,0.85f), stone);
+                    ArenaVisuals.Cube("Capital_Gold", root, new Vector3(x,4.4f,z), new Vector3(2.1f,0.30f,2.1f), gold);
+                    ArenaVisuals.Cube("Column_Base", root, new Vector3(x,0.1f,z), new Vector3(2.1f,0.33f,2.1f), gold);
+                }
+                ArenaVisuals.Cylinder("Brazier", root, new Vector3(side * 8.35f,0.75f,-7.0f), new Vector3(0.68f,0.48f,0.68f), gold);
+            }
+            for (var level = 0; level < 4; level++)
+                ArenaVisuals.Cube("Pyramid_" + level, root, new Vector3(0,0.4f + level * 0.72f,10f),
+                    new Vector3(8f - level*1.8f,0.66f,4.6f - level*0.85f), stone);
+        }
+
+        private void BuildZones()
+        {
+            for (int side = 0; side < 2; side++)
+            {
+                bool opponent = side == 1;
+                float sign = opponent ? 1f : -1f;
+                for (int laneIndex = 0; laneIndex < 2; laneIndex++)
+                {
+                    var lane = laneIndex == 0 ? FieldLane.Monster : FieldLane.Support;
+                    float z = sign * (lane == FieldLane.Monster ? 2.0f : 4.35f);
+                    for (int i = 0; i < 5; i++)
+                    {
+                        float x = (i - 2) * 2.4f;
+                        var slot = ArenaVisuals.Cube($"{(opponent ? "Opponent" : "Player")}_{lane}_{i+1}",
+                            root,new Vector3(x,0.20f,z),new Vector3(1.88f,0.08f,2.1f), dark);
+                        var edges = new Renderer[4];
+                        edges[0] = ArenaVisuals.Cube("Trim_N",slot.transform,new Vector3(0,0.53f,0.49f),new Vector3(1.0f,0.14f,0.045f),gold).GetComponent<Renderer>();
+                        edges[1] = ArenaVisuals.Cube("Trim_S",slot.transform,new Vector3(0,0.53f,-0.49f),new Vector3(1.0f,0.14f,0.045f),gold).GetComponent<Renderer>();
+                        edges[2] = ArenaVisuals.Cube("Trim_L",slot.transform,new Vector3(-0.49f,0.53f,0),new Vector3(0.05f,0.14f,1.0f),gold).GetComponent<Renderer>();
+                        edges[3] = ArenaVisuals.Cube("Trim_R",slot.transform,new Vector3(0.49f,0.53f,0),new Vector3(0.05f,0.14f,1.0f),gold).GetComponent<Renderer>();
+                        var view = slot.AddComponent<ZoneView>();
+                        view.Initialize(lane,i,opponent,edges,gold,opponent ? red : cyan);
+                        Zones.Add(view);
+                    }
+                }
+            }
+        }
+
+        private void BuildDecks()
+        {
+            for (int side = 0; side < 2; side++)
+            {
+                float sign = side == 0 ? -1f : 1f;
+                for (int deck = 0; deck < 2; deck++)
+                {
+                    var x = deck == 0 ? -6.05f : 6.05f;
+                    var z = sign * 4.4f;
+                    ArenaVisuals.Cube(deck == 0 ? "Deck" : "Graveyard",root,
+                        new Vector3(x,0.3f,z),new Vector3(0.84f,0.20f,1.15f),deck == 0 ? back : stone);
+                    ArenaVisuals.Label(deck == 0 ? "DECK" : "GY",root,new Vector3(x,0.43f,z),
+                        new Color(1,0.85f,0.54f),0.09f);
+                }
+            }
+        }
+
+        private void BuildLightsAndCamera()
+        {
+            var lightObj = new GameObject("Moonlight"); lightObj.transform.SetParent(root,false);
+            var key = lightObj.AddComponent<Light>(); key.type = LightType.Directional;
+            key.intensity = 1.35f; key.color = new Color(0.63f,0.76f,1f);
+            lightObj.transform.rotation = Quaternion.Euler(43,-28,0);
+            foreach (float x in new [] {-8.35f,8.35f})
+            {
+                var torch = new GameObject("Torch_Light"); torch.transform.SetParent(root,false);
+                torch.transform.position = new Vector3(x,2.2f,-6.3f);
+                var point = torch.AddComponent<Light>(); point.type = LightType.Point;
+                point.range = 11f; point.intensity = 22f; point.color = new Color(1f,0.53f,0.22f);
+            }
+            var cameraObj = new GameObject("Main Camera"); cameraObj.tag = "MainCamera";
+            cameraObj.transform.SetParent(root,false);
+            Camera = cameraObj.AddComponent<Camera>();
+            Camera.clearFlags = CameraClearFlags.SolidColor;
+            Camera.backgroundColor = new Color(0.025f,0.04f,0.075f);
+            Camera.fieldOfView = 48f; Camera.nearClipPlane = 0.1f; Camera.farClipPlane = 120f;
+            Orbit = cameraObj.AddComponent<OrbitCamera>(); Orbit.ResetView();
+        }
+
+        private Material CardMaterial(CardDefinition card)
+        {
+            if (card == null) return back;
+            if (card.Kind == CardKind.Spell || card.Kind == CardKind.Equip || card.Kind == CardKind.Ritual) return green;
+            if (card.Kind == CardKind.Trap) return violet;
+            return orange;
+        }
+
+        private CardView MakeCard(string name, CardDefinition card, int handIndex, Vector3 pos,
+            Vector3 size, bool hidden = false)
+        {
+            var go = ArenaVisuals.Cube(name,dynamicRoot,pos,size,hidden ? back : CardMaterial(card));
+            var view = go.AddComponent<CardView>();
+            view.Initialize(card,handIndex,hidden ? back : CardMaterial(card),cyan);
+            ArenaVisuals.Cube("Art",go.transform,new Vector3(0,0.51f,0.08f),
+                new Vector3(0.83f,0.12f,0.51f),hidden ? midnight : paper);
+            if (!hidden && card != null)
+            {
+                ArenaVisuals.Label(card.Name,go.transform,new Vector3(0,0.63f,-0.3f),Color.black,0.055f);
+                if (card.Kind == CardKind.Monster)
+                    ArenaVisuals.Label($"{card.Attack} / {card.Defense}",go.transform,
+                        new Vector3(0,0.63f,-0.44f),Color.black,0.048f);
+            }
+            return view;
+        }
+
+        public void StagePlacement(FieldLane lane, int slot, Vector3 fromWorld, bool animate)
+        {
+            hasPendingPlace = true;
+            pendingLane = lane;
+            pendingSlot = slot;
+            pendingOrigin = fromWorld;
+            pendingAnimate = animate;
+        }
+
+        public void ClearStagedPlacement() { hasPendingPlace = false; }
+
+        /// <summary>Efeito demonstrativo. Remocao real so ocorrera quando existir motor de combate.</summary>
+        public void PlaySandboxRemoval(FieldLane lane, int index)
+        {
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent || zone.Lane != lane || zone.Index != index) continue;
+                var fx = new GameObject("SandboxRemoval_VFX");
+                fx.transform.SetParent(root, false);
+                fx.transform.position = zone.transform.position + Vector3.up * 0.5f;
+                var ps = fx.AddComponent<ParticleSystem>();
+                var main = ps.main;
+                main.loop = false;
+                main.playOnAwake = false;
+                main.duration = 0.65f;
+                main.startLifetime = 0.5f;
+                main.startSpeed = 1.8f;
+                main.startSize = 0.13f;
+                main.maxParticles = 50;
+                main.startColor = ArenaVisuals.Cyan;
+                var emission = ps.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new [] { new ParticleSystem.Burst(0f, 26) });
+                var shape = ps.shape;
+                shape.shapeType = ParticleSystemShapeType.Sphere;
+                shape.radius = 0.2f;
+                ps.GetComponent<ParticleSystemRenderer>().sharedMaterial = cyan;
+                ps.Play();
+                Object.Destroy(fx, 2.0f);
+                return;
+            }
+        }
+
+        public void Refresh(DuelSession session)
+        {
+            if (dynamicRoot == null) return;
+            HandViews.Clear();
+            foreach (Transform child in dynamicRoot)
+            {
+                // Inativa colliders imediatamente; Destroy() e postergado ate o fim do frame.
+                child.gameObject.SetActive(false);
+                Object.Destroy(child.gameObject);
+            }
+            for (int i = 0; i < session.Hand.Count; i++)
+            {
+                float x = (i - (session.Hand.Count-1)*0.5f)*1.63f;
+                float z = -7.22f + Mathf.Abs(i - (session.Hand.Count-1)*0.5f)*0.10f;
+                var view = MakeCard("Hand_"+(i+1),session.Hand[i],i,new Vector3(x,0.45f,z),
+                    new Vector3(1.32f,0.12f,1.64f));
+                HandViews.Add(view);
+            }
+            for (int i = 0; i < 5; i++)
+            {
+                foreach (var lane in new [] { FieldLane.Monster,FieldLane.Support })
+                {
+                    var card = session.At(lane,i);
+                    if (card == null) continue;
+                    float z = lane == FieldLane.Monster ? -2.0f : -4.35f;
+                    var placed = MakeCard($"Placed_{lane}_{i}",card,-1,
+                        new Vector3((i-2)*2.4f,0.39f,z),
+                        new Vector3(1.51f,0.12f,1.71f));
+                    if (hasPendingPlace && pendingAnimate && lane == pendingLane && i == pendingSlot)
+                    {
+                        Vector3 destination = placed.transform.position;
+                        placed.gameObject.AddComponent<CardMotion>().Play(pendingOrigin,destination);
+                    }
+                }
+            }
+            hasPendingPlace = false;
+            MakeCard("Opponent_Demo_1",null,-1,new Vector3(-2.4f,0.39f,2.0f),
+                new Vector3(1.51f,0.12f,1.71f),true);
+            MakeCard("Opponent_Demo_2",null,-1,new Vector3(2.4f,0.39f,2.0f),
+                new Vector3(1.51f,0.12f,1.71f),true);
+        }
+    }
+}
