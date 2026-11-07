@@ -128,3 +128,15 @@ git push origin main
 ```
 
 O ZIP desta entrega foi preparado localmente; **nada foi publicado automaticamente no repositório público**. Nao compartilhe tokens, secrets ou arquivos originais licenciados.
+
+
+## Prototype 0.4.2 — duelos observáveis (Unity)
+
+- A IA de demonstração agora atua em **etapas visíveis**: preparação, carta escolhida, invocação animada, fase de batalha, seleção do atacante, projétil de ataque, resolução do dano e encerramento do turno. O resultado é decidido por `DuelMatch`; `OpponentTurnDirector` só controla a sequência de apresentação.
+- **Ritmo IA** no HUD alterna **Detalhado** (padrão), **Normal** e **Rápido**. Mesmo com animações desligadas, as ações do adversário permanecem separadas.
+- Ataques do jogador também possuem projétil, rastro e impacto. Destruição visual ocorre depois do impacto em ataques do jogador, sem afetar o estado do motor.
+- Durante o turno adversário, interações do jogador ficam bloqueadas. Mudanças de ritmo e animações continuam disponíveis.
+- **Sem mudanças na câmera ou no limite de cinco monstros e cinco cartas de suporte por jogador.**
+- **Limitação:** estas são animações procedurais demonstrativas. A IA ainda é heurística, os decks não são os oponentes oficiais, e o sistema de efeitos de magias/armadilhas/equipamentos permanece pendente. Os resultados do motor são aplicados na resolução; replay/sincronização de animações ainda requer testes de integração no Unity.
+
+Como testar: instale a atualização 0.4.2, entre em **Duelo experimental**, coloque um monstro, clique em **Encerrar turno** e observe as mensagens e cada ação da IA. Para atacar, inicie o combate, escolha o atacante e o monstro alvo, ou use ataque direto quando não houver monstros no campo inimigo.

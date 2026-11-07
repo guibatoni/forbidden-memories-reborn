@@ -17,11 +17,27 @@ namespace Reborn.Presentation
         public bool UseDefense { get; private set; }
         public bool UseSecondaryStar { get; private set; }
         public int FusionCount { get; set; }
+        public bool OpponentBusy { get; private set; }
+        private int opponentPaceIndex; // 0 detalhado, 1 normal, 2 rapido
+        public float OpponentPace => opponentPaceIndex == 0 ? 1.4f :
+            (opponentPaceIndex == 1 ? 0.9f : 0.45f);
+        public string OpponentPaceLabel => opponentPaceIndex == 0 ? "Detalhado" :
+            (opponentPaceIndex == 1 ? "Normal" : "Rapido");
+        public void SetOpponentBusy(bool active) { OpponentBusy = active; }
+        public event Action OpponentTurnRequested;
         public event Action<bool> ModeChanged;
         private ArenaFactory arena;
         private CampaignRuntime story;
         private readonly Dictionary<int, OpponentDefinition> opponents = new Dictionary<int, OpponentDefinition>();
         private string importStatus = "";
+        private readonly List<string> recentActions = new List<string>(5);
+        public void Announce(string action)
+        {
+            Message = action ?? "";
+            if (string.IsNullOrEmpty(Message)) return;
+            recentActions.Add(Message);
+            while (recentActions.Count > 5) recentActions.RemoveAt(0);
+        }
         private bool showStory;
         private Vector2 storyScroll;
         private GUIStyle heading;
@@ -57,6 +73,8 @@ namespace Reborn.Presentation
         {
             if (match == null) return;
             DuelModeActive = active;
+            OpponentBusy = false;
+            recentActions.Clear();
             SelectedHandIndex = -1;
             SelectedAttacker = -1;
             FusionCount = 0;
@@ -69,6 +87,8 @@ namespace Reborn.Presentation
         public void ResetMatch(DuelMatch model)
         {
             match = model;
+            OpponentBusy = false;
+            recentActions.Clear();
             SelectedHandIndex = -1;
             SelectedAttacker = -1;
             FusionCount = 0;
@@ -79,7 +99,7 @@ namespace Reborn.Presentation
 
         public void TryDirectAttack()
         {
-            if (match == null || !DuelModeActive || SelectedAttacker < 0) return;
+            if (match == null || !DuelModeActive || OpponentBusy || SelectedAttacker < 0) return;
             if (match.TryAttack(DuelSide.Player,SelectedAttacker,-1,out var reason))
             {
                 Message = "Ataque direto declarado.";
@@ -92,7 +112,8 @@ namespace Reborn.Presentation
         {
             float x = pointer.x;
             float y = Screen.height - pointer.y;
-            return showStory || (x < 264f && y < 315f) || (x > Screen.width - 220f && y < 570f);
+            return showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
+                (x > Screen.width - 220f && y < 638f);
         }
 
         private GUIStyle Style(int size, Color color, FontStyle weight = FontStyle.Normal)
@@ -231,7 +252,16 @@ namespace Reborn.Presentation
                 finished ? "Partida finalizada. Use Novo duelo para recomecar." :
                 "Clique numa carta para selecionar. Shift+clique adiciona materiais na ordem.",small);
 
-            Panel(new Rect(right,12,196,549),new Color(0.015f,0.027f,0.06f,0.94f));
+            Panel(new Rect(12,330,251,205),new Color(0.015f,0.027f,0.06f,0.91f));
+            GUI.Label(new Rect(23,339,225,25),"REGISTRO DO DUELO",body);
+            int shown = Mathf.Min(4, recentActions.Count);
+            for (int i = 0; i < shown; i++)
+            {
+                int sourceIndex = recentActions.Count - shown + i;
+                GUI.Label(new Rect(23,371+i*39,227,39),
+                    (i+1) + ". " + recentActions[sourceIndex],small);
+            }
+            Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
             GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.4",heading);
             if (finished)
             {
@@ -252,6 +282,20 @@ namespace Reborn.Presentation
                 GUI.Label(new Rect(right+13,374,175,100),
                     "Os comandos de combate ficam bloqueados apos o fim da partida.",small);
             }
+            else if (OpponentBusy)
+            {
+                GUI.Label(new Rect(right+13,56,176,33),"Turno da IA em andamento",body);
+                GUI.Label(new Rect(right+13,102,174,98),
+                    "Acompanhe a invocacao, o atacante, o ataque e a passagem de turno, um por vez.",small);
+                if (GUI.Button(new Rect(right+12,227,170,39),
+                    "Ritmo IA: " + OpponentPaceLabel,button))
+                    opponentPaceIndex = (opponentPaceIndex+1)%3;
+                if (GUI.Button(new Rect(right+12,281,170,39),
+                    AnimationsEnabled ? "Animacoes: ON" : "Animacoes: OFF",button))
+                    AnimationsEnabled = !AnimationsEnabled;
+                GUI.Label(new Rect(right+13,347,174,125),
+                    "Comandos bloqueados durante a vez adversaria para evitar acoes simultaneas.",small);
+            }
             else
             {
                 GUI.Label(new Rect(right+13,52,175,28),
@@ -267,8 +311,14 @@ namespace Reborn.Presentation
                     else
                     {
                         AttackMode = false; SelectedAttacker = -1;
-                        SimpleOpponentAi.TakeTurn(match);
-                        Message = match.Phase == MatchPhase.Finished ? "Duelo encerrado." : "Oponente agiu. Seu turno.";
+                        if (match.Phase == MatchPhase.Finished)
+                            Message = "Duelo encerrado.";
+                        else
+                        {
+                            OpponentBusy = true;
+                            Message = "Turno adversario: preparando jogada...";
+                            OpponentTurnRequested?.Invoke();
+                        }
                     }
                 }
                 if (GUI.Button(new Rect(right+12,173,170,34),AttackMode ? "Ataque: ON" : "Selecionar ataque",button))
@@ -290,8 +340,11 @@ namespace Reborn.Presentation
                 if (GUI.Button(new Rect(right+12,419,170,34),
                     AnimationsEnabled ? "Animacoes: ON" : "Animacoes: OFF",button))
                     AnimationsEnabled = !AnimationsEnabled;
-                GUI.Label(new Rect(right+13,466,175,80),
-                    "Motor experimental. Efeitos de magia, armadilha, equip e ritual ainda nao ativados.",small);
+                if (GUI.Button(new Rect(right+12,465,170,34),
+                    "Ritmo IA: " + OpponentPaceLabel,button))
+                    opponentPaceIndex = (opponentPaceIndex+1)%3;
+                GUI.Label(new Rect(right+13,509,175,95),
+                    "Motor experimental. Magia, armadilha, equip e ritual ainda sem efeitos.",small);
             }
             float width = Mathf.Min(820f,Screen.width-550f);
             if (width > 280f)

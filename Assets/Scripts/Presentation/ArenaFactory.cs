@@ -15,6 +15,7 @@ namespace Reborn.Presentation
         private Transform dynamicRoot;
         private bool hasPendingPlace;
         private FieldLane pendingLane;
+        private DuelSide pendingSide = DuelSide.Player;
         private int pendingSlot;
         private Vector3 pendingOrigin;
         private bool pendingAnimate;
@@ -168,11 +169,44 @@ namespace Reborn.Presentation
 
         public void StagePlacement(FieldLane lane, int slot, Vector3 fromWorld, bool animate)
         {
+            StageMatchPlacement(DuelSide.Player, lane, slot, fromWorld, animate);
+        }
+
+        public void StageMatchPlacement(DuelSide side, FieldLane lane, int slot,
+            Vector3 fromWorld, bool animate)
+        {
             hasPendingPlace = true;
+            pendingSide = side;
             pendingLane = lane;
             pendingSlot = slot;
             pendingOrigin = fromWorld;
             pendingAnimate = animate;
+        }
+
+        /// <summary>Realce visual sem alterar as posicoes validas do campo.</summary>
+        public void HighlightAttacker(DuelSide side, int slot)
+        {
+            foreach (var zone in Zones)
+                if (zone.Lane == FieldLane.Monster &&
+                    zone.Opponent == (side == DuelSide.Opponent))
+                    zone.SetCombatTarget(zone.Index == slot);
+        }
+
+        /// <summary>Trajetoria de ataque: somente VFX, nunca altera regras nem camera.</summary>
+        public void PlayMatchAttack(DuelSide side, int attackerSlot, int targetSlot)
+        {
+            if (attackerSlot < 0 || attackerSlot >= DuelMatch.ZoneCount ||
+                targetSlot < -1 || targetSlot >= DuelMatch.ZoneCount) return;
+            float fromSign = side == DuelSide.Player ? -1f : 1f;
+            var start = new Vector3((attackerSlot-2)*2.4f,0.95f,fromSign*2f);
+            var end = targetSlot >= 0
+                ? new Vector3((targetSlot-2)*2.4f,0.85f,-fromSign*2f)
+                : new Vector3(0f,0.85f,-fromSign*6.2f);
+            var visual = new GameObject("Attack_" + side + "_" + attackerSlot);
+            visual.transform.SetParent(root, false);
+            var projectile = visual.AddComponent<AttackProjectile>();
+            projectile.Launch(root.TransformPoint(start),root.TransformPoint(end),
+                side == DuelSide.Player ? ArenaVisuals.Cyan : ArenaVisuals.Red);
         }
 
         public void ClearStagedPlacement() { hasPendingPlace = false; }
@@ -242,7 +276,7 @@ namespace Reborn.Presentation
                             new Vector3(1.51f,0.12f,1.71f));
                         if (monster.Position == BattlePosition.Defense)
                             placed.transform.rotation = Quaternion.Euler(0f,90f,0f);
-                        if (side == DuelSide.Player && hasPendingPlace && pendingAnimate &&
+                        if (side == pendingSide && hasPendingPlace && pendingAnimate &&
                             pendingLane == FieldLane.Monster && pendingSlot == i)
                             placed.gameObject.AddComponent<CardMotion>().Play(pendingOrigin,placed.transform.position);
                     }
@@ -252,7 +286,7 @@ namespace Reborn.Presentation
                         var placed = MakeCard(side+"_Support_"+i,support,-1,
                             new Vector3((i-2)*2.4f,0.39f,sign*4.35f),
                             new Vector3(1.51f,0.12f,1.71f),side == DuelSide.Opponent);
-                        if (side == DuelSide.Player && hasPendingPlace && pendingAnimate &&
+                        if (side == pendingSide && hasPendingPlace && pendingAnimate &&
                             pendingLane == FieldLane.Support && pendingSlot == i)
                             placed.gameObject.AddComponent<CardMotion>().Play(pendingOrigin,placed.transform.position);
                     }

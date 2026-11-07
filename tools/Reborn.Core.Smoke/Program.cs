@@ -54,6 +54,11 @@ internal static class Program
         Check(!m.TryAttack(DuelSide.Player,0,-1,out _),"one attack per monster per turn");
         End(m,DuelSide.Player);
         Check(m.CurrentSide==DuelSide.Opponent,"opponent turn");
+        Check(SimpleOpponentAi.TryChoosePlay(m,out int chosenHand,out int chosenSlot) &&
+            chosenHand >= 0 && chosenSlot >= 0,
+            "AI exposes a legal summon choice before executing it");
+        Check(!SimpleOpponentAi.TryChooseAttack(m,out _,out _),
+            "AI refuses attacks until the battle phase");
         SimpleOpponentAi.TakeTurn(m);
         Check(m.CurrentSide==DuelSide.Player,"AI returns turn");
         Check(GuardianStarRules.Bonus(GuardianStar.Mercury,GuardianStar.Sun)==500 &&
@@ -73,6 +78,22 @@ internal static class Program
         m3.TryAttack(DuelSide.Player,0,-1,out _);
         Check(m3.Phase==MatchPhase.Finished && m3.Winner==DuelSide.Player,
             "win by zero life");
+        var aiMatch = Match(M("player",1200,1000),M("opponent",1800,1000));
+        End(aiMatch,DuelSide.Player);
+        Check(SimpleOpponentAi.TryChoosePlay(aiMatch,out int aiHand,out int aiZone),
+            "AI can expose one playable monster without moving it");
+        Check(aiMatch.Opponent.Monster(aiZone) == null &&
+            aiMatch.TryPlay(DuelSide.Opponent,new [] {aiHand},FieldLane.Monster,aiZone,
+                BattlePosition.Attack,GuardianStar.None,out _),
+            "AI selection and actual placement are separate steps");
+        Battle(aiMatch,DuelSide.Opponent);
+        Check(SimpleOpponentAi.TryChooseAttack(aiMatch,out int fromSlot,out int toSlot) &&
+            toSlot == -1 && fromSlot == aiZone,
+            "AI can preview its direct attack before resolving it");
+        Check(aiMatch.Player.Life == 8000 &&
+            aiMatch.TryAttack(DuelSide.Opponent,fromSlot,toSlot,out _) &&
+            aiMatch.Player.Life == 6200,
+            "AI attack applies damage only when the engine is invoked");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }

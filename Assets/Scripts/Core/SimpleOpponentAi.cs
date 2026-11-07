@@ -1,49 +1,86 @@
 using System;
-using System.Collections.Generic;
 
 namespace Reborn.Core
 {
-    /// <summary>Deterministic baseline AI. Does not imitate official opponent logic.</summary>
+    /// <summary>
+    /// AI de demonstração, determinística. Fornece decisões individuais para que
+    /// o Unity apresente UMA ação de cada vez. Não representa a IA da ISO original.
+    /// </summary>
     public static class SimpleOpponentAi
     {
+        public static bool TryChoosePlay(DuelMatch match, out int handIndex, out int slot)
+        {
+            handIndex = -1;
+            slot = -1;
+            if (match == null) throw new ArgumentNullException(nameof(match));
+            if (match.Phase != MatchPhase.Main || match.CurrentSide != DuelSide.Opponent ||
+                match.PlayedThisTurn) return false;
+            var side = match.Opponent;
+            for (int i = 0; i < side.Hand.Count; i++)
+            {
+                if (side.Hand[i].Kind != CardKind.Monster) continue;
+                if (handIndex < 0 || side.Hand[i].Attack > side.Hand[handIndex].Attack)
+                    handIndex = i;
+            }
+            if (handIndex < 0) return false;
+            for (int i = 0; i < DuelMatch.ZoneCount; i++)
+                if (side.Monster(i) == null)
+                {
+                    slot = i;
+                    return true;
+                }
+            handIndex = -1;
+            return false;
+        }
+
+        public static bool TryChooseAttack(DuelMatch match, out int attackerSlot, out int targetSlot)
+        {
+            attackerSlot = -1;
+            targetSlot = -1;
+            if (match == null) throw new ArgumentNullException(nameof(match));
+            if (match.Phase != MatchPhase.Battle || match.CurrentSide != DuelSide.Opponent)
+                return false;
+            for (int slot = 0; slot < DuelMatch.ZoneCount; slot++)
+            {
+                var attacker = match.Opponent.Monster(slot);
+                if (attacker == null || attacker.Position != BattlePosition.Attack ||
+                    attacker.AttackedThisTurn) continue;
+                attackerSlot = slot;
+                int weakestPower = int.MaxValue;
+                for (int i = 0; i < DuelMatch.ZoneCount; i++)
+                {
+                    var foe = match.Player.Monster(i);
+                    if (foe == null) continue;
+                    int power = foe.Position == BattlePosition.Attack ?
+                        foe.Card.Attack : foe.Card.Defense;
+                    if (power < weakestPower)
+                    {
+                        weakestPower = power;
+                        targetSlot = i;
+                    }
+                }
+                return true; // target -1 significa ataque direto, somente se campo estiver vazio.
+            }
+            return false;
+        }
+
+        /// <summary>Execução imediata preservada para testes do núcleo e compatibilidade.</summary>
         public static void TakeTurn(DuelMatch match)
         {
             if (match == null) throw new ArgumentNullException(nameof(match));
             if (match.Phase == MatchPhase.Finished || match.CurrentSide != DuelSide.Opponent) return;
-            var rival = match.Opponent;
-            int bestIndex = -1;
-            for (int i = 0; i < rival.Hand.Count; i++)
-                if (rival.Hand[i].Kind == CardKind.Monster &&
-                    (bestIndex < 0 || rival.Hand[i].Attack > rival.Hand[bestIndex].Attack))
-                    bestIndex = i;
-            if (bestIndex >= 0)
-                for (int zone = 0; zone < DuelMatch.ZoneCount; zone++)
-                    if (rival.Monster(zone) == null)
-                    {
-                        var card = rival.Hand[bestIndex];
-                        match.TryPlay(DuelSide.Opponent, new [] { bestIndex }, FieldLane.Monster,
-                            zone, BattlePosition.Attack, card.StarA, out _);
-                        break;
-                    }
-            match.TryBeginBattle(DuelSide.Opponent, out _);
-            for (int zone = 0; zone < DuelMatch.ZoneCount; zone++)
+            if (TryChoosePlay(match, out int hand, out int slot))
             {
-                if (match.Phase == MatchPhase.Finished) break;
-                var monster = rival.Monster(zone);
-                if (monster == null || monster.Position == BattlePosition.Defense || monster.AttackedThisTurn)
-                    continue;
-                int target = -1;
-                int weakest = int.MaxValue;
-                for (int i = 0; i < DuelMatch.ZoneCount; i++)
-                {
-                    var foe = match.Player.Monster(i);
-                    if (foe != null)
-                    {
-                        int power = foe.Position == BattlePosition.Attack ? foe.Card.Attack : foe.Card.Defense;
-                        if (power < weakest) { target = i; weakest = power; }
-                    }
-                }
-                match.TryAttack(DuelSide.Opponent, zone, target, out _);
+                var card = match.Opponent.Hand[hand];
+                match.TryPlay(DuelSide.Opponent, new [] { hand }, FieldLane.Monster,
+                    slot, BattlePosition.Attack, card.StarA, out _);
+            }
+            if (match.Phase == MatchPhase.Main)
+                match.TryBeginBattle(DuelSide.Opponent, out _);
+            while (TryChooseAttack(match, out int from, out int target))
+            {
+                if (!match.TryAttack(DuelSide.Opponent, from, target, out _)) break;
+                if (match.Phase == MatchPhase.Finished) return;
             }
             if (match.Phase != MatchPhase.Finished)
                 match.TryEndTurn(DuelSide.Opponent, out _);

@@ -160,9 +160,10 @@ namespace Reborn.Presentation
         private void UpdateMatchInput()
         {
             if (match == null || arena.Camera == null) return;
-            if (match.Phase == MatchPhase.Finished)
+            if (match.Phase == MatchPhase.Finished || hud.OpponentBusy ||
+                match.CurrentSide != DuelSide.Player)
             {
-                // A tela final e somente leitura; evita arrastes e selecoes enganosas.
+                // Bloqueia cliques na vez da IA e na tela final.
                 if (hoveredCard != null) hoveredCard.SetHovered(false);
                 if (hoveredZone != null) hoveredZone.SetHighlight(false);
                 hoveredCard = null;

@@ -65,6 +65,64 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void AiPlanningDoesNotMutateStateAndRequiresOpponentTurn()
+        {
+            var match = new DuelMatch(Deck(Monster("mine",1200,900)),
+                Deck(Monster("weak",1300,900),Monster("strong",2600,2000)));
+            long count = match.Events.Count;
+            Assert.IsFalse(SimpleOpponentAi.TryChoosePlay(match,out _,out _));
+            Assert.AreEqual(count,match.Events.Count);
+            End(match,DuelSide.Player);
+            count = match.Events.Count;
+            Assert.IsTrue(SimpleOpponentAi.TryChoosePlay(match,out int hand,out int slot));
+            Assert.AreEqual("strong",match.Opponent.Hand[hand].Id);
+            Assert.AreEqual(0,slot);
+            Assert.AreEqual(count,match.Events.Count);
+            Assert.IsNull(match.Opponent.Monster(0));
+        }
+
+        [Test]
+        public void AiHasNoSummonWhenOpponentHandHasNoMonster()
+        {
+            var match = new DuelMatch(Deck(Monster("p",1000,900)),
+                Deck(Support("s1"),Support("s2"),Support("s3"),
+                    Support("s4"),Support("s5")));
+            End(match,DuelSide.Player);
+            Assert.IsFalse(SimpleOpponentAi.TryChoosePlay(match,out _,out _));
+            Assert.IsFalse(match.PlayedThisTurn);
+        }
+
+        [Test]
+        public void AiChoosesAttackerAndWeakestValidTargetWithoutMutation()
+        {
+            var match = Match(Monster("defender",1100,1000), Monster("attacker",1800,1200));
+            Play(match,DuelSide.Player,2);
+            End(match,DuelSide.Player);
+            Play(match,DuelSide.Opponent,4);
+            Begin(match,DuelSide.Opponent);
+            int oldLife = match.Player.Life;
+            Assert.IsTrue(SimpleOpponentAi.TryChooseAttack(match,out int attacker,out int target));
+            Assert.AreEqual(4,attacker);
+            Assert.AreEqual(2,target);
+            Assert.AreEqual(oldLife,match.Player.Life);
+            Assert.IsFalse(match.Opponent.Monster(4).AttackedThisTurn);
+            Assert.IsTrue(match.TryAttack(DuelSide.Opponent,attacker,target,out _));
+            Assert.IsFalse(SimpleOpponentAi.TryChooseAttack(match,out _,out _));
+        }
+
+        [Test]
+        public void AiSelectsDirectAttackOnlyWhenEnemyHasNoMonster()
+        {
+            var match = Match(Monster("p",1200,1000), Monster("o",1800,1000));
+            End(match,DuelSide.Player);
+            Play(match,DuelSide.Opponent,0);
+            Begin(match,DuelSide.Opponent);
+            Assert.IsTrue(SimpleOpponentAi.TryChooseAttack(match,out int from,out int to));
+            Assert.AreEqual(0,from);
+            Assert.AreEqual(-1,to);
+        }
+
+        [Test]
         public void StartsWithTwoDistinctHandsAndFixedField()
         {
             var match = Match(Monster("p",1500,1000), Monster("o",1300,900));
