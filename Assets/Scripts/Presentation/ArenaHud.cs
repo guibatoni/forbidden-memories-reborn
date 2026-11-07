@@ -207,15 +207,18 @@ namespace Reborn.Presentation
 
         private void DrawMatchHud()
         {
-            float right = Screen.width-208f;
+            float right = Screen.width - 208f;
+            bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
             GUI.Label(new Rect(23,17,222,33),"REBORN | 0.4",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
                 "   Cemiterio: " + match.Player.Graveyard.Count,small);
+            string phaseName = finished ? "Encerrado" :
+                (match.Phase == MatchPhase.Battle ? "Batalha" : "Principal");
             GUI.Label(new Rect(23,130,224,25),"Turno: " + match.Turn +
-                "   Fase: " + match.Phase,small);
+                "   Fase: " + phaseName,small);
             GUI.Label(new Rect(23,156,230,24),"Selecao fusao: " + FusionCount + "/5",small);
             if (SelectedHandIndex >= 0 && SelectedHandIndex < match.Player.Hand.Count)
             {
@@ -225,56 +228,80 @@ namespace Reborn.Presentation
                 GUI.Label(new Rect(23,249,227,50),card.Description,small);
             }
             else GUI.Label(new Rect(23,186,223,100),
+                finished ? "Partida finalizada. Use Novo duelo para recomecar." :
                 "Clique numa carta para selecionar. Shift+clique adiciona materiais na ordem.",small);
+
             Panel(new Rect(right,12,196,549),new Color(0.015f,0.027f,0.06f,0.94f));
             GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.4",heading);
-            GUI.Label(new Rect(right+13,52,175,28),
-                match.CurrentSide == DuelSide.Player ? "Seu turno" : "Turno da IA",small);
-            bool finished = match.Phase == MatchPhase.Finished;
             if (finished)
-                GUI.Label(new Rect(right+13,79,175,31),"Venceu: " + match.Winner,body);
-            if (GUI.Button(new Rect(right+12,91,170,34),"Iniciar combate",button) && !finished)
             {
-                if (!match.TryBeginBattle(DuelSide.Player,out var error)) Message = error;
-                else Message = "Selecione seu monstro e depois um alvo.";
+                GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
+                GUI.Label(new Rect(right+12,91,175,39),
+                    match.Winner == DuelSide.Player ? "VITORIA" : "DERROTA",heading);
+                GUI.Label(new Rect(right+13,142,175,25),
+                    "Seus LP: " + match.Player.Life,body);
+                GUI.Label(new Rect(right+13,168,175,25),
+                    "Oponente: " + match.Opponent.Life + " LP",small);
+                if (GUI.Button(new Rect(right+12,214,170,39),"Novo duelo",button))
+                    NewMatchRequested?.Invoke();
+                if (GUI.Button(new Rect(right+12,263,170,39),"Voltar ao Sandbox",button))
+                    SetDuelMode(false);
+                if (GUI.Button(new Rect(right+12,312,170,36),
+                    AnimationsEnabled ? "Animacoes: ON" : "Animacoes: OFF",button))
+                    AnimationsEnabled = !AnimationsEnabled;
+                GUI.Label(new Rect(right+13,374,175,100),
+                    "Os comandos de combate ficam bloqueados apos o fim da partida.",small);
             }
-            if (GUI.Button(new Rect(right+12,132,170,34),"Encerrar turno",button) && !finished)
+            else
             {
-                if (!match.TryEndTurn(DuelSide.Player,out var error)) Message = error;
-                else
+                GUI.Label(new Rect(right+13,52,175,28),
+                    match.CurrentSide == DuelSide.Player ? "Seu turno" : "Turno da IA",small);
+                if (GUI.Button(new Rect(right+12,91,170,34),"Iniciar combate",button))
                 {
-                    AttackMode = false; SelectedAttacker = -1;
-                    SimpleOpponentAi.TakeTurn(match);
-                    Message = match.Phase == MatchPhase.Finished ? "Duelo encerrado." : "Oponente agiu. Seu turno.";
+                    if (!match.TryBeginBattle(DuelSide.Player,out var error)) Message = error;
+                    else Message = "Selecione seu monstro e depois um alvo.";
                 }
+                if (GUI.Button(new Rect(right+12,132,170,34),"Encerrar turno",button))
+                {
+                    if (!match.TryEndTurn(DuelSide.Player,out var error)) Message = error;
+                    else
+                    {
+                        AttackMode = false; SelectedAttacker = -1;
+                        SimpleOpponentAi.TakeTurn(match);
+                        Message = match.Phase == MatchPhase.Finished ? "Duelo encerrado." : "Oponente agiu. Seu turno.";
+                    }
+                }
+                if (GUI.Button(new Rect(right+12,173,170,34),AttackMode ? "Ataque: ON" : "Selecionar ataque",button))
+                {
+                    AttackMode = !AttackMode; SelectedAttacker = -1;
+                }
+                if (GUI.Button(new Rect(right+12,214,170,34),"Atacar diretamente",button))
+                    TryDirectAttack();
+                if (GUI.Button(new Rect(right+12,255,170,34),
+                    UseDefense ? "Posicao: DEF" : "Posicao: ATK",button))
+                    UseDefense = !UseDefense;
+                if (GUI.Button(new Rect(right+12,296,170,34),
+                    UseSecondaryStar ? "Guardian: segunda" : "Guardian: primeira",button))
+                    UseSecondaryStar = !UseSecondaryStar;
+                if (GUI.Button(new Rect(right+12,337,170,34),"Novo duelo",button))
+                    NewMatchRequested?.Invoke();
+                if (GUI.Button(new Rect(right+12,378,170,34),"Voltar ao Sandbox",button))
+                    SetDuelMode(false);
+                if (GUI.Button(new Rect(right+12,419,170,34),
+                    AnimationsEnabled ? "Animacoes: ON" : "Animacoes: OFF",button))
+                    AnimationsEnabled = !AnimationsEnabled;
+                GUI.Label(new Rect(right+13,466,175,80),
+                    "Motor experimental. Efeitos de magia, armadilha, equip e ritual ainda nao ativados.",small);
             }
-            if (GUI.Button(new Rect(right+12,173,170,34),AttackMode ? "Ataque: ON" : "Selecionar ataque",button))
-            {
-                AttackMode = !AttackMode; SelectedAttacker = -1;
-            }
-            if (GUI.Button(new Rect(right+12,214,170,34),"Atacar diretamente",button))
-                TryDirectAttack();
-            if (GUI.Button(new Rect(right+12,255,170,34),
-                UseDefense ? "Posicao: DEF" : "Posicao: ATK",button))
-                UseDefense = !UseDefense;
-            if (GUI.Button(new Rect(right+12,296,170,34),
-                UseSecondaryStar ? "Guardian: segunda" : "Guardian: primeira",button))
-                UseSecondaryStar = !UseSecondaryStar;
-            if (GUI.Button(new Rect(right+12,337,170,34),"Novo duelo",button))
-                NewMatchRequested?.Invoke();
-            if (GUI.Button(new Rect(right+12,378,170,34),"Voltar ao Sandbox",button))
-                SetDuelMode(false);
-            if (GUI.Button(new Rect(right+12,419,170,34),
-                AnimationsEnabled ? "Animacoes: ON" : "Animacoes: OFF",button))
-                AnimationsEnabled = !AnimationsEnabled;
-            GUI.Label(new Rect(right+13,466,175,80),
-                "Motor experimental. Efeitos de magia, armadilha, equip e ritual ainda nao ativados.",small);
             float width = Mathf.Min(820f,Screen.width-550f);
             if (width > 280f)
             {
                 Panel(new Rect((Screen.width-width)/2f,Screen.height-62,width,50),
                     new Color(0.015f,0.027f,0.06f,0.88f));
-                GUI.Label(new Rect((Screen.width-width)/2f+12,Screen.height-56,width-24,39),Message,status);
+                string banner = finished ? (match.Winner == DuelSide.Player ?
+                    "Vitoria! Duelo encerrado. Inicie uma nova partida." :
+                    "Derrota. Duelo encerrado. Inicie uma nova partida.") : Message;
+                GUI.Label(new Rect((Screen.width-width)/2f+12,Screen.height-56,width-24,39),banner,status);
             }
         }
 

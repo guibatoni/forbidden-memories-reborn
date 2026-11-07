@@ -1,3 +1,11 @@
+# Forbidden Memories Reborn — Prototype 0.4.1
+
+Correcao de interface da versao 0.4: fim de duelo sem botoes sobrepostos, nomes compactos nas cartas, comandos bloqueados apos a partida e iluminacao mais equilibrada. **A camera aprovada permanece inalterada.**
+
+Veja [Docs/PROTOTYPE_0_4_1.md](Docs/PROTOTYPE_0_4_1.md). A revisao precisa ser validada no Unity Editor; os testes do GitHub Actions cobrem somente o motor C# independente do Unity.
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.4
 
 **Unity recomendado:** 6.3 LTS `6000.3.28f1` • **Plataforma:** Windows x64 • **Status:** motor experimental, nao jogo finalizado.

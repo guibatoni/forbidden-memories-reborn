@@ -160,6 +160,15 @@ namespace Reborn.Presentation
         private void UpdateMatchInput()
         {
             if (match == null || arena.Camera == null) return;
+            if (match.Phase == MatchPhase.Finished)
+            {
+                // A tela final e somente leitura; evita arrastes e selecoes enganosas.
+                if (hoveredCard != null) hoveredCard.SetHovered(false);
+                if (hoveredZone != null) hoveredZone.SetHighlight(false);
+                hoveredCard = null;
+                hoveredZone = null;
+                return;
+            }
             var mouse = Mouse.current;
             if (mouse == null) return;
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)

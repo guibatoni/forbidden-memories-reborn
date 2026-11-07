@@ -119,14 +119,14 @@ namespace Reborn.Presentation
         {
             var lightObj = new GameObject("Moonlight"); lightObj.transform.SetParent(root,false);
             var key = lightObj.AddComponent<Light>(); key.type = LightType.Directional;
-            key.intensity = 1.35f; key.color = new Color(0.63f,0.76f,1f);
+            key.intensity = 0.95f; key.color = new Color(0.63f,0.76f,1f);
             lightObj.transform.rotation = Quaternion.Euler(43,-28,0);
             foreach (float x in new [] {-8.35f,8.35f})
             {
                 var torch = new GameObject("Torch_Light"); torch.transform.SetParent(root,false);
                 torch.transform.position = new Vector3(x,2.2f,-6.3f);
                 var point = torch.AddComponent<Light>(); point.type = LightType.Point;
-                point.range = 11f; point.intensity = 22f; point.color = new Color(1f,0.53f,0.22f);
+                point.range = 9f; point.intensity = 3.5f; point.color = new Color(1f,0.53f,0.22f);
             }
             var cameraObj = new GameObject("Main Camera"); cameraObj.tag = "MainCamera";
             cameraObj.transform.SetParent(root,false);
@@ -155,10 +155,13 @@ namespace Reborn.Presentation
                 new Vector3(0.83f,0.12f,0.51f),hidden ? midnight : paper);
             if (!hidden && card != null)
             {
-                ArenaVisuals.Label(card.Name,go.transform,new Vector3(0,0.63f,-0.3f),Color.black,0.055f);
+                // Etiquetas compactas: nome completo, ID e descricao ficam no HUD lateral.
+                // Nomes longos no TextMesh ultrapassavam a largura das cartas em 16:9.
+                string shortName = card.Name.Length > 11 ? card.Name.Substring(0, 10) + "..." : card.Name;
+                ArenaVisuals.Label(shortName,go.transform,new Vector3(0,0.63f,-0.29f),Color.black,0.026f);
                 if (card.Kind == CardKind.Monster)
-                    ArenaVisuals.Label($"{card.Attack} / {card.Defense}",go.transform,
-                        new Vector3(0,0.63f,-0.44f),Color.black,0.048f);
+                    ArenaVisuals.Label($"{card.Attack}/{card.Defense}",go.transform,
+                        new Vector3(0,0.63f,-0.43f),Color.black,0.027f);
             }
             return view;
         }
