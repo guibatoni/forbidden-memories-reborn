@@ -221,6 +221,7 @@ namespace Reborn.Presentation
                 fx.transform.SetParent(root, false);
                 fx.transform.position = zone.transform.position + Vector3.up * 0.5f;
                 var ps = fx.AddComponent<ParticleSystem>();
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
                 var main = ps.main;
                 main.loop = false;
                 main.playOnAwake = false;
@@ -306,6 +307,7 @@ namespace Reborn.Presentation
                 fx.transform.SetParent(root,false);
                 fx.transform.position = zone.transform.position + Vector3.up * 0.5f;
                 var particles = fx.AddComponent<ParticleSystem>();
+                particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
                 var main = particles.main;
                 main.loop = false;
                 main.playOnAwake = false;

@@ -140,3 +140,8 @@ O ZIP desta entrega foi preparado localmente; **nada foi publicado automaticamen
 - **Limitação:** estas são animações procedurais demonstrativas. A IA ainda é heurística, os decks não são os oponentes oficiais, e o sistema de efeitos de magias/armadilhas/equipamentos permanece pendente. Os resultados do motor são aplicados na resolução; replay/sincronização de animações ainda requer testes de integração no Unity.
 
 Como testar: instale a atualização 0.4.2, entre em **Duelo experimental**, coloque um monstro, clique em **Encerrar turno** e observe as mensagens e cada ação da IA. Para atacar, inicie o combate, escolha o atacante e o monstro alvo, ou use ataque direto quando não houver monstros no campo inimigo.
+
+
+## Hotfix 0.4.2.1 — ParticleSystem
+
+O sistema de impacto agora interrompe a reproduçao automatica das particulas antes de configurar `duration`, evitando o erro repetitivo no Unity 6.3. O mesmo padrao foi aplicado aos efeitos de remocao e destruicao. **Não altera motor de regras, posições ou câmera.** Veja [Docs/PROTOTYPE_0_4_2_1.md](Docs/PROTOTYPE_0_4_2_1.md).

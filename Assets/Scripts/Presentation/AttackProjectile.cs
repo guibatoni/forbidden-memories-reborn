@@ -65,6 +65,9 @@ namespace Reborn.Presentation
             var fx = new GameObject("Attack_Impact");
             fx.transform.position = destination;
             var particles = fx.AddComponent<ParticleSystem>();
+            // A Unity inicia automaticamente o ParticleSystem quando ele e adicionado a um objeto ativo.
+            // Pare antes de configurar main.duration (Unity 6 impede a alteracao durante a reproducao).
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             var main = particles.main;
             main.playOnAwake = false;
             main.loop = false;
