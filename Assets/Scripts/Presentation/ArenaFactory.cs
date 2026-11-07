@@ -47,7 +47,7 @@ namespace Reborn.Presentation
             ArenaVisuals.Cube("Golden_Side_Left", root, new Vector3(-6.65f,0.20f,0), new Vector3(0.15f,0.25f,13.5f), gold);
             ArenaVisuals.Cube("Golden_Side_Right", root, new Vector3(6.65f,0.20f,0), new Vector3(0.15f,0.25f,13.5f), gold);
             ArenaVisuals.Cube("Golden_Center", root, new Vector3(0,0.18f,0.12f), new Vector3(12.8f,0.05f,0.06f), gold);
-            ArenaVisuals.Label("RE B O R N   |   A R E N A   0.5", root, new Vector3(0,0.22f,0), ArenaVisuals.Gold, 0.11f);
+            ArenaVisuals.Label("RE B O R N   |   A R E N A   0.6", root, new Vector3(0,0.22f,0), ArenaVisuals.Gold, 0.11f);
             BuildTemple(); BuildZones(); BuildDecks(); BuildLightsAndCamera();
             dynamicRoot = new GameObject("DynamicCards").transform;
             dynamicRoot.SetParent(root, false);
@@ -138,33 +138,10 @@ namespace Reborn.Presentation
             Orbit = cameraObj.AddComponent<OrbitCamera>(); Orbit.ResetView();
         }
 
-        private Material CardMaterial(CardDefinition card)
-        {
-            if (card == null) return back;
-            if (card.Kind == CardKind.Spell || card.Kind == CardKind.Equip || card.Kind == CardKind.Ritual) return green;
-            if (card.Kind == CardKind.Trap) return violet;
-            return orange;
-        }
-
         private CardView MakeCard(string name, CardDefinition card, int handIndex, Vector3 pos,
             Vector3 size, bool hidden = false)
         {
-            var go = ArenaVisuals.Cube(name,dynamicRoot,pos,size,hidden ? back : CardMaterial(card));
-            var view = go.AddComponent<CardView>();
-            view.Initialize(card,handIndex,hidden ? back : CardMaterial(card),cyan);
-            ArenaVisuals.Cube("Art",go.transform,new Vector3(0,0.51f,0.08f),
-                new Vector3(0.83f,0.12f,0.51f),hidden ? midnight : paper);
-            if (!hidden && card != null)
-            {
-                // Etiquetas compactas: nome completo, ID e descricao ficam no HUD lateral.
-                // Nomes longos no TextMesh ultrapassavam a largura das cartas em 16:9.
-                string shortName = card.Name.Length > 11 ? card.Name.Substring(0, 10) + "..." : card.Name;
-                ArenaVisuals.Label(shortName,go.transform,new Vector3(0,0.63f,-0.29f),Color.black,0.026f);
-                if (card.Kind == CardKind.Monster)
-                    ArenaVisuals.Label($"{card.Attack}/{card.Defense}",go.transform,
-                        new Vector3(0,0.63f,-0.43f),Color.black,0.027f);
-            }
-            return view;
+            return CardFaceBuilder.Create(name, dynamicRoot, card, handIndex, pos, size, hidden);
         }
 
         public void StagePlacement(FieldLane lane, int slot, Vector3 fromWorld, bool animate)

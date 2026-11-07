@@ -18,3 +18,6 @@ jobs:
 
       - name: Check presentation boundaries (static only)
         run: python3 tools/check_presentation_contracts.py
+
+      - name: Check 0.6 card visuals (static only)
+        run: python3 tools/check_card_visuals.py

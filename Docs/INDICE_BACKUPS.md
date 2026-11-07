@@ -15,3 +15,9 @@ Pasta persistente na Biblioteca do ChatGPT: **/Forbidden Memories Reborn/Backups
   - `2026-11-07_reborn-v0.5_backup-manifest.json`: hashes SHA-256 dos pacotes.
 
 A interface Unity so e considerada validada depois dos testes locais do editor.
+
+## Prototype 0.6 — 7/nov/2026
+- Cartas 2.5D reutilizáveis; preview de dados visíveis e arte local opcional.
+- Backup completo e atualização incremental em Biblioteca: `/Forbidden Memories Reborn/Backups/Prototype 0.6`.
+- A câmera e o motor de duelo permanecem como na versão 0.5.
+

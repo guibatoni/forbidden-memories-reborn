@@ -59,6 +59,7 @@ namespace Reborn.Presentation
         {
             if (!hud.DuelModeActive) return;
             hud.SelectedHandIndex = -1;
+            hud.HoveredCard = null;
             hud.SelectedAttacker = -1;
             fusionSelection.Clear();
             hud.FusionCount = 0;
@@ -90,6 +91,8 @@ namespace Reborn.Presentation
                 hoveredCard = card;
                 if (hoveredCard != null && hoveredCard.HandIndex >= 0)
                     hoveredCard.SetHovered(true);
+                hud.HoveredCard = hoveredCard != null && !hoveredCard.Facedown
+                    ? hoveredCard.Card : null;
             }
             if (hoveredZone != zone)
             {
@@ -168,6 +171,7 @@ namespace Reborn.Presentation
                 if (hoveredZone != null) hoveredZone.SetHighlight(false);
                 hoveredCard = null;
                 hoveredZone = null;
+                hud.HoveredCard = null;
                 return;
             }
             var mouse = Mouse.current;
@@ -191,6 +195,8 @@ namespace Reborn.Presentation
                 hoveredCard = card;
                 if (hoveredCard != null && hoveredCard.HandIndex >= 0)
                     hoveredCard.SetHovered(true);
+                hud.HoveredCard = hoveredCard != null && !hoveredCard.Facedown
+                    ? hoveredCard.Card : null;
             }
             if (mouse.leftButton.wasPressedThisFrame && !overHud)
             {

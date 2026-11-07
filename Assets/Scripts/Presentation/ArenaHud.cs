@@ -44,6 +44,8 @@ namespace Reborn.Presentation
         }
         private bool showStory;
         private Vector2 storyScroll;
+        public CardDefinition HoveredCard { get; set; }
+        public bool CardPreviewEnabled { get; private set; } = true;
         private GUIStyle heading;
         private GUIStyle body;
         private GUIStyle small;
@@ -81,10 +83,11 @@ namespace Reborn.Presentation
             PlayerAttackBusy = false;
             recentActions.Clear();
             SelectedHandIndex = -1;
+            HoveredCard = null;
             SelectedAttacker = -1;
             FusionCount = 0;
             AttackMode = false;
-            Message = active ? "MODO DUELO 0.5: motor experimental, cartas ficticias." :
+            Message = active ? "MODO DUELO 0.6: interface de cartas 2.5D, motor experimental." :
                 "Sandbox visual 0.3 restaurado.";
             ModeChanged?.Invoke(active);
         }
@@ -96,6 +99,7 @@ namespace Reborn.Presentation
             PlayerAttackBusy = false;
             recentActions.Clear();
             SelectedHandIndex = -1;
+            HoveredCard = null;
             SelectedAttacker = -1;
             FusionCount = 0;
             AttackMode = false;
@@ -167,10 +171,15 @@ namespace Reborn.Presentation
         {
             if (session == null) return;
             InitStyles();
-            if (DuelModeActive && match != null) { DrawMatchHud(); return; }
+            if (DuelModeActive && match != null)
+            {
+                DrawMatchHud();
+                DrawCardInspection();
+                return;
+            }
             float right = Screen.width - 208f;
             Panel(new Rect(12,12,251,279),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,220,32),"REBORN  |  0.3",heading);
+            GUI.Label(new Rect(23,17,220,32),"REBORN  |  0.6",heading);
             GUI.Label(new Rect(24,54,226,28),"Player LP: " + session.PlayerLife,body);
             GUI.Label(new Rect(24,81,226,28),"Oponente LP: " + session.OpponentLife,body);
             GUI.Label(new Rect(24,109,226,26),"Deck: " + session.DeckCount + "    Turno: " + session.Turn,small);
@@ -221,7 +230,7 @@ namespace Reborn.Presentation
                 SandboxRemovalMode ? "Remover teste: ON" : "Remover teste: OFF",button))
                 SandboxRemovalMode = !SandboxRemovalMode;
             GUI.Label(new Rect(right+13,425,175,32),"* Sandbox: sem motor real de duelos",small);
-            if (GUI.Button(new Rect(right+12,468,170,38),"Duelo experimental 0.5",button))
+            if (GUI.Button(new Rect(right+12,468,170,38),"Duelo experimental 0.6",button))
                 SetDuelMode(true);
 
             var width = Mathf.Min(850, Screen.width - 550);
@@ -236,6 +245,7 @@ namespace Reborn.Presentation
                 GUI.Label(new Rect(23,Screen.height-146,240,116),
                     "Clique em carta > clique em zona\nArraste carta ate a zona\nBotao direito: girar camera\nRoda do mouse: zoom\nTecla R: camera inicial\nESC: cancelar selecao",small);
             }
+            DrawCardInspection();
             if (showStory && story != null) DrawStory();
         }
 
@@ -244,7 +254,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.5",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.6",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -275,7 +285,7 @@ namespace Reborn.Presentation
                     (i+1) + ". " + recentActions[sourceIndex],small);
             }
             Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.5",heading);
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.6",heading);
             if (finished)
             {
                 GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
@@ -292,7 +302,10 @@ namespace Reborn.Presentation
                 if (GUI.Button(new Rect(right+12,312,170,36),
                     AnimationsEnabled ? "Animacoes: ON" : "Animacoes: OFF",button))
                     AnimationsEnabled = !AnimationsEnabled;
-                GUI.Label(new Rect(right+13,374,175,100),
+                if (GUI.Button(new Rect(right+12,359,170,34),
+                    CardPreviewEnabled ? "Cartas: detalhes ON" : "Cartas: detalhes OFF",button))
+                    CardPreviewEnabled = !CardPreviewEnabled;
+                GUI.Label(new Rect(right+13,409,175,85),
                     "Os comandos de combate ficam bloqueados apos o fim da partida.",small);
             }
             else if (PlayerAttackBusy)
@@ -365,8 +378,11 @@ namespace Reborn.Presentation
                 if (GUI.Button(new Rect(right+12,465,170,34),
                     "Ritmo IA: " + OpponentPaceLabel,button))
                     opponentPaceIndex = (opponentPaceIndex+1)%3;
-                GUI.Label(new Rect(right+13,509,175,95),
-                    "Motor experimental. Magia, armadilha, equip e ritual ainda sem efeitos.",small);
+                if (GUI.Button(new Rect(right+12,508,170,31),
+                    CardPreviewEnabled ? "Detalhes: ON" : "Detalhes: OFF",button))
+                    CardPreviewEnabled = !CardPreviewEnabled;
+                GUI.Label(new Rect(right+13,549,175,58),
+                    "Motor experimental. Efeitos de suporte pendentes.",small);
             }
             float width = Mathf.Min(820f,Screen.width-550f);
             if (width > 280f)
@@ -378,6 +394,55 @@ namespace Reborn.Presentation
                     "Derrota. Duelo encerrado. Inicie uma nova partida.") : Message;
                 GUI.Label(new Rect((Screen.width-width)/2f+12,Screen.height-56,width-24,39),banner,status);
             }
+        }
+
+        /// <summary>
+        /// A large readable 2D inspection overlay inside the already-reserved left HUD.
+        /// It never reveals an opponent facedown card and never changes duel state.
+        /// </summary>
+        private void DrawCardInspection()
+        {
+            if (!CardPreviewEnabled) return;
+            CardDefinition card = HoveredCard;
+            if (card == null && SelectedHandIndex >= 0)
+            {
+                if (DuelModeActive && match != null && SelectedHandIndex < match.Player.Hand.Count)
+                    card = match.Player.Hand[SelectedHandIndex];
+                else if (!DuelModeActive && session != null && SelectedHandIndex < session.Hand.Count)
+                    card = session.Hand[SelectedHandIndex];
+            }
+            if (card == null) return;
+            // The detail panel uses the existing left sidebar, not an additional
+            // overlay over the five monster/support zones.
+            float x = 12f, y = 12f, w = 251f;
+            float h = Mathf.Min(530f, Screen.height - 88f);
+            if (h < 310f) return;
+            Panel(new Rect(x,y,w,h),new Color(0.025f,0.037f,0.075f,0.98f));
+            Panel(new Rect(x+8,y+8,w-16,4),new Color(0.74f,0.57f,0.30f,1f));
+            var nameStyle = Style(16,Color.white,FontStyle.Bold);
+            GUI.Label(new Rect(x+13,y+17,w-26,44),card.Name,nameStyle);
+            GUI.Label(new Rect(x+13,y+58,w-26,23),"ID: " + card.Id + "  |  " +
+                CardFaceBuilder.KindLabel(card.Kind),small);
+            float artworkHeight = Mathf.Min(225f, h * 0.43f);
+            Panel(new Rect(x+12,y+85,w-24,artworkHeight+6f),
+                new Color(0.71f,0.54f,0.29f,1f));
+            GUI.DrawTexture(new Rect(x+15,y+88,w-30,artworkHeight),
+                CardArtCatalog.Get(card),ScaleMode.StretchToFill);
+            float ty = y+98f+artworkHeight;
+            if (card.Kind == CardKind.Monster)
+            {
+                GUI.Label(new Rect(x+13,ty,w-26,27),
+                    "ATK " + card.Attack + "   DEF " + card.Defense,body);
+                ty += 27f;
+                GUI.Label(new Rect(x+13,ty,w-26,24),
+                    "Guardian: " + card.StarA + " / " + card.StarB,small);
+                ty += 25f;
+            }
+            GUI.Label(new Rect(x+13,ty,w-26,20),"DESCRICAO",small);
+            ty += 23f;
+            GUI.Label(new Rect(x+13,ty,w-26,Mathf.Max(24f,y+h-ty-12f)),
+                string.IsNullOrEmpty(card.Description) ?
+                "Sem descricao importada." : card.Description,small);
         }
 
         public event Action NewMatchRequested;

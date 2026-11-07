@@ -7,7 +7,8 @@ namespace Reborn.Presentation
     {
         public int HandIndex { get; private set; } = -1;
         public CardDefinition Card { get; private set; }
-        private Renderer cardRenderer;
+        public bool Facedown { get; private set; }
+        private Renderer borderRenderer;
         private Material baseMaterial;
         private Material selectedMaterial;
         private Vector3 homeLocalPosition;
@@ -16,11 +17,13 @@ namespace Reborn.Presentation
         private bool hovered;
         private bool dragging;
 
-        public void Initialize(CardDefinition card, int handIndex, Material normal, Material highlighted)
+        public void Initialize(CardDefinition card, int handIndex, Renderer border,
+            Material normal, Material highlighted, bool facedown)
         {
             Card = card;
+            Facedown = facedown;
             HandIndex = handIndex;
-            cardRenderer = GetComponent<Renderer>();
+            borderRenderer = border;
             baseMaterial = normal;
             selectedMaterial = highlighted;
             homeLocalPosition = transform.localPosition;
@@ -31,8 +34,8 @@ namespace Reborn.Presentation
         public void SetSelected(bool value)
         {
             selected = value;
-            if (cardRenderer != null)
-                cardRenderer.sharedMaterial = selected ? selectedMaterial : baseMaterial;
+            if (borderRenderer != null)
+                borderRenderer.sharedMaterial = selected ? selectedMaterial : baseMaterial;
         }
 
         public void SetHovered(bool value) { hovered = value; }
@@ -48,7 +51,9 @@ namespace Reborn.Presentation
 
         private void Update()
         {
-            if (HandIndex < 0) return; // A animacao de cartas no campo pertence ao CardMotion.
+            // Field cards remain in their fixed slots. The hand floats and scales
+            // smoothly while keeping its collider attached to the card root.
+            if (HandIndex < 0) return;
             float factor = 1f - Mathf.Exp(-14f * Time.deltaTime);
             float raise = (hovered || selected) ? 0.28f : 0f;
             float scale = dragging ? 1.13f : ((hovered || selected) ? 1.09f : 1f);
