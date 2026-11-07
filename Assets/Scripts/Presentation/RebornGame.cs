@@ -24,8 +24,8 @@ namespace Reborn.Presentation
             GameContentBundle imported;
             string importStatus;
             bool loaded = OriginalContentLoader.TryLoad(out imported,out importStatus);
-            var deck = loaded ? DemoDeck.FromCatalog(imported.Cards) : DemoDeck.Create();
-            var session = new DuelSession(deck);
+            var cardPool = loaded ? DemoDeck.FromCatalog(imported.Cards) : DemoDeck.Create();
+            var session = new DuelSession(DeckRandomizer.ShuffleNewMatch(cardPool));
             var arena = new ArenaFactory(transform);
             arena.Build();
             var hud = gameObject.AddComponent<ArenaHud>();
@@ -35,8 +35,10 @@ namespace Reborn.Presentation
             DuelMatch CreateExperimentalMatch()
             {
                 // Placeholder decks/recipes ONLY; never claim these are original opponents.
-                var opponentDeck = loaded ? DemoDeck.FromCatalog(imported.Cards) : DemoDeck.Create();
-                return new DuelMatch(deck,opponentDeck,
+                var playerDeck = DeckRandomizer.ShuffleNewMatch(cardPool);
+                var opponentDeck = DeckRandomizer.ShuffleNewMatch(
+                    loaded ? DemoDeck.FromCatalog(imported.Cards) : DemoDeck.Create());
+                return new DuelMatch(playerDeck,opponentDeck,
                     loaded ? imported.Fusions : DemoDeck.CreateSampleFusions());
             }
             var opponentDirector = gameObject.AddComponent<OpponentTurnDirector>();

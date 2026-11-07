@@ -50,17 +50,20 @@ namespace Reborn.Presentation
             hud.Announce("Turno da IA: analisando as cartas...");
             yield return Pause(0.85f);
 
-            if (SimpleOpponentAi.TryChoosePlay(game, out int hand, out int zone))
+            if (StrategicOpponentAi.TryChoosePlacement(game, out var plan))
             {
-                var monster = game.Opponent.Hand[hand];
+                var monster = plan.Result;
+                int zone = plan.Slot;
                 hud.Announce("Oponente escolheu uma carta da mao.");
                 yield return Pause(0.90f);
                 // A carta sai visualmente do lado adversario e vai para a zona fixa.
                 arena.StageMatchPlacement(DuelSide.Opponent, FieldLane.Monster, zone,
                     new Vector3(0f, 0.46f, 6.9f), hud.AnimationsEnabled);
-                if (game.TryPlay(DuelSide.Opponent, new [] { hand }, FieldLane.Monster,
-                    zone, BattlePosition.Attack, monster.StarA, out var reason))
-                    hud.Announce("Oponente invocou " + monster.Name + " na zona " + (zone + 1) + ".");
+                if (game.TryPlay(DuelSide.Opponent, plan.HandIndices, FieldLane.Monster,
+                    zone, plan.Position, plan.Star, out var reason))
+                    hud.Announce("Oponente " + (plan.IsFusion ? "fundiu e invocou " : "invocou ") +
+                        monster.Name + " na zona " + (zone + 1) +
+                        " (" + plan.Position + ", " + plan.Star + ").");
                 else
                 {
                     arena.ClearStagedPlacement();
@@ -83,7 +86,7 @@ namespace Reborn.Presentation
             }
 
             while (game.Phase == MatchPhase.Battle &&
-                   SimpleOpponentAi.TryChooseAttack(game, out int attackerSlot, out int targetSlot))
+                   StrategicOpponentAi.TryChooseAttack(game, out int attackerSlot, out int targetSlot))
             {
                 var monster = game.Opponent.Monster(attackerSlot);
                 if (monster == null || !game.CanAttack(DuelSide.Opponent,attackerSlot,targetSlot,out _))

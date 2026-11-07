@@ -69,15 +69,14 @@ namespace Reborn.Core
         {
             if (match == null) throw new ArgumentNullException(nameof(match));
             if (match.Phase == MatchPhase.Finished || match.CurrentSide != DuelSide.Opponent) return;
-            if (TryChoosePlay(match, out int hand, out int slot))
+            if (StrategicOpponentAi.TryChoosePlacement(match, out var plan))
             {
-                var card = match.Opponent.Hand[hand];
-                match.TryPlay(DuelSide.Opponent, new [] { hand }, FieldLane.Monster,
-                    slot, BattlePosition.Attack, card.StarA, out _);
+                match.TryPlay(DuelSide.Opponent, plan.HandIndices, FieldLane.Monster,
+                    plan.Slot, plan.Position, plan.Star, out _);
             }
             if (match.Phase == MatchPhase.Main)
                 match.TryBeginBattle(DuelSide.Opponent, out _);
-            while (TryChooseAttack(match, out int from, out int target))
+            while (StrategicOpponentAi.TryChooseAttack(match, out int from, out int target))
             {
                 if (!match.TryAttack(DuelSide.Opponent, from, target, out _)) break;
                 if (match.Phase == MatchPhase.Finished) return;

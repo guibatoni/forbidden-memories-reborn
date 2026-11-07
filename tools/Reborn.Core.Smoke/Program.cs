@@ -101,6 +101,36 @@ internal static class Program
             aiMatch.TryAttack(DuelSide.Opponent,fromSlot,toSlot,out _) &&
             aiMatch.Player.Life == 6200,
             "AI attack applies damage only when the engine is invoked");
+
+        var standardDeck = DemoDeck.Create();
+        var shuffledA = DeckRandomizer.Shuffle(standardDeck, new Random(154));
+        var shuffledB = DeckRandomizer.Shuffle(standardDeck, new Random(154));
+        var shuffledC = DeckRandomizer.Shuffle(standardDeck, new Random(8472));
+        Check(shuffledA.Count == 40 && shuffledA.Select(x => x.Id).OrderBy(x => x)
+            .SequenceEqual(standardDeck.Select(x => x.Id).OrderBy(x => x)),
+            "shuffle preserves all 40 physical cards");
+        Check(shuffledA.Select(x => x.Id).SequenceEqual(shuffledB.Select(x => x.Id)),
+            "seeded shuffle is reproducible for diagnostics");
+        Check(!shuffledA.Select(x => x.Id).SequenceEqual(shuffledC.Select(x => x.Id)),
+            "different seeds yield different hands");
+        var cautious = Match(M("shield",2000,1400),M("weak",800,800));
+        Play(cautious,DuelSide.Player);
+        End(cautious,DuelSide.Player);
+        Check(StrategicOpponentAi.TryChoosePlacement(cautious, out var decision) &&
+            decision.HandIndices.Count >= 1 &&
+            cautious.Opponent.Monster(decision.Slot) == null,
+            "AI evaluates a legal placement without mutating the board");
+        Check(cautious.Opponent.Hand.Count == 5 &&
+            !StrategicOpponentAi.TryChooseAttack(cautious,out _,out _),
+            "AI does not attack in main phase or consume its hand during planning");
+        var wary = Match(M("strong",3500,3200),M("weak",500,500));
+        Play(wary,DuelSide.Player);
+        End(wary,DuelSide.Player);
+        Check(wary.TryPlay(DuelSide.Opponent, new[] {0}, FieldLane.Monster, 0,
+              BattlePosition.Attack, GuardianStar.None, out _) &&
+              wary.TryBeginBattle(DuelSide.Opponent,out _) &&
+              !StrategicOpponentAi.TryChooseAttack(wary,out _,out _),
+              "AI avoids suicidal trades against stronger defenders");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }
