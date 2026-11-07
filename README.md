@@ -37,3 +37,8 @@ Protótipo **não oficial**, desenvolvido no Unity 6.3 LTS para Windows, com jog
 Leia `Docs/PROTOTYPE_0_6.md`, `Docs/FIDELIDADE_AO_ORIGINAL.md` e `Docs/INDICE_BACKUPS.md` para detalhes e limitações.
 
 > Projeto de estudo e prototipagem. Distribuição comercial com propriedade intelectual de terceiros exige licença/autorização apropriada.
+
+
+## Prototype 0.7: strategic AI and private disc import
+
+See [Docs/PROTOTYPE_0_7.md](Docs/PROTOTYPE_0_7.md). Imported disc data and images are **never included in the public repository**. The local importer uses an external open-source parser from the user's checkout.

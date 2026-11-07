@@ -33,3 +33,10 @@ Assets/StreamingAssets/RebornContent/*.bin
 *.sub
 *.mdf
 *.mds
+
+# Disc-derived exports and local-only licensed art.
+PrivateExtracts/
+Assets/Resources/RebornCardArt/
+Assets/StreamingAssets/RebornContent/*.json
+*.bin
+*.raw

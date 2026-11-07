@@ -94,8 +94,10 @@ namespace Reborn.Presentation
                 var parsed = JsonUtility.FromJson<ExportFile>(File.ReadAllText(ExpectedPath));
                 if (parsed == null || parsed.schema != 1 || parsed.cards == null || parsed.cards.Length == 0)
                     throw new InvalidDataException("Schema 1 e lista de cartas sao obrigatorios");
-                if (parsed.source == null || !string.Equals(parsed.source.edition,"original-ps1",StringComparison.Ordinal))
-                    throw new InvalidDataException("Fonte precisa informar edition=original-ps1");
+                if (parsed.source == null || string.IsNullOrWhiteSpace(parsed.source.edition) ||
+                    !(parsed.source.edition == "original-ps1" ||
+                      parsed.source.edition.StartsWith("original-ps1-",StringComparison.Ordinal)))
+                    throw new InvalidDataException("Fonte precisa informar edition=original-ps1 ou perfil original-ps1-*");
                 var sha = parsed.source.discSha256 ?? "";
                 if (sha.Length > 0 && (sha.Length != 64 || !IsHex(sha)))
                     throw new InvalidDataException("discSha256 deve ser SHA-256 de 64 caracteres hexadecimais");
