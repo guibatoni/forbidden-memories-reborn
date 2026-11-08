@@ -28,6 +28,14 @@ namespace Reborn.Presentation
         public string OpponentPaceLabel => opponentPaceIndex == 0 ? "Detalhado" :
             (opponentPaceIndex == 1 ? "Normal" : "Rapido");
         public void SetOpponentBusy(bool active) { OpponentBusy = active; }
+        public event Action NextOpponentRequested;
+        public string OpponentSource { get; private set; } = "IA de teste";
+        public bool HasOpponentSelection { get; private set; }
+        public void SetOpponentSource(string name, bool hasAlternatives)
+        {
+            OpponentSource = string.IsNullOrWhiteSpace(name) ? "IA de teste" : name;
+            HasOpponentSelection = hasAlternatives;
+        }
         public event Action OpponentTurnRequested;
         public event Action<bool> ModeChanged;
         private ArenaFactory arena;
@@ -87,7 +95,7 @@ namespace Reborn.Presentation
             SelectedAttacker = -1;
             FusionCount = 0;
             AttackMode = false;
-            Message = active ? "MODO DUELO 0.7: interface de cartas 2.5D, motor experimental." :
+            Message = active ? "MODO DUELO 0.8: interface de cartas 2.5D, motor experimental." :
                 "Sandbox visual 0.3 restaurado.";
             ModeChanged?.Invoke(active);
         }
@@ -254,7 +262,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.7",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.8",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -285,7 +293,7 @@ namespace Reborn.Presentation
                     (i+1) + ". " + recentActions[sourceIndex],small);
             }
             Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.7",heading);
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.8",heading);
             if (finished)
             {
                 GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
@@ -307,6 +315,10 @@ namespace Reborn.Presentation
                     CardPreviewEnabled = !CardPreviewEnabled;
                 GUI.Label(new Rect(right+13,409,175,85),
                     "Os comandos de combate ficam bloqueados apos o fim da partida.",small);
+                GUI.Label(new Rect(right+13,500,175,39),"Oponente: " + OpponentSource,small);
+                if (HasOpponentSelection &&
+                    GUI.Button(new Rect(right+12,553,170,34),"Proximo oponente",button))
+                    NextOpponentRequested?.Invoke();
             }
             else if (PlayerAttackBusy)
             {
@@ -381,8 +393,10 @@ namespace Reborn.Presentation
                 if (GUI.Button(new Rect(right+12,508,170,31),
                     CardPreviewEnabled ? "Detalhes: ON" : "Detalhes: OFF",button))
                     CardPreviewEnabled = !CardPreviewEnabled;
-                GUI.Label(new Rect(right+13,549,175,58),
-                    "Motor experimental. Efeitos de suporte pendentes.",small);
+                GUI.Label(new Rect(right+13,547,175,28),"Oponente: " + OpponentSource,small);
+                if (HasOpponentSelection &&
+                    GUI.Button(new Rect(right+12,579,170,29),"Proximo oponente",button))
+                    NextOpponentRequested?.Invoke();
             }
             float width = Mathf.Min(820f,Screen.width-550f);
             if (width > 280f)

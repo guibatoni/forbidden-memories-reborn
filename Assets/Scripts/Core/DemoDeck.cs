@@ -25,6 +25,23 @@ namespace Reborn.Core
             return catalog;
         }
 
+
+        /// <summary>40 random unique cards for sandbox practice, NOT a retail starter deck.</summary>
+        public static IReadOnlyList<CardDefinition> RandomPracticeDeck(
+            IReadOnlyList<CardDefinition> catalog, System.Random random)
+        {
+            if (random == null) throw new System.ArgumentNullException(nameof(random));
+            if (catalog == null || catalog.Count < 40)
+                return DeckRandomizer.Shuffle(Create(), random);
+            var candidates = new List<CardDefinition>(catalog);
+            for (int i = candidates.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                var value = candidates[i]; candidates[i] = candidates[j]; candidates[j] = value;
+            }
+            return candidates.GetRange(0, 40);
+        }
+
         public static IReadOnlyList<CardDefinition> Create()
         {
             var samples = new[]
