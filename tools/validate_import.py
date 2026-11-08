@@ -17,8 +17,9 @@ def validate(data):
     if data.get('schema') != 1:
         errors.append('schema precisa ser 1')
     source = data.get('source') or {}
-    if source.get('edition') != 'original-ps1':
-        errors.append('source.edition precisa ser original-ps1')
+    edition = source.get('edition')
+    if not isinstance(edition, str) or not (edition == 'original-ps1' or edition.startswith('original-ps1-')):
+        errors.append('source.edition precisa ser original-ps1 ou original-ps1-*')
     sha = source.get('discSha256') or ''
     if sha and not re.fullmatch(r'[0-9a-fA-F]{64}', sha):
         errors.append('source.discSha256 invalido')

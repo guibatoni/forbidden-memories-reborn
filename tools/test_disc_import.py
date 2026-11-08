@@ -35,5 +35,20 @@ with tempfile.TemporaryDirectory() as base:
         else:
             raise AssertionError("Malformed pool accepted")
     print("PASS: normalized opponent weights and malformed pool rejection")
+
+    validator_file = Path(__file__).with_name("validate_import.py")
+    check_spec = importlib.util.spec_from_file_location("reborn_local_validation", validator_file)
+    check_module = importlib.util.module_from_spec(check_spec)
+    check_spec.loader.exec_module(check_module)
+    sample = {"schema": 1, "source": {"edition": "original-ps1-drop-x15",
+        "discSha256": "a" * 64}, "cards": [{"id": 1, "name": "TEST",
+        "kind": "Monster", "attack": 100, "defense": 100,
+        "guardianStarA": "", "guardianStarB": ""}]}
+    errors, _ = check_module.validate(sample)
+    assert not errors, errors
+    sample["source"]["edition"] = "unrelated"
+    errors, _ = check_module.validate(sample)
+    assert any("source.edition" in issue for issue in errors)
+    print("PASS: original-ps1-* editions validate without accepting unrelated discs")
     print("PASS: local parser discovery and SHA-256 helpers")
 print("NOTE: no disc extraction attempted by CI.")

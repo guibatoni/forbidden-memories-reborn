@@ -21,3 +21,9 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - Backup completo e atualização incremental em Biblioteca: `/Forbidden Memories Reborn/Backups/Prototype 0.6`.
 - A câmera e o motor de duelo permanecem como na versão 0.5.
 
+
+
+## Prototype 0.8 (GitHub backup)
+- Permanent backup branch: backup/prototype-0.8 (if created successfully).
+- CI clean-source artifact: Reborn-0.8-Clean-Source (90-day retention).
+- Contains source only. Private disc exports/artwork/ROMs are excluded.

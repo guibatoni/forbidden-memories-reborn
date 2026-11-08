@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.8
+
+Opponent pools from private local disc extraction, randomized 40-card practice decks, duelist selector and same-disc SHA validation. The camera, fixed five monster slots and five support slots are unchanged.
+
+The opponent pool and source art are never part of the public repository. Exact original AI, campaign and starter-pool rules are still in progress.
+
+See Docs/PROTOTYPE_0_8.md for the local import command and test steps.
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.6
 
 Protótipo **não oficial**, desenvolvido no Unity 6.3 LTS para Windows, com jogabilidade de duelo clássico e apresentação de cartas 2.5D inspirada na fluidez de jogos de cartas digitais modernos. Repositório independente do DUELTRACE.
