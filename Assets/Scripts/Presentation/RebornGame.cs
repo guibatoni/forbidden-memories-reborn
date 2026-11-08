@@ -32,6 +32,9 @@ namespace Reborn.Presentation
                     Debug.Log("REBORN: " + info);
                 else Debug.LogWarning("REBORN: " + info);
             }
+            var storage = new AdaptiveAiStorage();
+            var brain = new AdaptiveOpponentBrain(
+                new Random(Guid.NewGuid().GetHashCode()));
             int selectedPoolIndex = 0;
             var initialCards = loaded
                 ? DemoDeck.RandomPracticeDeck(imported.Cards, new Random(Guid.NewGuid().GetHashCode()))
@@ -46,17 +49,19 @@ namespace Reborn.Presentation
 
             DuelMatch CreateExperimentalMatch()
             {
-                // The player's 40-card practice deck is NOT the original starter pool.
                 var playerSource = loaded
                     ? DemoDeck.RandomPracticeDeck(imported.Cards, new Random(Guid.NewGuid().GetHashCode()))
                     : DemoDeck.Create();
                 var playerDeck = DeckRandomizer.ShuffleNewMatch(playerSource);
                 IReadOnlyList<CardDefinition> opponentDeck;
+                string identity;
                 if (pools != null)
                 {
                     var pool = pools.Pools[selectedPoolIndex];
                     opponentDeck = pool.Deal(imported.Cards, new Random(Guid.NewGuid().GetHashCode()));
                     hud.SetOpponentSource(pool.Name + " (#" + pool.Id + ")", pools.Pools.Count > 1);
+                    identity = imported.Edition + ":" +
+                        imported.SourceSha256.Substring(0, 8) + ":" + pool.Id;
                 }
                 else
                 {
@@ -64,14 +69,18 @@ namespace Reborn.Presentation
                         ? DemoDeck.RandomPracticeDeck(imported.Cards, new Random(Guid.NewGuid().GetHashCode()))
                         : DemoDeck.Create();
                     opponentDeck = DeckRandomizer.ShuffleNewMatch(source);
-                    hud.SetOpponentSource("IA demonstrativa", false);
+                    hud.SetOpponentSource("IA de treino", false);
+                    identity = loaded
+                        ? imported.Edition + ":sandbox" : "demo:training";
                 }
+                brain.StartDuel(storage.Get(identity));
+                hud.SetAiInsight(brain.TacticLabel, brain.State.duels);
                 return new DuelMatch(playerDeck, opponentDeck,
                     loaded ? imported.Fusions : DemoDeck.CreateSampleFusions());
             }
 
             var opponentDirector = gameObject.AddComponent<OpponentTurnDirector>();
-            opponentDirector.Initialize(arena, hud);
+            opponentDirector.Initialize(arena, hud, brain);
             var playerDirector = gameObject.AddComponent<PlayerAttackDirector>();
             playerDirector.Initialize(arena, hud);
             var feedback = gameObject.AddComponent<CombatFeedbackOverlay>();
@@ -86,22 +95,37 @@ namespace Reborn.Presentation
                 hud.InitializeMatch(duel);
                 interaction.InitializeMatch(duel);
                 feedback.Bind(duel);
+                // Capture the current brain state for this duel; don't mix opponents.
+                var profile = brain.State;
+                var tactic = brain.Tactic;
+                bool learned = false;
                 duel.EventEmitted += evt =>
                 {
+                    if (evt.Kind == MatchEventKind.Finished && !learned)
+                    {
+                        learned = true;
+                        if (ReferenceEquals(hud.Match, duel) &&
+                            ReferenceEquals(brain.State, profile) &&
+                            brain.Tactic == tactic && brain.RecordCompletedDuel(duel))
+                        {
+                            storage.Save();
+                            hud.SetAiInsight(brain.TacticLabel, profile.duels);
+                        }
+                    }
                     if (!hud.DuelModeActive || !hud.AnimationsEnabled || hud.Match != duel) return;
                     if (evt.Kind == MatchEventKind.Destroy)
                         arena.PlayMatchDestruction(evt.Side, evt.Slot);
                 };
             }
+
             void ResetDuel()
             {
                 opponentDirector.Cancel();
                 playerDirector.Cancel();
-                var duel = CreateExperimentalMatch();
-                BindMatch(duel);
-                hud.ResetMatch(duel);
+                var newMatch = CreateExperimentalMatch();
+                BindMatch(newMatch);
+                hud.ResetMatch(newMatch);
             }
-
             BindMatch(CreateExperimentalMatch());
             hud.NewMatchRequested += ResetDuel;
             hud.NextOpponentRequested += () =>

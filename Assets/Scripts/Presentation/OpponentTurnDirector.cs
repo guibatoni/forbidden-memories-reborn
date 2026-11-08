@@ -13,12 +13,15 @@ namespace Reborn.Presentation
         private DuelMatch match;
         private ArenaFactory arena;
         private ArenaHud hud;
+        private AdaptiveOpponentBrain brain;
         private Coroutine active;
 
-        public void Initialize(ArenaFactory factory, ArenaHud interfaceHud)
+        public void Initialize(ArenaFactory factory, ArenaHud interfaceHud,
+            AdaptiveOpponentBrain aiBrain)
         {
             arena = factory;
             hud = interfaceHud;
+            brain = aiBrain;
         }
 
         public void Cancel()
@@ -50,7 +53,7 @@ namespace Reborn.Presentation
             hud.Announce("Turno da IA: analisando as cartas...");
             yield return Pause(0.85f);
 
-            if (StrategicOpponentAi.TryChoosePlacement(game, out var plan))
+            if (brain != null && brain.TryChoosePlacement(game, out var plan))
             {
                 var monster = plan.Result;
                 int zone = plan.Slot;
@@ -86,7 +89,7 @@ namespace Reborn.Presentation
             }
 
             while (game.Phase == MatchPhase.Battle &&
-                   StrategicOpponentAi.TryChooseAttack(game, out int attackerSlot, out int targetSlot))
+                   brain != null && brain.TryChooseAttack(game, out int attackerSlot, out int targetSlot))
             {
                 var monster = game.Opponent.Monster(attackerSlot);
                 if (monster == null || !game.CanAttack(DuelSide.Opponent,attackerSlot,targetSlot,out _))
