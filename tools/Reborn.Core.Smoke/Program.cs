@@ -131,6 +131,32 @@ internal static class Program
               wary.TryBeginBattle(DuelSide.Opponent,out _) &&
               !StrategicOpponentAi.TryChooseAttack(wary,out _,out _),
               "AI avoids suicidal trades against stronger defenders");
+
+        var weights = new int[722];
+        for (int i = 0; i < 20; i++) weights[i] = i + 1;
+        var pool = new WeightedOpponentPool(7, "TEST_OPPONENT", "pool-7", weights);
+        var available = new List<CardDefinition>();
+        for (int i = 1; i <= 20; i++)
+            available.Add(M(i.ToString("000"), 1000 + i, 900));
+        var dealt1 = pool.Deal(available, new Random(42));
+        var dealt2 = pool.Deal(available, new Random(42));
+        var dealt3 = pool.Deal(available, new Random(79));
+        Check(dealt1.Count == 40 && dealt1.GroupBy(x => x.Id).All(x => x.Count() <= 3),
+            "opponent weighted deck has 40 cards, max three copies");
+        Check(dealt1.Select(x => x.Id).SequenceEqual(dealt2.Select(x => x.Id)),
+            "weighted opponent pool is reproducible with a diagnostic seed");
+        Check(!dealt1.Select(x => x.Id).SequenceEqual(dealt3.Select(x => x.Id)),
+            "different seeds generate different weighted decks");
+        Check(weights[0] == 1 && pool.WeightForCardId(1) == 1 &&
+            pool.WeightForCardId(722) == 0, "card ID to weight mapping is one-based");
+        Check(!dealt1.Any(x => x == null) && available.Count == 20,
+            "dealing does not change the source catalog");
+        var invalidWeights = new int[722];
+        invalidWeights[0] = 2048;
+        bool rejected = false;
+        try { new WeightedOpponentPool(0,"INVALID","invalid", invalidWeights); }
+        catch (ArgumentException) { rejected = true; }
+        Check(rejected, "incomplete weighted pool is rejected");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }

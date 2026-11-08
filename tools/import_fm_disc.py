@@ -42,6 +42,37 @@ def card_kind(card, gamedata) -> str:
     }.get(card.type, "Monster")
 
 
+
+
+def normalize_deck_weights(source):
+    """Map disc pool weights to exactly 722 card IDs (index 0 is card #1)."""
+    if isinstance(source, dict):
+        values = [0] * 722
+        for key, value in source.items():
+            try:
+                card_id = int(key)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Invalid deck pool card ID: " + str(key)) from exc
+            if card_id < 1 or card_id > 722:
+                raise ValueError("Deck pool card ID outside 1..722: " + str(key))
+            if type(value) is not int or value < 0:
+                raise ValueError("Invalid pool weight at card ID " + str(key))
+            values[card_id - 1] = value
+    elif isinstance(source, (list, tuple)):
+        if len(source) == 722:
+            values = list(source)
+        elif len(source) == 723 and source[0] == 0:
+            values = list(source[1:])
+        else:
+            raise ValueError("Deck pool array must have 722 weights")
+        if any(type(x) is not int or x < 0 for x in values):
+            raise ValueError("Invalid deck pool weight value")
+    else:
+        raise ValueError("Unknown deck pool format")
+    if sum(x > 0 for x in values) < 14:
+        raise ValueError("At least 14 weighted cards required for 40 draws capped at three")
+    return values
+
 def load_game(disc_path: Path, pc: Path):
     sys.path.insert(0, str(pc))
     from fm_editor import disc, gamedata
@@ -106,6 +137,14 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
     except (IndexError, struct.error):
         starter_pools = []
 
+    # Serializable Unity companion file. No disc-derived content is committed to Git.
+    deck_pools = []
+    for pool in pools:
+        deck_pools.append({
+            "id": pool["id"], "name": pool["name"], "deckKey": pool["deckKey"],
+            "weights": normalize_deck_weights(pool["deckWeights"]),
+        })
+    deck_file = {"schema": 1, "source": source, "deckPools": deck_pools}
     export_file = {"schema": 1, "source": source,
                    "cards": cards, "opponents": opponents, "story": None,
                    "fusions": fusions}
@@ -127,6 +166,8 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
     target.mkdir(parents=True, exist_ok=True)
     (target / "original_export.json").write_text(
         json.dumps(export_file, indent=2, ensure_ascii=False), encoding="utf-8")
+    (target / "opponent_decks.json").write_text(
+        json.dumps(deck_file, indent=2, ensure_ascii=False), encoding="utf-8")
     (private / "disc_tables.json").write_text(
         json.dumps(tables_file, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -170,10 +211,11 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
     report = {
         "source": source, "cards": len(cards), "fusions": len(fusions),
         "glitchFusionsExcluded": skipped_glitches, "duelists": len(opponents),
-        "starterPools": len(starter_pools), "artsImported": images,
+        "starterPools": len(starter_pools), "opponentDeckPools": len(deck_pools), "artsImported": images,
         "artSource": "disc-derived PNG; visual quality limited by PS1 originals",
         "tables": str(private / "disc_tables.json"),
         "unityJson": str(target / "original_export.json"),
+        "unityOpponentDecks": str(target / "opponent_decks.json"),
         "warnings": ["Story branches are not extracted by this tool",
                      "Opponent decks are weight pools, not fixed deck sequences",
                      "Effects and text need gameplay validation",

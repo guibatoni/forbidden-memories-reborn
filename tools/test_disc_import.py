@@ -21,5 +21,19 @@ with tempfile.TemporaryDirectory() as base:
     fake.write_bytes(b"hello binary")
     import hashlib
     assert module.sha256(fake) == hashlib.sha256(b"hello binary").hexdigest()
+
+    raw = {str(i): i for i in range(1, 21)}
+    normalized = module.normalize_deck_weights(raw)
+    assert len(normalized) == 722 and normalized[0] == 1 and normalized[19] == 20
+    assert module.normalize_deck_weights(list(normalized)) == normalized
+    assert module.normalize_deck_weights([0] + normalized) == normalized
+    for malformed in ({"0": 9, **raw}, {"800": 1, **raw}, {str(i): 1 for i in range(1, 10)}, [1] * 4):
+        try:
+            module.normalize_deck_weights(malformed)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Malformed pool accepted")
+    print("PASS: normalized opponent weights and malformed pool rejection")
     print("PASS: local parser discovery and SHA-256 helpers")
 print("NOTE: no disc extraction attempted by CI.")
