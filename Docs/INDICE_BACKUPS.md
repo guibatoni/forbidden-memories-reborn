@@ -27,3 +27,10 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - Permanent backup branch: backup/prototype-0.8 (if created successfully).
 - CI clean-source artifact: Reborn-0.8-Clean-Source (90-day retention).
 - Contains source only. Private disc exports/artwork/ROMs are excluded.
+
+
+## Prototype 0.9
+- GitHub recovery branch: backup/prototype-0.9.
+- GitHub Actions clean-source artifact: Reborn-0.9-Clean-Source (90-day retention).
+- ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.9.
+- AI learning file stays ONLY on the player's machine: Application.persistentDataPath/Reborn/adaptive-ai-v1.json.

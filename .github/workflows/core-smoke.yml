@@ -28,11 +28,14 @@ jobs:
           python3 tools/import_fm_disc.py --help > /dev/null
           python3 tools/test_disc_import.py
 
+      - name: Check adaptive AI wiring (static, not Unity compilation)
+        run: python3 tools/check_adaptive_ai.py
+
       - name: Archive clean Unity source (never ROMs or private content)
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.8-Clean-Source
+          name: Reborn-0.9-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |

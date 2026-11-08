@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.9
+
+**Offline adaptive rival AI:** five changing tactics, rewarded outcomes and a small persistent
+profile per opponent. The rules engine stays authoritative, and the camera is unchanged.
+
+See [Docs/PROTOTYPE_0_9.md](Docs/PROTOTYPE_0_9.md). The next milestone will evaluate
+deeper turn planning/self-play without needing a cloud LLM for gameplay.
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.8
 
 Opponent pools from private local disc extraction, randomized 40-card practice decks, duelist selector and same-disc SHA validation. The camera, fixed five monster slots and five support slots are unchanged.
