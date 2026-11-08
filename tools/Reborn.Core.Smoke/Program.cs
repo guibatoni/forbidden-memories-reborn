@@ -157,6 +157,70 @@ internal static class Program
         try { new WeightedOpponentPool(0,"INVALID","invalid", invalidWeights); }
         catch (ArgumentException) { rejected = true; }
         Check(rejected, "incomplete weighted pool is rejected");
+
+        var brainProfile = new AiLearningState("demo:opponent");
+        var brain = new AdaptiveOpponentBrain(new Random(2459));
+        brain.StartDuel(brainProfile);
+        var adaptiveMatch = Match(M("player",1500,1300),M("opponent",2600,1900));
+        Check(!brain.TryChoosePlacement(adaptiveMatch, out _),
+            "adaptive brain refuses placement outside opponent turn");
+        End(adaptiveMatch, DuelSide.Player);
+        int adaptiveEvents = adaptiveMatch.Events.Count;
+        Check(brain.TryChoosePlacement(adaptiveMatch, out var adaptivePlan) &&
+            adaptivePlan != null && adaptivePlan.Slot >= 0 && adaptivePlan.Slot < 5,
+            "adaptive brain finds legal placement");
+        Check(adaptiveMatch.Events.Count == adaptiveEvents &&
+            adaptiveMatch.Opponent.Monster(adaptivePlan.Slot) == null,
+            "adaptive planning does not mutate the duel");
+        Check(adaptiveMatch.CanPlay(DuelSide.Opponent, adaptivePlan.HandIndices,
+            FieldLane.Monster,adaptivePlan.Slot,adaptivePlan.Star,out _),
+            "adaptive placement is checked by the rules engine");
+        Check(adaptiveMatch.TryPlay(DuelSide.Opponent,adaptivePlan.HandIndices,
+            FieldLane.Monster,adaptivePlan.Slot,adaptivePlan.Position,
+            adaptivePlan.Star,out _),
+            "adaptive placement executes through normal duel actions");
+        Check(!brain.TryChooseAttack(adaptiveMatch,out _,out _),
+            "adaptive brain refuses combat outside battle phase");
+        Battle(adaptiveMatch,DuelSide.Opponent);
+        Check(brain.TryChooseAttack(adaptiveMatch,out var adaptiveFrom,out var adaptiveTo) &&
+            adaptiveMatch.CanAttack(DuelSide.Opponent,adaptiveFrom,adaptiveTo,out _),
+            "adaptive attack is legal and only reads game state");
+
+        var profileBefore = new AiLearningState("demo:untouched");
+        brain.StartDuel(profileBefore);
+        Check(!brain.RecordCompletedDuel(adaptiveMatch) &&
+            profileBefore.duels == 0, "unfinished matches do not train the profile");
+        var finishedForLearning = Match(M("winning-player",9000,8000),
+            M("losing-opponent",600,500));
+        Play(finishedForLearning,DuelSide.Player);
+        Battle(finishedForLearning,DuelSide.Player);
+        finishedForLearning.TryAttack(DuelSide.Player,0,-1,out _);
+        Check(finishedForLearning.Phase == MatchPhase.Finished &&
+            brain.RecordCompletedDuel(finishedForLearning) &&
+            profileBefore.duels == 1 && profileBefore.playerAttacks == 1,
+            "a completed duel updates the player's observed attack count");
+        Check(!brain.RecordCompletedDuel(finishedForLearning) &&
+            profileBefore.duels == 1, "the same duel never trains twice");
+        Check(profileBefore.wins == 0 && profileBefore.previousTactic >= 0 &&
+            profileBefore.tacticValues[profileBefore.previousTactic] < 0,
+            "a loss changes strategy preference without changing another profile");
+        var seenTactics = new HashSet<AiTactic>();
+        for (int i = 0; i < 50; i++)
+        {
+            brain.StartDuel(profileBefore);
+            seenTactics.Add(brain.Tactic);
+        }
+        Check(seenTactics.Count >= 3,
+            "adaptive opponent explores multiple strategies on repeated duels");
+        var malformed = new AiLearningState("demo:corrupted");
+        malformed.tacticValues = new[] { float.NaN };
+        malformed.duels = -20;
+        malformed.wins = 20;
+        malformed.Sanitize();
+        Check(malformed.tacticValues.Length == 5 && malformed.duels == 0 &&
+            malformed.wins == 0, "corrupted saved learning data is safely sanitized");
+        Check(brainProfile.duels == 0,
+            "learning profiles remain isolated per opponent");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }
