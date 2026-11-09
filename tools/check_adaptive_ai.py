@@ -12,7 +12,7 @@ ambiguous_random = []
 for file in presentation_files:
     contents = file.read_text(encoding="utf-8")
     if ("using System;" in contents and "using UnityEngine;" in contents and
-        re.search(r"(?<![\\w.])(?:new\\s+Random\\s*\\(|Random\\s*\\.)", contents)):
+        re.search(r"(?<![\w.])(?:new\s+Random\s*\(|Random\s*\.)", contents)):
         ambiguous_random.append(file.name)
 
 brain = source("Assets/Scripts/Core/AdaptiveOpponentBrain.cs")
