@@ -300,42 +300,43 @@ namespace Reborn.Core
             return true;
         }
 
+        /// <summary>
+        /// Read-only authoritative calculation for animation and diagnostics.
+        /// It performs the same eligibility checks as executing an attack,
+        /// without emitting events or consuming the attacker's action.
+        /// </summary>
+        public bool TryPreviewAttack(DuelSide side, int fromSlot, int targetSlot,
+            out CombatForecast forecast, out string reason)
+        {
+            forecast = null;
+            if (!CanAttack(side, fromSlot, targetSlot, out reason)) return false;
+            var own = Side(side);
+            var enemy = Side(Other(side));
+            forecast = new CombatForecast(own.Monster(fromSlot),
+                targetSlot < 0 ? null : enemy.Monster(targetSlot));
+            return true;
+        }
+
         public bool TryAttack(DuelSide side, int fromSlot, int targetSlot, out string reason)
         {
-            if (!CanAttack(side, fromSlot, targetSlot, out reason)) return false;
-            var owner = Side(side); var enemy = Side(Other(side));
-            var attacker = owner.Monster(fromSlot);
-            var defender = targetSlot == -1 ? null : enemy.Monster(targetSlot);
+            if (!TryPreviewAttack(side, fromSlot, targetSlot, out var forecast, out reason))
+                return false;
+            var attacker = Side(side).Monster(fromSlot);
             attacker.AttackedThisTurn = true;
-            Emit(MatchEventKind.Attack, side, attacker.Card.Id, FieldLane.Monster, fromSlot, targetSlot);
-            if (defender == null)
-            {
-                Damage(Other(side), attacker.Card.Attack);
-            }
-            else
-            {
-                int attackerPower = attacker.Card.Attack + GuardianStarRules.Bonus(attacker.Star, defender.Star);
-                int defenderPower = (defender.Position == BattlePosition.Attack
-                    ? defender.Card.Attack : defender.Card.Defense)
-                    + GuardianStarRules.Bonus(defender.Star, attacker.Star);
-                if (attackerPower > defenderPower)
-                {
-                    DestroyMonster(Other(side), targetSlot);
-                    if (defender.Position == BattlePosition.Attack)
-                        Damage(Other(side), attackerPower - defenderPower);
-                }
-                else if (attackerPower < defenderPower)
-                {
-                    if (defender.Position == BattlePosition.Attack)
-                        DestroyMonster(side, fromSlot);
-                    Damage(side, defenderPower - attackerPower);
-                }
-                else if (defender.Position == BattlePosition.Attack)
-                {
-                    DestroyMonster(side, fromSlot);
-                    DestroyMonster(Other(side), targetSlot);
-                }
-            }
+            Emit(MatchEventKind.Attack, side, attacker.Card.Id,
+                FieldLane.Monster, fromSlot, targetSlot);
+
+            // Execute the same resolution calculated by TryPreviewAttack.
+            // In particular, 1800 DEF + 500 winning Guardian Star = 2300 DEF;
+            // a 2100 ATK monster cannot destroy that defender.
+            if (forecast.DefenderDestroyed)
+                DestroyMonster(Other(side), targetSlot);
+            if (forecast.AttackerDestroyed)
+                DestroyMonster(side, fromSlot);
+            if (forecast.DamageToDefender > 0)
+                Damage(Other(side), forecast.DamageToDefender);
+            if (forecast.DamageToAttacker > 0)
+                Damage(side, forecast.DamageToAttacker);
             SignalChanged();
             return true;
         }
