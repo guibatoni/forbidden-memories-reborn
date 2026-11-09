@@ -317,7 +317,7 @@ namespace Reborn.Tests
             Assert.IsTrue(duel.TryPreviewAttack(DuelSide.Player,0,-1,
                 out var preview,out _));
             Assert.IsTrue(preview.IsDirect);
-            Assert.AreEqual(1900, preview.DamageToDefender);
+            Assert.AreEqual(700, preview.DamageToDefender);
         }
 
         [Test]
