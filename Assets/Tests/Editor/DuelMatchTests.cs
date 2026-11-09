@@ -343,6 +343,69 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void Attack2100DestroysDefense1800WithoutGuardianBonus()
+        {
+            var match = WithOpponentOnField(
+                Monster("p",2100,1200), Monster("o",500,1800),
+                BattlePosition.Defense);
+            Begin(match,DuelSide.Player);
+            var eventsBefore = match.Events.Count;
+            Assert.IsTrue(match.TryPreviewAttack(DuelSide.Player,0,0,
+                out var forecast,out var reason),reason);
+            Assert.AreEqual(2100,forecast.EffectiveAttack);
+            Assert.AreEqual(1800,forecast.EffectiveDefense);
+            Assert.IsTrue(forecast.DefenderDestroyed);
+            Assert.AreEqual(0,forecast.DamageToDefender);
+            Assert.AreEqual(eventsBefore,match.Events.Count);
+            Assert.IsNotNull(match.Opponent.Monster(0));
+            Assert.IsFalse(match.Player.Monster(0).AttackedThisTurn);
+            Assert.IsTrue(match.TryAttack(DuelSide.Player,0,0,out reason),reason);
+            Assert.IsNull(match.Opponent.Monster(0));
+            Assert.AreEqual(8000,match.Opponent.Life);
+            Assert.AreEqual(1,match.Opponent.Graveyard.Count);
+        }
+
+        [Test]
+        public void GuardianBonusCanMake1800DefenseResist2100Attack()
+        {
+            var match = WithOpponentOnField(
+                Monster("p",2100,1200,GuardianStar.Sun),
+                Monster("o",500,1800,GuardianStar.Mercury),
+                BattlePosition.Defense, GuardianStar.Sun, GuardianStar.Mercury);
+            Begin(match,DuelSide.Player);
+            Assert.IsTrue(match.TryPreviewAttack(DuelSide.Player,0,0,
+                out var preview,out var reason),reason);
+            Assert.AreEqual(2100,preview.AttackerBase);
+            Assert.AreEqual(1800,preview.DefenderBase);
+            Assert.AreEqual(0,preview.AttackerGuardianBonus);
+            Assert.AreEqual(500,preview.DefenderGuardianBonus);
+            Assert.AreEqual(2300,preview.EffectiveDefense);
+            Assert.IsFalse(preview.DefenderDestroyed);
+            Assert.AreEqual(200,preview.DamageToAttacker);
+            Assert.IsTrue(match.TryAttack(DuelSide.Player,0,0,out reason),reason);
+            Assert.IsNotNull(match.Opponent.Monster(0));
+            Assert.IsNotNull(match.Player.Monster(0));
+            Assert.AreEqual(7800,match.Player.Life);
+        }
+
+        [Test]
+        public void PreviewRejectsIllegalAttacksWithoutMutatingState()
+        {
+            var match = Match(Monster("p",2100,1200),Monster("o",500,1800));
+            Assert.IsFalse(match.TryPreviewAttack(DuelSide.Player,0,-1,
+                out var preview,out _));
+            Assert.IsNull(preview);
+            Play(match,DuelSide.Player);
+            Begin(match,DuelSide.Player);
+            Assert.IsTrue(match.TryPreviewAttack(DuelSide.Player,0,-1,
+                out preview,out _));
+            Assert.IsTrue(preview.IsDirect);
+            Assert.AreEqual(2100,preview.DamageToDefender);
+            Assert.AreEqual(8000,match.Opponent.Life);
+            Assert.IsFalse(match.Player.Monster(0).AttackedThisTurn);
+        }
+
+        [Test]
         public void DefenseWithHigherPointsDamagesAttackerButDoesNotDestroyIt()
         {
             var match = WithOpponentOnField(Monster("p",1500,1000),

@@ -221,6 +221,66 @@ internal static class Program
             malformed.wins == 0, "corrupted saved learning data is safely sanitized");
         Check(brainProfile.duels == 0,
             "learning profiles remain isolated per opponent");
+
+        var defenseNormal = Match(M("atk2100",2100,1200),M("def1800",500,1800));
+        Play(defenseNormal,DuelSide.Player);
+        End(defenseNormal,DuelSide.Player);
+        Check(defenseNormal.TryPlay(DuelSide.Opponent,new[] {0},FieldLane.Monster,0,
+            BattlePosition.Defense,GuardianStar.None,out _),
+            "defender can enter defense mode before 2100 vs 1800 combat");
+        End(defenseNormal,DuelSide.Opponent);
+        Battle(defenseNormal,DuelSide.Player);
+        long normalEvents = defenseNormal.Events.Count;
+        Check(defenseNormal.TryPreviewAttack(DuelSide.Player,0,0,out var normalForecast,out _) &&
+            normalForecast.EffectiveAttack == 2100 &&
+            normalForecast.EffectiveDefense == 1800 &&
+            normalForecast.DefenderDestroyed && normalForecast.DamageToDefender == 0,
+            "2100 ATK destroys 1800 DEF without Guardian advantage");
+        Check(defenseNormal.Events.Count == normalEvents &&
+            defenseNormal.Opponent.Monster(0) != null &&
+            !defenseNormal.Player.Monster(0).AttackedThisTurn,
+            "combat preview is strictly read-only");
+        Check(defenseNormal.TryAttack(DuelSide.Player,0,0,out _) &&
+            defenseNormal.Opponent.Monster(0) == null &&
+            defenseNormal.Opponent.Graveyard.Count == 1 &&
+            defenseNormal.Opponent.Life == 8000,
+            "defense monster destruction creates graveyard event without LP damage");
+
+        var defenseGuardian = Match(M("atkSun",2100,1200,GuardianStar.Sun),
+            M("defMercury",500,1800,GuardianStar.Mercury));
+        Play(defenseGuardian,DuelSide.Player,GuardianStar.Sun);
+        End(defenseGuardian,DuelSide.Player);
+        Check(defenseGuardian.TryPlay(DuelSide.Opponent,new[] {0},FieldLane.Monster,0,
+            BattlePosition.Defense,GuardianStar.Mercury,out _),
+            "Guardian defender can enter defense mode");
+        End(defenseGuardian,DuelSide.Opponent);
+        Battle(defenseGuardian,DuelSide.Player);
+        Check(defenseGuardian.TryPreviewAttack(DuelSide.Player,0,0,
+            out var boostedDefense,out _) &&
+            boostedDefense.DefenderBase == 1800 &&
+            boostedDefense.DefenderGuardianBonus == 500 &&
+            boostedDefense.EffectiveDefense == 2300 &&
+            !boostedDefense.DefenderDestroyed &&
+            boostedDefense.DamageToAttacker == 200,
+            "defender Guardian Star adds 500 to defense against 2100 ATK");
+        Check(defenseGuardian.TryAttack(DuelSide.Player,0,0,out _) &&
+            defenseGuardian.Opponent.Monster(0) != null &&
+            defenseGuardian.Player.Monster(0) != null &&
+            defenseGuardian.Player.Life == 7800,
+            "2100 attack versus 2300 effective DEF does not destroy defender");
+
+        var equalDef = Match(M("equalAtk",2100,1000),M("equalDef",300,2100));
+        Play(equalDef,DuelSide.Player);
+        End(equalDef,DuelSide.Player);
+        equalDef.TryPlay(DuelSide.Opponent,new[] {0},FieldLane.Monster,0,
+            BattlePosition.Defense,GuardianStar.None,out _);
+        End(equalDef,DuelSide.Opponent);
+        Battle(equalDef,DuelSide.Player);
+        Check(equalDef.TryPreviewAttack(DuelSide.Player,0,0,
+            out var equalForecast,out _) &&
+            !equalForecast.DefenderDestroyed &&
+            equalForecast.DamageToAttacker == 0,
+            "equal ATK versus DEF does not destroy or cause LP damage");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }
