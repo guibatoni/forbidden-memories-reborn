@@ -186,52 +186,84 @@ namespace Reborn.Core
             }
         }
 
+        /// <summary>
+        /// Chooses only legal attacks using the authoritative duel forecast,
+        /// rather than reimplementing Guardian Star math. Does not alter state.
+        /// Tactics affect preference and tie-breaking, not legality.
+        /// </summary>
         public bool TryChooseAttack(DuelMatch match, out int fromSlot, out int targetSlot)
         {
-            fromSlot = -1; targetSlot = -1;
+            fromSlot = -1;
+            targetSlot = -1;
             if (State == null || match == null ||
                 match.CurrentSide != DuelSide.Opponent || match.Phase != MatchPhase.Battle)
                 return false;
-            int best = int.MinValue;
-            for (int i = 0; i < DuelMatch.ZoneCount; i++)
+
+            int bestScore = int.MinValue;
+            for (int attackerSlot = 0; attackerSlot < DuelMatch.ZoneCount; attackerSlot++)
             {
-                var attacker = match.Opponent.Monster(i);
+                var attacker = match.Opponent.Monster(attackerSlot);
                 if (attacker == null || attacker.AttackedThisTurn ||
                     attacker.Position != BattlePosition.Attack) continue;
+
                 if (match.Player.MonsterCount == 0)
                 {
-                    if (!match.CanAttack(DuelSide.Opponent, i, -1, out _)) continue;
-                    int score = attacker.Card.Attack + random.Next(0, 61);
-                    if (attacker.Card.Attack >= match.Player.Life) score += 100000;
-                    if (score > best) { best = score; fromSlot = i; targetSlot = -1; }
+                    if (!match.TryPreviewAttack(DuelSide.Opponent, attackerSlot, -1,
+                        out var direct, out _)) continue;
+                    int directScore = 1100 + direct.DamageToDefender * 3;
+                    if (direct.DamageToDefender >= match.Player.Life) directScore += 100000;
+                    directScore += random.Next(0, 61);
+                    if (directScore > bestScore)
+                    {
+                        bestScore = directScore;
+                        fromSlot = attackerSlot;
+                        targetSlot = -1;
+                    }
                     continue;
                 }
-                for (int j = 0; j < DuelMatch.ZoneCount; j++)
+
+                for (int target = 0; target < DuelMatch.ZoneCount; target++)
                 {
-                    var defender = match.Player.Monster(j);
-                    if (defender == null ||
-                        !match.CanAttack(DuelSide.Opponent, i, j, out _)) continue;
-                    int attack = attacker.Card.Attack +
-                        GuardianStarRules.Bonus(attacker.Star, defender.Star);
-                    int defense = (defender.Position == BattlePosition.Attack
-                        ? defender.Card.Attack : defender.Card.Defense) +
-                        GuardianStarRules.Bonus(defender.Star, attacker.Star);
-                    if (attack < defense) continue; // never choose known self-destruction
-                    bool trade = attack == defense &&
-                        defender.Position == BattlePosition.Attack;
-                    if (attack == defense && !trade) continue;
-                    // Avoid wasting a stronger monster on a weak equal-value trade.
-                    if (trade && attacker.Card.Attack > defender.Card.Attack + 100) continue;
-                    int damage = defender.Position == BattlePosition.Attack
-                        ? Math.Max(0, attack - defense) : 0;
-                    int score = 900 + defender.Card.Attack / 3 + damage * 2;
-                    if (trade) score = Tactic == AiTactic.Aggressive ? 160 : 75;
-                    if (Tactic == AiTactic.Aggressive) score += damage * 2;
-                    if (Tactic == AiTactic.Counterplay) score += defender.Card.Attack / 2;
-                    if (Tactic == AiTactic.Defensive && trade) score -= 100;
-                    if (damage >= match.Player.Life) score += 100000;
+                    if (!match.TryPreviewAttack(DuelSide.Opponent, attackerSlot, target,
+                        out var forecast, out _)) continue;
+
+                    // Defending targets can cause LP backlash even when the
+                    // attacking monster survives. Don't attack a losing defense
+                    // or a tie that cannot destroy any monster.
+                    if (forecast.DamageToAttacker > 0) continue;
+                    if (!forecast.DefenderDestroyed) continue;
+
+                    int score;
+                    if (forecast.AttackerDestroyed)
+                    {
+                        // Equal ATK trade: only worth it when the opponent's
+                        // monster is sufficiently valuable.
+                        if (forecast.DefenderCard.Attack <= attacker.Card.Attack + 200)
+                            continue;
+                        score = 120 + forecast.DefenderCard.Attack / 3;
+                        if (Tactic == AiTactic.Defensive) score -= 125;
+                        if (Tactic == AiTactic.Aggressive) score += 65;
+                    }
+                    else
+                    {
+                        score = 950 + forecast.DefenderCard.Attack / 3 +
+                            forecast.DamageToDefender * 2;
+                        if (Tactic == AiTactic.Aggressive)
+                            score += forecast.DamageToDefender * 2;
+                        if (Tactic == AiTactic.Counterplay)
+                            score += forecast.DefenderCard.Attack / 2;
+                        if (Tactic == AiTactic.Defensive)
+                            score += (attacker.Card.Defense / 8);
+                    }
+                    if (forecast.DamageToDefender >= match.Player.Life)
+                        score += 100000;
                     score += random.Next(0, 91);
-                    if (score > best) { best = score; fromSlot = i; targetSlot = j; }
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        fromSlot = attackerSlot;
+                        targetSlot = target;
+                    }
                 }
             }
             return fromSlot >= 0;

@@ -294,7 +294,9 @@ namespace Reborn.Core
                 return Reject(out reason, "Monstro em defesa nao pode atacar");
             if (attacker.AttackedThisTurn) return Reject(out reason, "Monstro ja atacou neste turno");
             var defender = targetSlot == -1 ? null : enemy.Monster(targetSlot);
-            if (defender == null && enemy.MonsterCount != 0)
+            if (targetSlot >= 0 && defender == null)
+                return Reject(out reason, "Alvo vazio; use ataque direto quando o campo estiver livre");
+            if (targetSlot == -1 && enemy.MonsterCount != 0)
                 return Reject(out reason, "Ataque direto bloqueado por monstros");
             reason = "";
             return true;
