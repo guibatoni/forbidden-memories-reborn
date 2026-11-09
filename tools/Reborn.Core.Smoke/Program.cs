@@ -281,6 +281,66 @@ internal static class Program
             !equalForecast.DefenderDestroyed &&
             equalForecast.DamageToAttacker == 0,
             "equal ATK versus DEF does not destroy or cause LP damage");
+        var guardedDefender = Match(
+            M("mercuryDef",600,1800,GuardianStar.Mercury),
+            M("sunAttack",2100,900,GuardianStar.Sun));
+        Check(guardedDefender.TryPlay(DuelSide.Player,new[]{0},
+            FieldLane.Monster,0,BattlePosition.Defense,
+            GuardianStar.Mercury,out _),
+            "Guardian defender can be placed in defense");
+        End(guardedDefender,DuelSide.Player);
+        Check(guardedDefender.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Monster,0,BattlePosition.Attack,
+            GuardianStar.Sun,out _),
+            "adaptive attacker can be summoned");
+        Battle(guardedDefender,DuelSide.Opponent);
+        var tactical = new AdaptiveOpponentBrain(new Random(400));
+        tactical.StartDuel(new AiLearningState("tactical-guardian"));
+        long guardEvents = guardedDefender.Events.Count;
+        Check(guardedDefender.TryPreviewAttack(DuelSide.Opponent,0,0,
+            out var badCombat,out _) &&
+            badCombat.DefenderGuardianBonus == 500 &&
+            badCombat.DamageToAttacker == 200,
+            "Guardian 500 makes 2100 ATK lose LP against 1800 DEF");
+        Check(!tactical.TryChooseAttack(guardedDefender,out _,out _) &&
+            guardedDefender.Events.Count == guardEvents &&
+            !guardedDefender.Opponent.Monster(0).AttackedThisTurn,
+            "adaptive AI refuses losing defense, without mutating state");
+
+        var favorableDefender = Match(
+            M("moonDef",600,1800,GuardianStar.Moon),
+            M("sunAttack",2100,900,GuardianStar.Sun));
+        favorableDefender.TryPlay(DuelSide.Player,new[]{0},
+            FieldLane.Monster,0,BattlePosition.Defense,GuardianStar.Moon,out _);
+        End(favorableDefender,DuelSide.Player);
+        favorableDefender.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Monster,0,BattlePosition.Attack,GuardianStar.Sun,out _);
+        Battle(favorableDefender,DuelSide.Opponent);
+        Check(favorableDefender.TryPreviewAttack(DuelSide.Opponent,0,0,
+            out var goodCombat,out _) &&
+            goodCombat.EffectiveAttack == 2600 &&
+            goodCombat.DefenderDestroyed,
+            "Guardian 500 advantage raises 2100 ATK to 2600");
+        Check(tactical.TryChooseAttack(favorableDefender,out int tacticalAttacker,
+            out int tacticalTarget) && tacticalAttacker == 0 && tacticalTarget == 0,
+            "adaptive AI chooses a legal winning attack against defense");
+        Check(favorableDefender.TryAttack(DuelSide.Opponent,tacticalAttacker,
+            tacticalTarget,out _) &&
+            favorableDefender.Player.Monster(0) == null,
+            "shared forecast agrees with actual combat destruction");
+
+        var targetSafety = Match(M("p",900,900),M("o",1400,900));
+        End(targetSafety,DuelSide.Player);
+        targetSafety.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Monster,0,
+            BattlePosition.Attack,GuardianStar.None,out _);
+        Battle(targetSafety,DuelSide.Opponent);
+        Check(!targetSafety.CanAttack(DuelSide.Opponent,0,3,out _) &&
+            !targetSafety.TryPreviewAttack(DuelSide.Opponent,0,3,out _,out _),
+            "clicking an empty zone cannot turn into a direct attack");
+        Check(targetSafety.TryPreviewAttack(DuelSide.Opponent,0,-1,
+            out var allowedDirect,out _) && allowedDirect.IsDirect,
+            "explicit direct attack is legal only on an empty opposing board");
+
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }

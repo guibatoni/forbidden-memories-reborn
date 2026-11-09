@@ -276,6 +276,51 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void TacticalAiSkipsLosingGuardianDefenseAndChoosesWinningBattle()
+        {
+            var losing = Match(
+                Monster("p",600,1800,GuardianStar.Mercury),
+                Monster("o",2100,900,GuardianStar.Sun));
+            Play(losing,DuelSide.Player,0,BattlePosition.Defense,GuardianStar.Mercury);
+            End(losing,DuelSide.Player);
+            Play(losing,DuelSide.Opponent,0,BattlePosition.Attack,GuardianStar.Sun);
+            Begin(losing,DuelSide.Opponent);
+            var brain = new AdaptiveOpponentBrain(new Random(8));
+            brain.StartDuel(new AiLearningState("learn:merc-def"));
+            var previousEvents = losing.Events.Count;
+            Assert.IsFalse(brain.TryChooseAttack(losing,out _,out _));
+            Assert.AreEqual(previousEvents,losing.Events.Count);
+            Assert.IsFalse(losing.Opponent.Monster(0).AttackedThisTurn);
+
+            var winning = Match(
+                Monster("p",600,1800,GuardianStar.Moon),
+                Monster("o",2100,900,GuardianStar.Sun));
+            Play(winning,DuelSide.Player,0,BattlePosition.Defense,GuardianStar.Moon);
+            End(winning,DuelSide.Player);
+            Play(winning,DuelSide.Opponent,0,BattlePosition.Attack,GuardianStar.Sun);
+            Begin(winning,DuelSide.Opponent);
+            Assert.IsTrue(brain.TryChooseAttack(winning,out var source,out var target));
+            Assert.AreEqual(0,source);
+            Assert.AreEqual(0,target);
+            Assert.IsTrue(winning.TryAttack(DuelSide.Opponent,source,target,out _));
+            Assert.IsNull(winning.Player.Monster(0));
+        }
+
+        [Test]
+        public void EmptyTargetCannotBypassExplicitDirectAttack()
+        {
+            var duel = Match(Monster("p",700,700),Monster("o",1900,900));
+            Play(duel,DuelSide.Player);
+            Begin(duel,DuelSide.Player);
+            Assert.IsFalse(duel.CanAttack(DuelSide.Player,0,4,out _));
+            Assert.IsFalse(duel.TryPreviewAttack(DuelSide.Player,0,4,out _,out _));
+            Assert.IsTrue(duel.TryPreviewAttack(DuelSide.Player,0,-1,
+                out var preview,out _));
+            Assert.IsTrue(preview.IsDirect);
+            Assert.AreEqual(1900, preview.DamageToDefender);
+        }
+
+        [Test]
         public void UnknownGuardianStarsGiveNoUnverifiedBonus()
         {
             Assert.AreEqual(0,GuardianStarRules.Bonus(GuardianStar.None,GuardianStar.Moon));
