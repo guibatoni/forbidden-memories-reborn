@@ -109,13 +109,12 @@ namespace Reborn.Presentation
                     ? Mathf.Max(0.72f, 0.77f * hud.OpponentPace)
                     : Mathf.Max(0.15f, 0.45f * hud.OpponentPace));
 
-                int lifeBefore = game.Player.Life;
-                if (game.TryAttack(DuelSide.Opponent, attackerSlot, targetSlot, out var reason))
+                // The same read-only forecast is used to explain the final result.
+                if (game.TryPreviewAttack(DuelSide.Opponent, attackerSlot, targetSlot,
+                    out var preview,out var reason) &&
+                    game.TryAttack(DuelSide.Opponent, attackerSlot, targetSlot,out reason))
                 {
-                    int difference = lifeBefore - game.Player.Life;
-                    hud.Announce(difference > 0
-                        ? "Ataque resolvido. Seus LP: -" + difference + " (" + game.Player.Life + ")."
-                        : "Ataque resolvido. Confira o campo e os cemiterios.");
+                    hud.Announce(CombatExplanation.Describe(preview));
                 }
                 else hud.Announce("Ataque nao executado: " + reason);
                 arena.HighlightAttacker(DuelSide.Opponent, -1);

@@ -56,15 +56,12 @@ namespace Reborn.Presentation
             if (match == hud.Match && hud.DuelModeActive &&
                 match.CanAttack(DuelSide.Player,fromSlot,targetSlot,out string reason))
             {
-                int playerLife = match.Player.Life;
-                int opponentLife = match.Opponent.Life;
-                if (match.TryAttack(DuelSide.Player,fromSlot,targetSlot,out reason))
+                // Forecast and execution share the same rule calculation.
+                if (match.TryPreviewAttack(DuelSide.Player,fromSlot,targetSlot,
+                    out var preview,out reason) &&
+                    match.TryAttack(DuelSide.Player,fromSlot,targetSlot,out reason))
                 {
-                    int dealt = opponentLife - match.Opponent.Life;
-                    int reflected = playerLife - match.Player.Life;
-                    hud.Announce(dealt > 0 ? "Ataque resolvido: -" + dealt + " LP adversarios." :
-                        reflected > 0 ? "Ataque resolvido: -" + reflected + " dos seus LP." :
-                        "Ataque resolvido: sem dano nos pontos de vida.");
+                    hud.Announce(CombatExplanation.Describe(preview));
                 }
                 else hud.Announce("Ataque recusado: " + reason);
             }
