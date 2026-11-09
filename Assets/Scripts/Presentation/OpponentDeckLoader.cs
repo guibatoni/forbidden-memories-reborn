@@ -60,7 +60,7 @@ namespace Reborn.Presentation
                         !string.Equals(entry.deckKey, opponent.DeckKey, StringComparison.Ordinal))
                         throw new InvalidDataException("Pool divergente do oponente ID " + entry.id);
                     var pool = new WeightedOpponentPool(entry.id, entry.name, entry.deckKey, entry.weights);
-                    pool.Deal(cards.Cards, new Random(1)); // fail early on missing card IDs
+                    pool.Deal(cards.Cards, new System.Random(1)); // fail early on missing card IDs
                     pools.Add(pool);
                 }
                 catalog = new OpponentDeckCatalog(cards.SourceSha256, pools);

@@ -35,7 +35,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.9.1-Clean-Source
+          name: Reborn-0.9.2-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |

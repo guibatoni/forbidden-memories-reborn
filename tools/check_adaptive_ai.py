@@ -5,6 +5,16 @@ root = Path(__file__).resolve().parents[1]
 def source(path):
     return (root / path).read_text(encoding="utf-8")
 
+import re
+
+presentation_files = (root / "Assets/Scripts/Presentation").glob("*.cs")
+ambiguous_random = []
+for file in presentation_files:
+    contents = file.read_text(encoding="utf-8")
+    if ("using System;" in contents and "using UnityEngine;" in contents and
+        re.search(r"(?<![\\w.])(?:new\\s+Random\\s*\\(|Random\\s*\\.)", contents)):
+        ambiguous_random.append(file.name)
+
 brain = source("Assets/Scripts/Core/AdaptiveOpponentBrain.cs")
 game = source("Assets/Scripts/Presentation/RebornGame.cs")
 director = source("Assets/Scripts/Presentation/OpponentTurnDirector.cs")
@@ -24,6 +34,7 @@ checks = {
     "completed duels persisted": "storage.Save();" in game,
     "no network learning storage": "Application.persistentDataPath" in storage and "HttpClient" not in storage,
     "UI displays tactic and completed duels": "SetAiInsight" in hud,
+    "no unqualified Random in Unity presentation": not ambiguous_random,
     "System.Random explicitly resolved in Unity": "new Random(" not in game and "new System.Random(" in game,
     "fixed scene/camera not changed": "arena.Build();" in game and "Orbit.ResetView();" in source("Assets/Scripts/Presentation/ArenaFactory.cs"),
 }
