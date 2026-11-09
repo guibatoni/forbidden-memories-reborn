@@ -34,3 +34,10 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - GitHub Actions clean-source artifact: Reborn-0.9-Clean-Source (90-day retention).
 - ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.9.
 - AI learning file stays ONLY on the player's machine: Application.persistentDataPath/Reborn/adaptive-ai-v1.json.
+
+
+## Prototype 0.9.3
+- GitHub recovery branch: backup/prototype-0.9.3
+- Clean-source CI artifact: Reborn-0.9.3-Clean-Source
+- ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.9.3
+- Excludes user ISOs, card art and local adaptive-AI learning profiles.

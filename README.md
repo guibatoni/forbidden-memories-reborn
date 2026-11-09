@@ -1,3 +1,11 @@
+# Prototype 0.9.3 — Battle results explained
+
+The combat motor now uses one non-mutating forecast to calculate and display
+effective ATK/DEF, Guardian Star +500, destruction and LP damage.
+See [Docs/PROTOTYPE_0_9_3.md](Docs/PROTOTYPE_0_9_3.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.9
 
 **Offline adaptive rival AI:** five changing tactics, rewarded outcomes and a small persistent
