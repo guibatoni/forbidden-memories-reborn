@@ -24,6 +24,7 @@ checks = {
     "completed duels persisted": "storage.Save();" in game,
     "no network learning storage": "Application.persistentDataPath" in storage and "HttpClient" not in storage,
     "UI displays tactic and completed duels": "SetAiInsight" in hud,
+    "System.Random explicitly resolved in Unity": "new Random(" not in game and "new System.Random(" in game,
     "fixed scene/camera not changed": "arena.Build();" in game and "Orbit.ResetView();" in source("Assets/Scripts/Presentation/ArenaFactory.cs"),
 }
 for label, ok in checks.items():

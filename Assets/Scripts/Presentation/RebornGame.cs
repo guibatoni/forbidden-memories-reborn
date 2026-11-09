@@ -34,10 +34,10 @@ namespace Reborn.Presentation
             }
             var storage = new AdaptiveAiStorage();
             var brain = new AdaptiveOpponentBrain(
-                new Random(Guid.NewGuid().GetHashCode()));
+                new System.Random(Guid.NewGuid().GetHashCode()));
             int selectedPoolIndex = 0;
             var initialCards = loaded
-                ? DemoDeck.RandomPracticeDeck(imported.Cards, new Random(Guid.NewGuid().GetHashCode()))
+                ? DemoDeck.RandomPracticeDeck(imported.Cards, new System.Random(Guid.NewGuid().GetHashCode()))
                 : DemoDeck.Create();
             var session = new DuelSession(DeckRandomizer.ShuffleNewMatch(initialCards));
             var arena = new ArenaFactory(transform);
@@ -50,7 +50,7 @@ namespace Reborn.Presentation
             DuelMatch CreateExperimentalMatch()
             {
                 var playerSource = loaded
-                    ? DemoDeck.RandomPracticeDeck(imported.Cards, new Random(Guid.NewGuid().GetHashCode()))
+                    ? DemoDeck.RandomPracticeDeck(imported.Cards, new System.Random(Guid.NewGuid().GetHashCode()))
                     : DemoDeck.Create();
                 var playerDeck = DeckRandomizer.ShuffleNewMatch(playerSource);
                 IReadOnlyList<CardDefinition> opponentDeck;
@@ -58,7 +58,7 @@ namespace Reborn.Presentation
                 if (pools != null)
                 {
                     var pool = pools.Pools[selectedPoolIndex];
-                    opponentDeck = pool.Deal(imported.Cards, new Random(Guid.NewGuid().GetHashCode()));
+                    opponentDeck = pool.Deal(imported.Cards, new System.Random(Guid.NewGuid().GetHashCode()));
                     hud.SetOpponentSource(pool.Name + " (#" + pool.Id + ")", pools.Pools.Count > 1);
                     identity = imported.Edition + ":" +
                         imported.SourceSha256.Substring(0, 8) + ":" + pool.Id;
@@ -66,7 +66,7 @@ namespace Reborn.Presentation
                 else
                 {
                     var source = loaded
-                        ? DemoDeck.RandomPracticeDeck(imported.Cards, new Random(Guid.NewGuid().GetHashCode()))
+                        ? DemoDeck.RandomPracticeDeck(imported.Cards, new System.Random(Guid.NewGuid().GetHashCode()))
                         : DemoDeck.Create();
                     opponentDeck = DeckRandomizer.ShuffleNewMatch(source);
                     hud.SetOpponentSource("IA de treino", false);
