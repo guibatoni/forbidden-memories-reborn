@@ -397,7 +397,7 @@ namespace Reborn.Presentation
                     else
                     {
                         AttackMode = false; SelectedAttacker = -1;
-            PreviewTargetSlot = -1;
+                        PreviewTargetSlot = -1;
                         if (match.Phase == MatchPhase.Finished)
                             Message = "Duelo encerrado.";
                         else
@@ -411,7 +411,7 @@ namespace Reborn.Presentation
                 if (GUI.Button(new Rect(right+12,173,170,34),AttackMode ? "Ataque: ON" : "Selecionar ataque",button))
                 {
                     AttackMode = !AttackMode; SelectedAttacker = -1;
-            PreviewTargetSlot = -1;
+                    PreviewTargetSlot = -1;
                 }
                 if (GUI.Button(new Rect(right+12,214,170,34),"Atacar diretamente",button))
                     TryDirectAttack();

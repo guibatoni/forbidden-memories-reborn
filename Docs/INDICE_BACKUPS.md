@@ -41,3 +41,10 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - Clean-source CI artifact: Reborn-0.9.3-Clean-Source
 - ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.9.3
 - Excludes user ISOs, card art and local adaptive-AI learning profiles.
+
+
+## Prototype 0.10
+- GitHub recovery branch: backup/prototype-0.10
+- GitHub Actions clean-source artifact: Reborn-0.10-Clean-Source
+- ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.10
+- Includes tests and tactical combat forecast UI; no local ISO or AI save data.

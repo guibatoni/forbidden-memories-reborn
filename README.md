@@ -1,3 +1,11 @@
+# Prototype 0.10 — Tactical Combat Preview
+
+A shared forecast now powers the player's hover preview and the adaptive
+opponent's target selection. Read the [Prototype 0.10 notes](Docs/PROTOTYPE_0_10.md)
+for battle testing, Guardian Star checks and known limitations.
+
+---
+
 # Prototype 0.9.3 — Battle results explained
 
 The combat motor now uses one non-mutating forecast to calculate and display

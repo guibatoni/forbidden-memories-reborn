@@ -34,11 +34,14 @@ jobs:
       - name: Verify combat forecast integration (static only)
         run: python3 tools/check_combat_forecast.py
 
+      - name: Verify tactical attack preview integration (static only)
+        run: python3 tools/check_tactical_preview.py
+
       - name: Archive clean Unity source (never ROMs or private content)
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.9.3-Clean-Source
+          name: Reborn-0.10-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |
