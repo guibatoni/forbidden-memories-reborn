@@ -61,6 +61,7 @@ namespace Reborn.Presentation
             hud.SelectedHandIndex = -1;
             hud.HoveredCard = null;
             hud.SelectedAttacker = -1;
+            hud.PreviewTargetSlot = -1;
             fusionSelection.Clear();
             hud.FusionCount = 0;
             arena.RefreshMatch(match);
@@ -172,6 +173,7 @@ namespace Reborn.Presentation
                 hoveredCard = null;
                 hoveredZone = null;
                 hud.HoveredCard = null;
+                hud.PreviewTargetSlot = -1;
                 return;
             }
             var mouse = Mouse.current;
@@ -180,6 +182,7 @@ namespace Reborn.Presentation
             {
                 hud.SelectedHandIndex = -1;
                 hud.SelectedAttacker = -1;
+                hud.PreviewTargetSlot = -1;
                 fusionSelection.Clear(); hud.FusionCount = 0;
                 pressedHand = -1; dragging = false;
                 hud.Message = "Selecao cancelada.";
@@ -189,6 +192,9 @@ namespace Reborn.Presentation
             FindPointerTargets(pointer,dragging ? pressedHand : -1,
                 out CardView card,out ZoneView zone);
             if (overHud) { card = null; zone = null; }
+            hud.PreviewTargetSlot = hud.AttackMode && hud.SelectedAttacker >= 0 &&
+                zone != null && zone.Opponent && zone.Lane == FieldLane.Monster
+                ? zone.Index : -1;
             if (hoveredCard != card)
             {
                 if (hoveredCard != null) hoveredCard.SetHovered(false);

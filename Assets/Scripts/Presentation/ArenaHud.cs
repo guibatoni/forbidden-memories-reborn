@@ -14,6 +14,7 @@ namespace Reborn.Presentation
         public bool DuelModeActive { get; private set; }
         public bool AttackMode { get; set; }
         public int SelectedAttacker { get; set; } = -1;
+        public int PreviewTargetSlot { get; set; } = -1;
         public bool UseDefense { get; private set; }
         public bool UseSecondaryStar { get; private set; }
         public int FusionCount { get; set; }
@@ -98,9 +99,10 @@ namespace Reborn.Presentation
             SelectedHandIndex = -1;
             HoveredCard = null;
             SelectedAttacker = -1;
+            PreviewTargetSlot = -1;
             FusionCount = 0;
             AttackMode = false;
-            Message = active ? "MODO DUELO 0.9: interface de cartas 2.5D, motor experimental." :
+            Message = active ? "MODO DUELO 0.10: interface de cartas 2.5D, motor experimental." :
                 "Sandbox visual 0.3 restaurado.";
             ModeChanged?.Invoke(active);
         }
@@ -114,6 +116,7 @@ namespace Reborn.Presentation
             SelectedHandIndex = -1;
             HoveredCard = null;
             SelectedAttacker = -1;
+            PreviewTargetSlot = -1;
             FusionCount = 0;
             AttackMode = false;
             ModeChanged?.Invoke(DuelModeActive);
@@ -129,6 +132,7 @@ namespace Reborn.Presentation
                 return;
             }
             SelectedAttacker = -1;
+            PreviewTargetSlot = -1;
             PlayerAttackRequested?.Invoke(fromSlot, targetSlot);
         }
 
@@ -267,7 +271,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.9",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.10",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -289,16 +293,43 @@ namespace Reborn.Presentation
                 "Clique numa carta para selecionar. Shift+clique adiciona materiais na ordem.",small);
 
             Panel(new Rect(12,330,251,205),new Color(0.015f,0.027f,0.06f,0.91f));
-            GUI.Label(new Rect(23,339,225,25),"REGISTRO DO DUELO",body);
-            int shown = Mathf.Min(4, recentActions.Count);
-            for (int i = 0; i < shown; i++)
+            bool wantsForecast = AttackMode && SelectedAttacker >= 0 &&
+                !InputLocked && !finished && match.Phase == MatchPhase.Battle;
+            if (wantsForecast)
             {
-                int sourceIndex = recentActions.Count - shown + i;
-                GUI.Label(new Rect(23,371+i*39,227,39),
-                    (i+1) + ". " + recentActions[sourceIndex],small);
+                GUI.Label(new Rect(23,339,225,25),"PREVIA DE COMBATE",body);
+                int previewTarget = PreviewTargetSlot >= 0 ? PreviewTargetSlot : -1;
+                if (previewTarget < 0 && match.Opponent.MonsterCount > 0)
+                {
+                    GUI.Label(new Rect(23,372,225,132),
+                        "Aponte para uma das cinco zonas de monstros adversarios. " +
+                        "Os valores efetivos e o resultado previsto aparecerao aqui.",small);
+                }
+                else if (match.TryPreviewAttack(DuelSide.Player,SelectedAttacker,
+                    previewTarget,out var estimate,out var reason))
+                {
+                    GUI.Label(new Rect(23,370,225,155),
+                        CombatExplanation.Describe(estimate),small);
+                }
+                else
+                {
+                    GUI.Label(new Rect(23,370,225,155),
+                        "Ataque indisponivel: " + reason,small);
+                }
+            }
+            else
+            {
+                GUI.Label(new Rect(23,339,225,25),"REGISTRO DO DUELO",body);
+                int shown = Mathf.Min(4, recentActions.Count);
+                for (int i = 0; i < shown; i++)
+                {
+                    int sourceIndex = recentActions.Count - shown + i;
+                    GUI.Label(new Rect(23,371+i*39,227,39),
+                        (i+1) + ". " + recentActions[sourceIndex],small);
+                }
             }
             Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.9",heading);
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.10",heading);
             if (finished)
             {
                 GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
@@ -366,6 +397,7 @@ namespace Reborn.Presentation
                     else
                     {
                         AttackMode = false; SelectedAttacker = -1;
+            PreviewTargetSlot = -1;
                         if (match.Phase == MatchPhase.Finished)
                             Message = "Duelo encerrado.";
                         else
@@ -379,6 +411,7 @@ namespace Reborn.Presentation
                 if (GUI.Button(new Rect(right+12,173,170,34),AttackMode ? "Ataque: ON" : "Selecionar ataque",button))
                 {
                     AttackMode = !AttackMode; SelectedAttacker = -1;
+            PreviewTargetSlot = -1;
                 }
                 if (GUI.Button(new Rect(right+12,214,170,34),"Atacar diretamente",button))
                     TryDirectAttack();
@@ -425,6 +458,8 @@ namespace Reborn.Presentation
         private void DrawCardInspection()
         {
             if (!CardPreviewEnabled) return;
+            // Combat forecast takes precedence over enlarged card inspection.
+            if (DuelModeActive && AttackMode && SelectedAttacker >= 0) return;
             CardDefinition card = HoveredCard;
             if (card == null && SelectedHandIndex >= 0)
             {
