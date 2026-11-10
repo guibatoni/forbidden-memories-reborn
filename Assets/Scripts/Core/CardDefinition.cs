@@ -27,6 +27,7 @@ namespace Reborn.Core
         public string EffectText { get; }
         public string EffectSource { get; }
         public string EffectStatus { get; }
+        public string TypeLabel { get; }
         public bool HasEffectText => !string.IsNullOrWhiteSpace(EffectText);
         public GuardianStar StarA { get; }
         public GuardianStar StarB { get; }
@@ -34,7 +35,8 @@ namespace Reborn.Core
         public CardDefinition(string id, string name, CardKind kind,
             int attack, int defense, string description,
             GuardianStar starA = GuardianStar.None, GuardianStar starB = GuardianStar.None,
-            string effectText = "", string effectSource = "", string effectStatus = "")
+            string effectText = "", string effectSource = "", string effectStatus = "",
+            string typeLabel = "")
         {
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("ID obrigatório", nameof(id));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Nome obrigatório", nameof(name));
@@ -46,6 +48,7 @@ namespace Reborn.Core
             EffectText = effectText ?? "";
             EffectSource = effectSource ?? "";
             EffectStatus = effectStatus ?? "";
+            TypeLabel = typeLabel ?? "";
         }
     }
 }
