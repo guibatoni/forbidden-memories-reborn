@@ -20,7 +20,7 @@ checks = {
     "outer cards curve toward player": "baseZ - Math.Abs(spread) * depth" in geometry,
     "tilt inverted": "spread * angle" in geometry,
     "five card order not inverted": "index - (count - 1) * 0.5f" in geometry,
-    "factory uses shared geometry": "HandFanGeometry.At(index, count, handExpanded)" in factory,
+    "factory uses shared geometry": "HandFanGeometry.WithHoveredCard(index, count," in factory,
     "card gets smoothly moving target": "card.SetHandLayoutTarget(" in factory and
         "homeLocalPosition + Vector3.up * raise" in view,
     "no camera control modified": "Camera.fieldOfView = 48f;" in factory and
