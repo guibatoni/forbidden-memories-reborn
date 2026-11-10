@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 from import_dueltrace_profile import (build_export, choose_profile,
-                                      mirror_report_matches)
+                                      mirror_report_matches, copy_local_art)
 from validate_import import validate
 
 SHA = "b" * 64
@@ -144,3 +144,26 @@ with tempfile.TemporaryDirectory() as base:
                      "profile_path":str(file)}]}),encoding="utf-8")
     assert choose_profile(None,home) == file.resolve()
 print("PASS: discovers the local DUELTRACE Original profile without copying ROM bytes")
+
+with tempfile.TemporaryDirectory() as base:
+    root = Path(base)
+    art = root / "dueltrace-art"
+    art.mkdir()
+    # Public-domain synthetic 1x1 PNG, not a card illustration.
+    import base64
+    one_pixel = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/Hk0AAAAASUVORK5CYII=")
+    for i in range(1, 723):
+        (art / f"{i:03d}.png").write_bytes(one_pixel)
+    existing_dir = root / "Assets" / "Resources" / "RebornCardArt"
+    existing_dir.mkdir(parents=True)
+    (existing_dir / "001.png").write_bytes(b"custom hand-drawn art protected")
+    p = profile()
+    p["supported_features"] = {"art": True}
+    p["art_root"] = str(art)
+    counts = copy_local_art(p, root)
+    assert counts["copied"] == 721 and counts["customArtPreserved"] == 1
+    assert (existing_dir / "001.png").read_bytes() == b"custom hand-drawn art protected"
+    assert (existing_dir / "722.png").read_bytes() == one_pixel
+print("PASS: optional 722-art import keeps customized Reborn images untouched")
+
