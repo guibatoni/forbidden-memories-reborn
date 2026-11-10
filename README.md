@@ -1,3 +1,14 @@
+# Prototype 0.17.2 — Corrigido o carregamento do catalogo Original
+
+A carta ficticia **Fera do Nilo (p04)** nao deve aparecer como se fosse
+um card do jogo PS1. O Reborn agora tenta ler diretamente o perfil Original
+do DUELTRACE quando nao existe um export Reborn, e exibe aviso bloqueante
+caso nenhum catalogo real seja encontrado.
+
+[Como carregar as cartas do PS1 e as 722 artes locais](Docs/PROTOTYPE_0_17_2_AUTOLOAD.md).
+
+---
+
 # Prototype 0.17.1 — Reaproveitamento do banco DUELTRACE (rascunho)
 
 A ponte local de dados importa nomes, IDs, subtipos, ATK/DEF, receitas revisadas e
