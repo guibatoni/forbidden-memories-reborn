@@ -341,6 +341,54 @@ namespace Reborn.Core
         }
 
         /// <summary>
+        /// Decide whether a previously set defensive monster should be
+        /// switched to attack. Never inspect concealed defender statistics.
+        /// Called before entering battle; DuelMatch enforces one switch/turn
+        /// and blocks switching a newly summoned or already-attacked monster.
+        /// </summary>
+        public bool TryChoosePositionChange(DuelMatch match,
+            out int slot, out BattlePosition nextPosition)
+        {
+            slot = -1;
+            nextPosition = BattlePosition.Attack;
+            if (State == null || match == null ||
+                match.CurrentSide != DuelSide.Opponent ||
+                match.Phase == MatchPhase.Finished) return false;
+            int best = int.MinValue;
+            for (int i = 0; i < DuelMatch.ZoneCount; i++)
+            {
+                var own = match.Opponent.Monster(i);
+                if (own == null || own.Position != BattlePosition.Defense ||
+                    !match.CanChangePosition(DuelSide.Opponent, i,
+                        BattlePosition.Attack, out _)) continue;
+                int score = match.Player.MonsterCount == 0 ? 3000 + own.Card.Attack : -1000;
+                for (int target = 0; target < DuelMatch.ZoneCount; target++)
+                {
+                    var enemy = match.Player.Monster(target);
+                    if (enemy == null) continue;
+                    if (enemy.FaceDown)
+                    {
+                        // Unknown defender: estimate only our own attack power.
+                        score = Math.Max(score, own.Card.Attack - 600);
+                        continue;
+                    }
+                    var candidate = new MonsterOnField(own.Card,
+                        BattlePosition.Attack, own.Star);
+                    var estimate = new CombatForecast(candidate, enemy);
+                    if (estimate.DefenderDestroyed && !estimate.AttackerDestroyed &&
+                        estimate.DamageToAttacker == 0)
+                        score = Math.Max(score, 2200 + enemy.Card.Attack / 2);
+                }
+                if (score <= 0) continue;
+                score += random.Next(0, 31);
+                if (score <= best) continue;
+                best = score;
+                slot = i;
+            }
+            return slot >= 0;
+        }
+
+        /// <summary>
         /// Evaluates the entire current battle phase. The director executes
         /// only the first legal step, then replans after its real resolution.
         /// This keeps animation timing and duel rules authoritative.
