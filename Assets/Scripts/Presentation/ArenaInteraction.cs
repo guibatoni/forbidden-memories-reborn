@@ -69,6 +69,7 @@ namespace Reborn.Presentation
             hud.PreviewTargetSlot = -1;
             fusionSelection.Clear();
             hud.FusionCount = 0;
+            hud.CloseCardInspection();
             arena.SetAttackAim(-1, -1);
             arena.RefreshMatch(match);
             UpdateLegalHighlights();
@@ -80,6 +81,13 @@ namespace Reborn.Presentation
             if (hud.DuelModeActive) { UpdateMatchInput(); return; }
             var mouse = Mouse.current;
             if (mouse == null) return;
+            if (hud.CardInspectionOpen)
+            {
+                if (mouse.rightButton.wasPressedThisFrame ||
+                    (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame))
+                    hud.CloseCardInspection();
+                return;
+            }
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
                 CancelSelection();
@@ -91,6 +99,11 @@ namespace Reborn.Presentation
             FindPointerTargets(pointer, dragging ? pressedHand : -1,
                 out CardView card, out ZoneView zone);
             if (overHud) { card = null; zone = null; }
+            if (mouse.rightButton.wasPressedThisFrame && !overHud)
+            {
+                InspectKnownCard(card);
+                return;
+            }
             // Expand on hand hover (or its stable projected screen region).
             // Dragging holds the fan open until the user releases the card.
             arena.SetHandFocus(!overHud && (dragging ||
@@ -198,6 +211,26 @@ namespace Reborn.Presentation
             }
             var mouse = Mouse.current;
             if (mouse == null) return;
+            if (hud.CardInspectionOpen)
+            {
+                if (mouse.rightButton.wasPressedThisFrame ||
+                    (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame))
+                    hud.CloseCardInspection();
+                return;
+            }
+            var keys = Keyboard.current;
+            if (keys != null && keys.spaceKey.wasPressedThisFrame)
+            {
+                hud.TryPassPlayerTurn();
+                return;
+            }
+            if (keys != null && (keys.qKey.wasPressedThisFrame ||
+                keys.eKey.wasPressedThisFrame))
+            {
+                hud.TryChangeSelectedMonster();
+                UpdateLegalHighlights();
+                return;
+            }
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
                 hud.SelectedHandIndex = -1;
@@ -214,6 +247,11 @@ namespace Reborn.Presentation
             FindPointerTargets(pointer,dragging ? pressedHand : -1,
                 out CardView card,out ZoneView zone);
             if (overHud) { card = null; zone = null; }
+            if (mouse.rightButton.wasPressedThisFrame && !overHud)
+            {
+                InspectKnownCard(card);
+                return;
+            }
             arena.SetHandFocus(!overHud && (dragging ||
                 (card != null && card.HandIndex >= 0) ||
                 arena.IsPointerNearHand(pointer)));
@@ -361,6 +399,22 @@ namespace Reborn.Presentation
             }
         }
 
+        private void InspectKnownCard(CardView card)
+        {
+            if (card == null || card.Card == null) return;
+            // The player can inspect their own set cards, but never hidden
+            // opponent identities until the duel engine reveals them.
+            bool owned = card.HandIndex >= 0 ||
+                card.gameObject.name.StartsWith("Player_") ||
+                card.gameObject.name.StartsWith("Placed_");
+            if (card.Facedown && !owned)
+            {
+                hud.Message = "Carta adversaria oculta ate ser revelada.";
+                return;
+            }
+            hud.ToggleCardInspection(card.Card);
+        }
+
         private void PlaceMatchCard(ZoneView zone)
         {
             var selected = fusionSelection.Count > 0 ?
@@ -378,6 +432,9 @@ namespace Reborn.Presentation
                 hud.Announce("Carta colocada: " + result.Name +
                     (hud.PlaceFaceDown ? " virada para baixo." : " virada para cima."));
                 hud.AfterHandPlacement();
+                // Keep the freshly placed card selected for immediate Q/E.
+                hud.SelectedFieldMonster = zone.Lane == FieldLane.Monster ?
+                    zone.Index : -1;
             }
             else
             {
