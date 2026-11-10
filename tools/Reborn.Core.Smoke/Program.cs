@@ -823,9 +823,13 @@ internal static class Program
             "one monster can be set face-down in defense");
         Check(fluid.TryChangePosition(DuelSide.Player, 0,
             BattlePosition.Attack, out _) &&
+            fluid.Player.Monster(0).FaceDown &&
+            !fluid.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _) &&
             fluid.TryChangePosition(DuelSide.Player, 0,
-            BattlePosition.Defense, out _),
-            "new monster can toggle ATK/DEF repeatedly before attacking");
+            BattlePosition.Defense, out _) &&
+            fluid.Player.Monster(0).FaceDown,
+            "new facedown monster can toggle ATK/DEF repeatedly without revealing");
         Check(!fluid.CanPlay(DuelSide.Player, new[] { 0 },
             FieldLane.Support, 0, GuardianStar.None, out _),
             "one hand placement per turn remains enforced");
@@ -838,8 +842,8 @@ internal static class Program
             fluid.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Attack, out _) &&
             fluid.Player.Monster(0).Position == BattlePosition.Attack &&
-            !fluid.Player.Monster(0).FaceDown,
-            "set monster can be flipped to attack only on its owner's later turn");
+            fluid.Player.Monster(0).FaceDown,
+            "set monster remains hidden when switched to ATK on a later turn");
         Check(fluid.TryChangePosition(DuelSide.Player, 0,
             BattlePosition.Defense, out _) &&
             fluid.TryChangePosition(DuelSide.Player, 0,
@@ -850,8 +854,9 @@ internal static class Program
             true, out _), "a second-turn support card satisfies required placement");
         Battle(fluid, DuelSide.Player);
         Check(fluid.TryAttack(DuelSide.Player, 0, 0, out _) &&
-            fluid.Player.Monster(0).AttackedThisTurn,
-            "flipped monster can attack after legal reposition");
+            fluid.Player.Monster(0).AttackedThisTurn &&
+            !fluid.Player.Monster(0).FaceDown,
+            "attack itself reveals the previously hidden attacker");
         Check(!fluid.TryChangePosition(DuelSide.Player, 0,
             BattlePosition.Defense, out _),
             "attacker cannot switch back to defense after attacking");
@@ -930,8 +935,8 @@ internal static class Program
             out int switchSlot, out var nextMode) &&
             switchSlot == 0 && nextMode == BattlePosition.Attack &&
             opponentFlip.TryChangePosition(DuelSide.Opponent,switchSlot,nextMode,out _) &&
-            !opponentFlip.Opponent.Monster(0).FaceDown,
-            "AI switches previously set defense into attack without reading a concealed target");
+            opponentFlip.Opponent.Monster(0).FaceDown,
+            "AI switches previously set DEF into ATK while remaining hidden");
         Check(opponentFlip.TryChangePosition(DuelSide.Opponent,0,
             BattlePosition.Defense,out _),
             "AI can return to defense before attacking");

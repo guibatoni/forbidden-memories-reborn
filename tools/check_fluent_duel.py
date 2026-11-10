@@ -70,8 +70,9 @@ checks = {
         "if (hidden.Count > 0)" in brain,
     "duel opens automatically without sandbox click": "hud.SetDuelMode(true);" in game,
     "core regression scenarios added": "face-down defender is revealed on actual combat" in smoke and
-        "AI switches previously set defense into attack" in smoke,
-    "Unity editor tests authored": "SetMonsterFlipsOnLaterTurnAndCannotMoveAfterAttack" in editor,
+        "AI switches previously set DEF into ATK while remaining hidden" in smoke,
+    "Unity editor tests authored": "SetMonsterRemainsHiddenOnPositionChangesUntilItAttacks" in editor and
+        "FacedownTargetCanSwitchToAttackWithoutRevealingUntilHit" in editor,
 }
 for name, ok in checks.items():
     print(("OK " if ok else "FAIL ") + name)

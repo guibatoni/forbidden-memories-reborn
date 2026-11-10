@@ -1,7 +1,7 @@
 name: Reborn Core smoke tests
 on:
   push:
-    branches: [main, feature/prototype-0.18-card-flow-starter-four]
+    branches: [main, feature/prototype-0.18-card-flow-starter-four, feature/prototype-0.18.1-hidden-attack-stance]
   pull_request:
 permissions:
   contents: read
@@ -80,6 +80,9 @@ jobs:
         run: |
           python3 tools/check_card_flow_starter.py
           python3 tools/test_starter_export.py
+
+      - name: Verify hidden monsters stay concealed until combat
+        run: python3 tools/check_hidden_stance.py
 
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test

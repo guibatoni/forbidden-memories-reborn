@@ -1,3 +1,13 @@
+# Prototype 0.18.1 — Face Down preservada em ATK/DEF
+
+Corrigido: um monstro colocado virado para baixo permanece oculto
+quando é alterado de DEF para ATK (ou vice-versa), inclusive via Q/E.
+Ele é revelado apenas ao atacar ou ser atacado.
+
+[Regras e checklist do Prototype 0.18.1](Docs/PROTOTYPE_0_18_1.md)
+
+---
+
 # Prototype 0.18 — Escolha das cartas e 4 decks iniciais
 
 Sequencia visual: selecione as cartas (Shift para fusao), escolha uma zona,
