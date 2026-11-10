@@ -375,16 +375,6 @@ namespace Reborn.Presentation
                 else if (zone != null && !zone.Opponent &&
                     zone.Lane == FieldLane.Monster &&
                     match.Player.Monster(zone.Index) != null &&
-                    match.Phase == MatchPhase.Main &&
-                    hud.SelectedHandIndex >= 0 && fusionSelection.Count > 0)
-                {
-                    // Existing field monster is first, followed by selected
-                    // hand cards in the exact Shift-click sequence.
-                    PlaceMatchCard(zone);
-                }
-                else if (zone != null && !zone.Opponent &&
-                    zone.Lane == FieldLane.Monster &&
-                    match.Player.Monster(zone.Index) != null &&
                     hud.SelectedSupportSlot >= 0 &&
                     match.Player.Support(hud.SelectedSupportSlot) != null &&
                     match.Player.Support(hud.SelectedSupportSlot).Kind == CardKind.Equip)
@@ -399,6 +389,16 @@ namespace Reborn.Presentation
                             () => CommitSetEquip(supportSlot, monsterSlot));
                     }
                     else hud.Message = reason;
+                }
+                else if (zone != null && !zone.Opponent &&
+                    zone.Lane == FieldLane.Monster &&
+                    match.Player.Monster(zone.Index) != null &&
+                    match.Phase == MatchPhase.Main &&
+                    hud.SelectedHandIndex >= 0 && fusionSelection.Count > 0)
+                {
+                    // Existing field monster is first, followed by selected
+                    // hand cards in the exact Shift-click sequence.
+                    PlaceMatchCard(zone);
                 }
                 else if (zone != null && !zone.Opponent &&
                     zone.Lane == FieldLane.Monster &&
