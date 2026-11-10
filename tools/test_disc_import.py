@@ -62,7 +62,7 @@ with tempfile.TemporaryDirectory() as sandbox:
     disc.write_bytes(b"not-a-real-disc")
     cards = {}
     for index in range(1, 723):
-        kind = 22 if index == 666 else (20 if index == 710 else
+        kind = 22 if index in (666, 667) else (20 if index == 710 else
                 21 if index == 711 else 23 if index == 712 else 0)
         cards[index] = SimpleNamespace(id=index, name=f"Synthetic {index:03d}",
             description=f"Synthetic-only description {index}", attack=500,
@@ -70,7 +70,7 @@ with tempfile.TemporaryDirectory() as sandbox:
     fake_data = SimpleNamespace(cards=cards,
         fusions={(1,2):3, (2,3):4},
         glitch_fusions={(2,3)},
-        rituals={666:(1,2,3,4)},
+        rituals={666:(1,2,3,4),667:(1,1,1,4)},
         pools=[], equips={}, notes=[])
     game = SimpleNamespace(
         read_game=lambda slus,wa: fake_data,
@@ -89,11 +89,14 @@ with tempfile.TemporaryDirectory() as sandbox:
         __import__("json").loads(generated.read_text(encoding="utf-8")))
     errors, details = data
     assert errors == [], errors
-    assert details["cards"] == 722 and details["rituals"] == 1
+    assert details["cards"] == 722 and details["rituals"] == 2
     assert details["missingDescriptions"] == 0
     assert report["ps1ReaderQuirkFusionsIncluded"] == 1
     assert report["fusions"] == 2 and report["descriptionCount"] == 722
-    assert report["descriptionCoverageByKind"]["Ritual"]["withDescription"] == 1
+    assert report["descriptionCoverageByKind"]["Ritual"]["withDescription"] == 2
+    extracted = __import__("json").loads(generated.read_text(encoding="utf-8"))
+    assert any(recipe["tributes"] == [1,1,1]
+               for recipe in extracted["rituals"])
     assert report["descriptionCoverageByKind"]["Spell"]["withDescription"] == 1
     assert report["descriptionCoverageByKind"]["Trap"]["withDescription"] == 1
     assert report["descriptionCoverageByKind"]["Equip"]["withDescription"] == 1
