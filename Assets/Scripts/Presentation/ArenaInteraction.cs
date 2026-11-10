@@ -94,6 +94,12 @@ namespace Reborn.Presentation
             arena.SetHandFocus(!overHud && (dragging ||
                 (card != null && card.HandIndex >= 0) ||
                 arena.IsPointerNearHand(pointer)));
+            // Pin the current card while holding the mouse button, so the
+            // neighbor animation cannot steal the target mid-drag.
+            int handHover = pressedHand >= 0 && mouse.leftButton.isPressed
+                ? pressedHand : card != null && card.HandIndex >= 0
+                    ? card.HandIndex : -1;
+            arena.SetHandHover(!overHud ? handHover : -1);
 
             if (hoveredCard != card)
             {
@@ -184,6 +190,7 @@ namespace Reborn.Presentation
                 hud.HoveredCard = null;
                 hud.PreviewTargetSlot = -1;
                 arena.SetHandFocus(false);
+                arena.SetHandHover(-1);
                 return;
             }
             var mouse = Mouse.current;
@@ -207,6 +214,12 @@ namespace Reborn.Presentation
             arena.SetHandFocus(!overHud && (dragging ||
                 (card != null && card.HandIndex >= 0) ||
                 arena.IsPointerNearHand(pointer)));
+            // Pin the current card while holding the mouse button, so the
+            // neighbor animation cannot steal the target mid-drag.
+            int handHover = pressedHand >= 0 && mouse.leftButton.isPressed
+                ? pressedHand : card != null && card.HandIndex >= 0
+                    ? card.HandIndex : -1;
+            arena.SetHandHover(!overHud ? handHover : -1);
             hud.PreviewTargetSlot = hud.AttackMode && hud.SelectedAttacker >= 0 &&
                 zone != null && zone.Opponent && zone.Lane == FieldLane.Monster
                 ? zone.Index : -1;
