@@ -37,7 +37,9 @@ geometry, order, selected-fusion numbers, and hand focus modes remain intact.
 ## Limitations
 The original disc's effect scripts, magic/ritual/equip execution, and many
 campaign data tables are not yet implemented. No private disc assets are
-published. Strict mandatory placement can expose a dead-end if all relevant
+published. The opponent tries to set a face-down support card when it cannot
+legally summon a monster; this never activates unknown card effects.
+Strict mandatory placement can expose a dead-end if all relevant
 board slots are full and no legal fusion/field replacement action exists.
 Do not silently allow passing in this state. The AI Lab records such
 synthetic situations as unresolved; a legal no-slot resolution is future work.
