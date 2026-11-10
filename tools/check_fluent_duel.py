@@ -21,6 +21,8 @@ editor = read("Assets/Tests/Editor/DuelMatchTests.cs")
 checks = {
     "fixed five slots retained": "public const int ZoneCount = 5;" in core,
     "only one hand placement per turn": "if (hasPlayed) return Reject(" in core,
+    "mandatory placement before passing": "Baixe ao menos uma carta antes de passar o turno" in core,
+    "mandatory placement before battle": "Baixe uma carta antes de entrar em batalha" in core,
     "card face choice saved in rules": "bool faceDown, out string reason)" in core and
         "new MonsterOnField(result, position, star, faceDown, Turn)" in core,
     "support face-down status and set turn tracked": "SupportIsFaceDown" in core and
@@ -29,8 +31,8 @@ checks = {
         "Suporte recem-setado" in core,
     "monsters can change positions through duel engine": "public bool TryChangePosition(" in core,
     "no position change after attacking": "if (monster.AttackedThisTurn)" in core,
-    "no position change on summoning turn": "if (monster.TurnPlaced == Turn)" in core,
-    "no two position changes in one turn": "if (monster.PositionChangedThisTurn)" in core,
+    "freshly set monsters may toggle before attacking": "if (monster.TurnPlaced == Turn)" not in core,
+    "multiple pre-attack toggles allowed": "if (monster.PositionChangedThisTurn)" not in core,
     "set cards are revealed when battle resolves": "if (attacker.FaceDown) attacker.Reveal();" in core and
         "if (defender != null && defender.FaceDown) defender.Reveal();" in core,
     "fluent HUD is in separate partial": "public sealed partial class ArenaHud" in hud and
@@ -41,8 +43,8 @@ checks = {
         "match.TryBeginBattle(DuelSide.Player" in flow,
     "no need for attack button": '"Selecionar ataque"' not in hud and
         '"Iniciar combate"' not in hud,
-    "last available attack can auto-pass": "hud.AfterPlayerAttack();" in attacks and
-        "TryPassPlayerTurn();" in flow,
+    "completed attack never auto-passes": "hud.AfterPlayerAttack();" in attacks and
+        "TryPassPlayerTurn();" not in flow and "Ataque concluido." in flow,
     "target selection is click attacker then enemy": "hud.SelectedAttacker = match.Phase == MatchPhase.Battle" in input_script and
         "hud.RequestPlayerAttack(hud.SelectedAttacker, target)" in input_script,
     "direct attacks accept enemy field": "PointerOverOpponentField(pointer)" in input_script and
