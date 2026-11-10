@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.13 AI Learning 2.0
+
+Improved risk-aware attack/defense placement, migration-safe persistent
+per-strategy outcomes, and controlled same-seed **legacy vs Learning 2.0**
+benchmarks. The Unity arena and camera stay unchanged.
+
+[Read the AI Learning 2.0 guide](Docs/PROTOTYPE_0_13.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.12.1 AI Lab MultiSeed
 
 Expanded offline AI evaluation over **10 seeds and 3 synthetic opponent scenarios**

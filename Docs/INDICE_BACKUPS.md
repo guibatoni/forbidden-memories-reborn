@@ -72,3 +72,11 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - CI benchmark artifact: Reborn-0.12.1-AiLab-MultiSeed
 - ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.12.1
 - Reports contain only synthetic performance data (no local ISO, user profiles or artworks).
+
+
+## Prototype 0.13 — AI Learning 2.0
+- Recovery branch: backup/prototype-0.13
+- Clean source CI artifact: Reborn-0.13-Clean-Source
+- A/B benchmark CI artifact: Reborn-0.13-AiLab-Learning2
+- ChatGPT Library: Forbidden Memories Reborn / Backups / Prototype 0.13
+- Preserves previous local adaptive profiles; no user save data in public artifacts.
