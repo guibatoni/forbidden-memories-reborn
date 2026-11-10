@@ -79,7 +79,8 @@ namespace Reborn.Core
         {
             foreach (var m in monsters) if (m != null) m.AttackedThisTurn = false;
         }
-        internal int MonsterCount
+        /// <summary>Read-only count exposed to the separate Unity presentation assembly.</summary>
+        public int MonsterCount
         {
             get { int n=0; foreach(var m in monsters) if(m!=null) n++; return n; }
         }
