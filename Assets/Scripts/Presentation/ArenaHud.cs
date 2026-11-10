@@ -507,6 +507,11 @@ namespace Reborn.Presentation
                     var monster = match.Player.Monster(SelectedFieldMonster);
                     var next = monster.Position == BattlePosition.Attack ?
                         BattlePosition.Defense : BattlePosition.Attack;
+                    if (!monster.FaceDown && monster.EquipCount > 0)
+                        GUI.Label(new Rect(right+12,211,177,39),
+                            "ATK " + monster.EffectiveAttack +
+                            " / DEF " + monster.EffectiveDefense +
+                            "  (+" + monster.EquipAttackBonus + " Equip)",small);
                     GUI.enabled = player && !InputLocked &&
                         match.CanChangePosition(DuelSide.Player,SelectedFieldMonster,next,out _);
                     if (GUI.Button(new Rect(right+12,250,170,36),
