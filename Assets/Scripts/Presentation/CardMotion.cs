@@ -2,25 +2,34 @@ using UnityEngine;
 
 namespace Reborn.Presentation
 {
-    /// <summary>Animacao puramente visual: nao altera zonas, regras ou camera.</summary>
+    /// <summary>
+    /// Visual-only, fixed-camera summon motion. The core DuelMatch has already
+    /// accepted the placement before this starts; motion cannot affect rules.
+    /// Finishes on the exact intended position, orientation and scale.
+    /// </summary>
     public sealed class CardMotion : MonoBehaviour
     {
         private Vector3 from;
         private Vector3 to;
         private Vector3 restingScale;
+        private Quaternion restingRotation;
+        private Quaternion floatingRotation;
         private float duration;
         private float elapsed;
         private bool active;
 
-        public void Play(Vector3 fromWorld, Vector3 toWorld, float seconds = 0.45f)
+        public void Play(Vector3 fromWorld, Vector3 toWorld, float seconds = 0.58f)
         {
             from = fromWorld;
             to = toWorld;
             duration = Mathf.Max(0.01f, seconds);
             elapsed = 0f;
             restingScale = transform.localScale;
+            restingRotation = transform.rotation;
+            floatingRotation = restingRotation * Quaternion.Euler(-11f, 0f, 5f);
             transform.position = from;
-            transform.localScale = restingScale * 0.85f;
+            transform.rotation = floatingRotation;
+            transform.localScale = restingScale * 0.89f;
             active = true;
         }
 
@@ -29,14 +38,25 @@ namespace Reborn.Presentation
             if (!active) return;
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / duration);
-            float eased = Mathf.SmoothStep(0f, 1f, t);
-            Vector3 arc = Vector3.up * (Mathf.Sin(t * Mathf.PI) * 0.85f);
-            transform.position = Vector3.Lerp(from, to, eased) + arc;
-            transform.localScale = restingScale * Mathf.Lerp(0.85f, 1f, eased);
+            // Travel quickly out of the hand, then ease toward the slot.
+            float eased = 1f - Mathf.Pow(1f - t, 3f);
+            float arc = Mathf.Sin(t * Mathf.PI) * 0.88f;
+            // Very small final settle gives weight to the placement without
+            // bouncing the card out of its legal field zone.
+            float settle = t > 0.75f ?
+                Mathf.Sin((t - 0.75f) * 4f * Mathf.PI) * 0.05f : 0f;
+            transform.position = Vector3.Lerp(from, to, eased) +
+                Vector3.up * (arc + settle);
+            transform.rotation = Quaternion.Slerp(
+                floatingRotation, restingRotation, eased);
+            float zoom = Mathf.Lerp(0.89f, 1f, eased) +
+                Mathf.Sin(t * Mathf.PI) * 0.045f;
+            transform.localScale = restingScale * zoom;
             if (t >= 1f)
             {
                 active = false;
                 transform.position = to;
+                transform.rotation = restingRotation;
                 transform.localScale = restingScale;
                 Destroy(this);
             }
