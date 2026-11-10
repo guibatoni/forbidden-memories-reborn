@@ -76,7 +76,8 @@ namespace Reborn.Presentation
                 brain.StartDuel(storage.Get(identity));
                 hud.SetAiInsight(brain.TacticLabel, brain.State.duels);
                 return new DuelMatch(playerDeck, opponentDeck,
-                    loaded ? imported.Fusions : DemoDeck.CreateSampleFusions());
+                    loaded ? imported.Fusions : DemoDeck.CreateSampleFusions(),
+                    loaded ? imported.Rituals : new RitualCatalog());
             }
 
             var opponentDirector = gameObject.AddComponent<OpponentTurnDirector>();

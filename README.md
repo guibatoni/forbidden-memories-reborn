@@ -1,3 +1,20 @@
+# Forbidden Memories Reborn — Prototype 0.17 (em validação)
+
+Esta versão prepara a importação **local e privada** das 722 cartas, descrições
+disponíveis, receitas de fusão do disco PS1 (inclusive peculiaridades do
+leitor) e rituais de três tributos. O jogo inclui a primeira execução da
+mecânica de ritual do PS1 e cerimônias visuais de fusão/ritual inéditas.
+
+- Guia completo: [Prototype 0.17](Docs/PROTOTYPE_0_17.md)
+- No Windows, execute: `tools/IMPORTAR_ORIGINAL.ps1 -Disc "C:\\Jogos\\Yu-Gi-Oh! FM Original (Drop x15).bin"`
+- O arquivo do disco, textos originais e artes **não** são incluídos no GitHub.
+- As descrições exportadas são os textos disponíveis na imagem do jogo; textos
+  não significam efeitos já implementados.
+- O motor aceita três tributos específicos, incluindo três cópias do mesmo ID.
+- Não considerar este projeto compilado/validado no Unity até testes manuais.
+
+---
+
 # Prototype 0.16 — In-field fusion (draft)
 
 Place selected hand card(s) onto an occupied **player monster** to resolve

@@ -293,6 +293,96 @@ internal static class Program
             supportOnlyAi.Opponent.SupportIsFaceDown(fallbackSlot),
             "support-only opponent sets a card instead of skipping turn");
 
+        // PS1-specific ritual: three exact, face-up on-field monsters;
+        // the ritual result does not have to be in the 40-card deck or hand.
+        var ritualBook = new RitualCatalog();
+        var summonedByRitual = M("ritual-result", 3200, 2500,
+            GuardianStar.Mercury);
+        ritualBook.Add("ritual-spell",
+            new[] {"alpha", "beta", "gamma"}, summonedByRitual);
+        var ritualGame = new DuelMatch(
+            Deck(M("alpha", 700, 600), M("beta", 800, 700),
+                M("gamma", 900, 800),
+                new CardDefinition("ritual-spell", "Ritual", CardKind.Ritual,
+                    0, 0, "Original 3 material invocation")),
+            Deck(M("rival", 1000, 1000)), new FusionCatalog(), ritualBook);
+        Check(!ritualGame.TryEndTurn(DuelSide.Player,out _),
+            "PS1 ritual also respects mandatory hand play");
+        for (int i = 0; i < 3; i++)
+        {
+            Check(ritualGame.TryPlay(DuelSide.Player,new[] {0},
+                FieldLane.Monster,i,BattlePosition.Attack,
+                GuardianStar.None,out _),
+                "place ritual requirement in its own field slot");
+            End(ritualGame,DuelSide.Player);
+            Check(ritualGame.TryPlay(DuelSide.Opponent,new[] {0},
+                FieldLane.Monster,i,BattlePosition.Defense,
+                GuardianStar.None,out _),
+                "opponent advances without skipping its one compulsory play");
+            End(ritualGame,DuelSide.Opponent);
+        }
+        Check(ritualGame.Player.Hand[0].Id=="ritual-spell" &&
+            ritualGame.PreviewRitual(DuelSide.Player,0)==summonedByRitual,
+            "PS1 ritual preview requires three named face-up field monsters");
+        int eventsBeforeRitual = ritualGame.Events.Count;
+        Check(!ritualGame.CanSummonRitual(DuelSide.Player,0,4,
+            GuardianStar.Mercury,out _,out _) &&
+            !ritualGame.CanSummonRitual(DuelSide.Player,0,0,
+                GuardianStar.None,out _,out _),
+            "ritual rejects a non-tribute zone and invalid guardian star");
+        Check(ritualGame.CanSummonRitual(DuelSide.Player,0,0,
+            GuardianStar.Mercury,out var ritualPreview,out _) &&
+            ritualPreview.Id=="ritual-result" &&
+            ritualGame.Events.Count==eventsBeforeRitual,
+            "ritual preview is fully read-only");
+        Check(ritualGame.TrySummonRitual(DuelSide.Player,0,0,
+            BattlePosition.Attack,GuardianStar.Mercury,
+            out var ritualOutcome,out _) &&
+            ritualOutcome.Id=="ritual-result" &&
+            ritualGame.Player.Monster(0).Card.Id=="ritual-result" &&
+            ritualGame.Player.Monster(1)==null &&
+            ritualGame.Player.Monster(2)==null &&
+            ritualGame.Player.Graveyard.Count==4 &&
+            ritualGame.PlayedThisTurn,
+            "ritual consumes exactly 3 field tributes plus ritual card and places result");
+        Check(!ritualGame.TrySummonRitual(DuelSide.Player,0,0,
+            BattlePosition.Attack,GuardianStar.Mercury,out _,out _),
+            "ritual respects single hand placement limit per turn");
+
+        // Retail PS1 permits triple-copy rituals: three equal card IDs must
+        // still be three DIFFERENT physical monsters on the duel field.
+        var triples = new RitualCatalog();
+        triples.Add("triple-ritual",new[]{"blue","blue","blue"},
+            M("ultimate",4500,3800));
+        var tripleDuel = new DuelMatch(
+            Deck(M("blue",3000,2500),M("blue",3000,2500),
+                M("blue",3000,2500),
+                new CardDefinition("triple-ritual","Triple",
+                    CardKind.Ritual,0,0,"")),
+            Deck(M("enemy",500,500)),new FusionCatalog(),triples);
+        for (int tributeSlot=0;tributeSlot<3;tributeSlot++)
+        {
+            Check(tripleDuel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,tributeSlot,BattlePosition.Attack,
+                GuardianStar.None,out _),
+                "triple-copy ritual places one separate physical monster");
+            End(tripleDuel,DuelSide.Player);
+            Check(tripleDuel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Monster,tributeSlot,BattlePosition.Defense,
+                GuardianStar.None,out _),
+                "triple-copy ritual setup preserves opponent compulsory play");
+            End(tripleDuel,DuelSide.Opponent);
+        }
+        Check(tripleDuel.TrySummonRitual(DuelSide.Player,0,2,
+                BattlePosition.Attack,GuardianStar.None,
+                out var tripleResult,out _) &&
+              tripleResult.Id=="ultimate" &&
+              tripleDuel.Player.Monster(0)==null &&
+              tripleDuel.Player.Monster(1)==null &&
+              tripleDuel.Player.Monster(2).Card.Id=="ultimate" &&
+              tripleDuel.Player.Graveyard.Count==4,
+              "triple-copy PS1 ritual accepts duplicate IDs in separate field slots");
+
         var standardDeck = DemoDeck.Create();
         var shuffledA = DeckRandomizer.Shuffle(standardDeck, new Random(154));
         var shuffledB = DeckRandomizer.Shuffle(standardDeck, new Random(154));

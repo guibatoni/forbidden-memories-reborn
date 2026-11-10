@@ -23,6 +23,7 @@ namespace Reborn.Presentation
             public OpponentData[] opponents;
             public StoryData story;
             public FusionData[] fusions;
+            public RitualData[] rituals;
         }
         [Serializable] private sealed class SourceData
         {
@@ -45,6 +46,13 @@ namespace Reborn.Presentation
         {
             public int materialA;
             public int materialB;
+            public int result;
+            public bool verified;
+        }
+        [Serializable] private sealed class RitualData
+        {
+            public int ritualCard;
+            public int[] tributes;
             public int result;
             public bool verified;
         }
@@ -140,6 +148,40 @@ namespace Reborn.Presentation
                         fusions.Add(aId,bId,result);
                     }
                 }
+                var rituals = new RitualCatalog();
+                if (parsed.rituals != null)
+                {
+                    foreach (var entry in parsed.rituals)
+                    {
+                        if (entry == null || !entry.verified ||
+                            entry.ritualCard < 1 || entry.ritualCard > 722 ||
+                            entry.result < 1 || entry.result > 722 ||
+                            entry.tributes == null || entry.tributes.Length != 3)
+                            throw new InvalidDataException("Receita de ritual PS1 incompleta");
+
+                        string ritualId = entry.ritualCard.ToString("000");
+                        string resultId = entry.result.ToString("000");
+                        if (!lookup.TryGetValue(ritualId, out var ritualCard) ||
+                            ritualCard.Kind != CardKind.Ritual ||
+                            !lookup.TryGetValue(resultId, out var summon) ||
+                            summon.Kind != CardKind.Monster)
+                            throw new InvalidDataException("Ritual com tipos incompatíveis");
+
+                        var materials = new string[3];
+                        for (int i = 0; i < 3; i++)
+                        {
+                            int tribute = entry.tributes[i];
+                            if (tribute < 1 || tribute > 722)
+                                throw new InvalidDataException("ID de tributo fora do PS1");
+                            string id = tribute.ToString("000");
+                            if (!lookup.TryGetValue(id, out var card) ||
+                                card.Kind != CardKind.Monster)
+                                throw new InvalidDataException("Tributo nao e monstro: " + id);
+                            materials[i] = id;
+                        }
+                        rituals.Add(ritualId, materials, summon);
+                    }
+                }
                 var opponents = new List<OpponentDefinition>();
                 if (parsed.opponents != null)
                     foreach (var entry in parsed.opponents)
@@ -162,12 +204,12 @@ namespace Reborn.Presentation
                     script = new CampaignScript(parsed.story.startNodeId,nodes,opponents);
                 }
                 bundle = new GameContentBundle(parsed.source.edition,parsed.source.language,sha,
-                    cards,opponents,script,fusions);
+                    cards,opponents,script,fusions,rituals);
                 // Importacao de JSON nao garante que os bytes conferem com a ISO informada.
                 status = $"Importado (nao validado contra a ISO): {cards.Count}/722 cartas, " +
                     $"{bundle.MissingDescriptions} descricoes vazias, {opponents.Count} oponentes, " +
                     $"{(script == null ? 0 : script.Nodes.Count)} eventos, " +
-                    $"{fusions.Count} receitas importadas.";
+                    $"{fusions.Count} receitas importadas, {rituals.Count} rituais.";
                 return true;
             }
             catch (Exception ex)

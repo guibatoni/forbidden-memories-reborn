@@ -61,6 +61,12 @@ jobs:
       - name: Verify field-first fusion and full-board play (static only)
         run: python3 tools/check_field_fusions.py
 
+      - name: Verify original disc descriptions, rituals and ceremonies (static only)
+        run: python3 tools/check_original_data_rituals.py
+
+      - name: Disc-free importer and full-content validator
+        run: python3 tools/test_disc_import.py
+
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 

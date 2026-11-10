@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Valida metadados de um export local, sem tocar em ROM/ISO ou enviar dados a rede.
 
-Exemplo: python tools/validate_import.py caminho/para/original_export.json
+Exemplos:
+  python tools/validate_import.py caminho/para/original_export.json
+  python tools/validate_import.py caminho/para/original_export.json --complete
 """
 import json
 import pathlib
@@ -59,6 +61,27 @@ def validate(data):
         if key in fusion_keys:
             errors.append(f'fusions[{i}] receita duplicada')
         fusion_keys.add(key)
+    rituals = data.get('rituals') or []
+    ritual_ids = set()
+    for i, ritual in enumerate(rituals):
+        rid = ritual.get('ritualCard')
+        result = ritual.get('result')
+        tributes = ritual.get('tributes')
+        if type(rid) is not int or type(result) is not int or \
+                rid in ritual_ids or rid not in lookup or result not in lookup or \
+                not isinstance(tributes, list) or len(tributes) != 3 or \
+                ritual.get('verified') is not True:
+            errors.append(f'rituals[{i}] receita incompleta, duplicada ou nao verificada')
+            continue
+        ritual_ids.add(rid)
+        if str(lookup[rid].get('kind','')).lower() != 'ritual' or \
+                str(lookup[result].get('kind','')).lower() != 'monster':
+            errors.append(f'rituals[{i}] tipos incompatíveis')
+        if any(
+                type(t) is not int or t not in lookup or
+                str(lookup[t].get('kind','')).lower() != 'monster'
+                for t in tributes):
+            errors.append(f'rituals[{i}] exige 3 monstros especificos validos')
     opponents = data.get('opponents') or []
     op_ids = set()
     for i, op in enumerate(opponents):
@@ -98,16 +121,32 @@ def validate(data):
                     if choice.get('nextNodeId') not in refs:
                         errors.append(f'evento {node_id}: escolha aponta para node inexistente')
     return errors, dict(cards=len(cards), missingDescriptions=sum(not c.get('description','').strip() for c in cards),
-                       opponents=len(opponents), storyEvents=len(nodes), fusions=len(fusions))
+                       opponents=len(opponents), storyEvents=len(nodes),
+                       fusions=len(fusions), rituals=len(rituals),
+                       descriptionCoverageByKind={
+                           kind: {
+                               'total': sum(str(c.get('kind','')).lower() == kind for c in cards),
+                               'withText': sum(str(c.get('kind','')).lower() == kind and
+                                               bool(str(c.get('description') or '').strip())
+                                               for c in cards)
+                           } for kind in sorted(VALID_KINDS)
+                       })
 
 
 def main():
-    if len(sys.argv) != 2:
+    args = sys.argv[1:]
+    complete = '--complete' in args
+    args = [a for a in args if a != '--complete']
+    if len(args) != 1:
         print(__doc__)
         return 2
-    path = pathlib.Path(sys.argv[1])
+    path = pathlib.Path(args[0])
     data = json.loads(path.read_text(encoding='utf-8'))
     errors, stats = validate(data)
+    if complete:
+        ids = [c.get('id') for c in data.get('cards', [])]
+        if sorted(ids) != list(range(1, 723)):
+            errors.append('catalogo original precisa conter IDs 1..722, sem lacunas')
     for key, value in stats.items():
         print(f'{key}: {value}')
     for error in errors:

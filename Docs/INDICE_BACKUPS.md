@@ -149,3 +149,23 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
   The Unity 6000.3.28f1 interaction/animation tests remain mandatory.
 - No retail ISO, copied card illustrations, private exports, personal
   opponent learning data or original-disc content in public source.
+
+
+## Prototype 0.17 — Original card data, rituals and ceremonies (draft)
+- Recovery branch: `backup/prototype-0.17-draft`
+- Feature branch: `feature/prototype-0.17-original-data-ritual-ceremony`
+- Pull request: #4 (stacked on #3/#2/#1)
+- Local extraction pipeline: all 722 original card definitions and all
+  **available** descriptions are imported from the user's disc; missing
+  texts counted per category rather than invented.
+- Runtime fusion table retains ordinary recipes and PS1 reader quirks,
+  with source metadata. Full bit-for-bit retail equivalence is **unproven**
+  until local SHA-256 and reference comparison.
+- PS1 ritual: a ritual card from hand consumes three SPECIFIC face-up field
+  monsters. Repeated required card IDs are legal when three distinct physical
+  card copies occupy different slots.
+- Original visual ceremonies: concentric rings, orbiting motes and
+  timed reveal pillar for fusion, replacement and ritual. No camera movement.
+- Private disc/card text data are excluded from the Git repository.
+- .NET Core and static CI, plus Unity Editor playtesting and real-disc
+  extraction results, must be distinguished in release readiness claims.

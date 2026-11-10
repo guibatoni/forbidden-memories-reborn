@@ -13,11 +13,13 @@ namespace Reborn.Core
         public IReadOnlyList<OpponentDefinition> Opponents { get; }
         public CampaignScript Campaign { get; }
         public FusionCatalog Fusions { get; }
+        public RitualCatalog Rituals { get; }
         public int MissingDescriptions { get; }
 
         public GameContentBundle(string edition, string language, string sourceSha256,
             IReadOnlyList<CardDefinition> cards, IReadOnlyList<OpponentDefinition> opponents,
-            CampaignScript campaign, FusionCatalog fusions = null)
+            CampaignScript campaign, FusionCatalog fusions = null,
+            RitualCatalog rituals = null)
         {
             if (cards == null || cards.Count == 0) throw new ArgumentException("Catalogo de cartas vazio");
             var ids = new HashSet<string>(StringComparer.Ordinal);
@@ -34,6 +36,7 @@ namespace Reborn.Core
             Edition = edition ?? ""; Language = language ?? ""; SourceSha256 = sourceSha256 ?? "";
             Cards = cards; Opponents = opponents ?? new OpponentDefinition[0];
             Campaign = campaign; Fusions = fusions ?? new FusionCatalog();
+            Rituals = rituals ?? new RitualCatalog();
             MissingDescriptions = missing;
         }
     }
