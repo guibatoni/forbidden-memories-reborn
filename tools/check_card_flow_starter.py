@@ -57,7 +57,7 @@ checks={
         'starterPools.Length != 7' in loader,
     "real ISO importer exports Unity starter rows":
         '"starter_pools.json"' in importer and
-        'normalize_deck_weights(row["weights"])' in importer,
+        'normalize_starter_weights(row["weights"])' in importer,
     "starter picker communicates PS1 original has one random deck":
         'No jogo original existe apenas um sorteio' in picker,
     "missing starter pools never auto-selected as original":
