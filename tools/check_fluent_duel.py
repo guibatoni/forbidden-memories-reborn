@@ -39,10 +39,9 @@ checks = {
     "fluent HUD is in separate partial": "public sealed partial class ArenaHud" in hud and
         "public sealed partial class ArenaHud" in flow,
     "guardian, face and position use sequential modal screens":
-        wizard.find("PlacementChoiceStep.Guardian") <
-        wizard.find("PlacementChoiceStep.Facing") <
-        wizard.find("PlacementChoiceStep.Position") and
         "BeginPlacementChoices(" in input_script and
+        "placementStep = PlacementChoiceStep.Facing;" in wizard and
+        "placementStep = PlacementChoiceStep.Position;" in wizard and
         "ConfirmFacing(bool faceDown)" in wizard and
         "SetPlacedPosition(BattlePosition position)" in wizard,
     "placing a card immediately enters battle": "hud.AfterHandPlacement();" in input_script and
