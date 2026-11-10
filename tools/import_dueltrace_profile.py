@@ -260,6 +260,36 @@ def build_export(profile: dict, prior: dict | None = None, *,
                     ]}
 
 
+def copy_local_art(profile: dict, project: Path) -> dict:
+    """Optionally reuse locally extracted PS1 PNGs without overwriting custom Reborn art."""
+    root_name = profile.get("art_root")
+    if not profile.get("supported_features", {}).get("art") or not root_name:
+        raise ValueError("Este perfil DUELTRACE nao possui 722 artes extraidas")
+    source = Path(root_name).expanduser().resolve()
+    if not source.is_dir():
+        raise FileNotFoundError("Pasta local de artes DUELTRACE indisponivel: " + str(source))
+    # Validate all source files before writing a single image to the project.
+    for cid in range(1, CARD_COUNT + 1):
+        path = source / f"{cid:03d}.png"
+        if not path.is_file() or path.stat().st_size > 12_000_000:
+            raise ValueError("Arte DUELTRACE ausente ou muito grande: #" + str(cid))
+        with path.open("rb") as stream:
+            if stream.read(8) != b"\x89PNG\r\n\x1a\n":
+                raise ValueError("Arquivo de arte nao e PNG: #" + str(cid))
+    dest = project / "Assets" / "Resources" / "RebornCardArt"
+    dest.mkdir(parents=True, exist_ok=True)
+    copied = preserved = 0
+    for cid in range(1, CARD_COUNT + 1):
+        target = dest / f"{cid:03d}.png"
+        if target.exists():
+            preserved += 1
+        else:
+            shutil.copy2(source / f"{cid:03d}.png", target)
+            copied += 1
+    return {"copied": copied, "customArtPreserved": preserved,
+            "artFolder": "Assets/Resources/RebornCardArt (local ignored)"}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--profile", type=Path,
@@ -272,6 +302,8 @@ def main() -> int:
                     help="investigacoes/<sha>.fusoes.json; exigido para lote revisado")
     ap.add_argument("--include-reviewed-batch", action="store_true",
                     help="Permite usar fusoes revisadas em lote (nao verificadas 1 a 1)")
+    ap.add_argument("--copy-local-art", action="store_true",
+                    help="Copia PNGs locais do DUELTRACE sem sobrescrever artes personalizadas")
     args = ap.parse_args()
     project = args.project.resolve()
     target = project / "Assets" / "StreamingAssets" / "RebornContent" / "original_export.json"
@@ -287,6 +319,10 @@ def main() -> int:
         export, summary = build_export(profile, prior,
                                        reviewed=args.include_reviewed_batch,
                                        fusion_report=fusion_report)
+        if args.copy_local_art:
+            summary["art"] = copy_local_art(profile, project)
+        else:
+            summary["art"] = "not copied (use --copy-local-art to reuse local PNGs)"
         target.parent.mkdir(parents=True, exist_ok=True)
         private = project / "PrivateExtracts" / "reborn-disc"
         private.mkdir(parents=True, exist_ok=True)
