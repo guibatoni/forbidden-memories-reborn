@@ -63,7 +63,8 @@ namespace Reborn.Presentation
                 arena.StageMatchPlacement(DuelSide.Opponent, FieldLane.Monster, zone,
                     new Vector3(0f, 0.46f, 6.9f), hud.AnimationsEnabled);
                 if (game.TryPlay(DuelSide.Opponent, plan.HandIndices, FieldLane.Monster,
-                    zone, plan.Position, plan.Star, out var reason))
+                    zone, plan.Position, plan.Star,
+                    plan.Position == BattlePosition.Defense, out var reason))
                     hud.Announce("Oponente " + (plan.IsFusion ? "fundiu e invocou " : "invocou ") +
                         monster.Name + " na zona " + (zone + 1) +
                         " (" + plan.Position + ", " + plan.Star + ").");
