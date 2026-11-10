@@ -132,6 +132,25 @@ internal static class Program
             aiMatch.Player.Life == 6200,
             "AI attack applies damage only when the engine is invoked");
 
+        // Any supported card kind counts as the one compulsory placement:
+        // the opponent must set a support when the hand has no monsters.
+        var supportOnlyAi = new DuelMatch(
+            Deck(S("myOpening")),
+            Deck(S("spellA"),S("trapB"),S("equipC"),S("ritualD"),S("spellE")));
+        Check(supportOnlyAi.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _),
+            "opening support counts as one player turn action");
+        End(supportOnlyAi,DuelSide.Player);
+        Check(supportOnlyAi.TryChooseSupportSet(DuelSide.Opponent,
+            out int fallbackHand, out int fallbackSlot) &&
+            fallbackHand >= 0 && fallbackSlot >= 0,
+            "opponent can find a legal support-only mandatory play");
+        SimpleOpponentAi.TakeTurn(supportOnlyAi);
+        Check(supportOnlyAi.CurrentSide == DuelSide.Player &&
+            supportOnlyAi.Opponent.Support(fallbackSlot) != null &&
+            supportOnlyAi.Opponent.SupportIsFaceDown(fallbackSlot),
+            "support-only opponent sets a card instead of skipping turn");
+
         var standardDeck = DemoDeck.Create();
         var shuffledA = DeckRandomizer.Shuffle(standardDeck, new Random(154));
         var shuffledB = DeckRandomizer.Shuffle(standardDeck, new Random(154));
