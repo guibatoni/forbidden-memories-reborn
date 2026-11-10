@@ -37,11 +37,14 @@ jobs:
       - name: Verify tactical attack preview integration (static only)
         run: python3 tools/check_tactical_preview.py
 
+      - name: Verify bounded multistep AI planner (static only)
+        run: python3 tools/check_multiattack.py
+
       - name: Archive clean Unity source (never ROMs or private content)
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.10-Clean-Source
+          name: Reborn-0.11-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |

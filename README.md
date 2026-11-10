@@ -1,3 +1,12 @@
+# Forbidden Memories Reborn — Prototype 0.11
+
+**Opponent AI plans multiple attacks:** evaluates visible targets and Guardian
+Star outcomes, clears defenses strategically and preserves strong attackers
+for potential direct damage. Actual attacks stay sequential and governed
+by DuelMatch. See [Prototype 0.11 notes](Docs/PROTOTYPE_0_11.md).
+
+---
+
 # Prototype 0.10 — Tactical Combat Preview
 
 A shared forecast now powers the player's hover preview and the adaptive
