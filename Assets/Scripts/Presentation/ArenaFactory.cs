@@ -13,6 +13,7 @@ namespace Reborn.Presentation
         public readonly List<CardView> HandViews = new List<CardView>();
         private readonly Transform root;
         private Transform dynamicRoot;
+        private bool handExpanded;
         private bool hasPendingPlace;
         private FieldLane pendingLane;
         private DuelSide pendingSide = DuelSide.Player;
@@ -144,21 +145,80 @@ namespace Reborn.Presentation
             return CardFaceBuilder.Create(name, dynamicRoot, card, handIndex, pos, size, hidden);
         }
 
-        /// <summary>
-        /// Visible full-size cards overlap naturally in a five-card tabletop fan.
-        /// The highest hover/selected card lifts above neighboring colliders.
-        /// All hand positions remain in front of the fixed arena camera.
-        /// </summary>
+        /// <summary>Inverted fan with 0.90 table unit extra spacing when expanded.</summary>
         private CardView MakeHandCard(string name, CardDefinition card, int index, int count)
         {
-            float spread = index - (count - 1) * 0.5f;
-            float x = spread * 1.05f;
-            float z = -7.38f + Mathf.Abs(spread) * 0.22f;
-            var view = MakeCard(name, card, index,
-                new Vector3(x, 0.57f + Mathf.Abs(spread) * 0.012f, z),
-                new Vector3(1.90f, 0.12f, 2.55f));
-            view.SetFanRotation(spread * -9.5f);
+            var pose = HandFanGeometry.At(index, count, handExpanded);
+            var position = new Vector3(pose.X, pose.Y, pose.Z);
+            var view = MakeCard(name, card, index, position,
+                new Vector3(HandFanGeometry.CardWidth, 0.12f, HandFanGeometry.CardLength));
+            view.SetHandLayoutTarget(position, Quaternion.Euler(0f, pose.Yaw, 0f));
             return view;
+        }
+
+        /// <summary>Animate fan pose without recreating cards or losing selection.</summary>
+        public void SetHandFocus(bool expanded)
+        {
+            if (handExpanded == expanded) return;
+            handExpanded = expanded;
+            int count = HandViews.Count;
+            for (int i = 0; i < count; i++)
+            {
+                var card = HandViews[i];
+                if (card == null) continue;
+                var pose = HandFanGeometry.At(card.HandIndex, count, expanded);
+                card.SetHandLayoutTarget(new Vector3(pose.X, pose.Y, pose.Z),
+                    Quaternion.Euler(0f, pose.Yaw, 0f));
+            }
+        }
+
+        /// <summary>
+        /// Focus area uses screen projections of BOTH poses, including lifted
+        /// hover cards. Avoids flickering between compact/expanded when the
+        /// card moves away from the pointer during its animation.
+        /// </summary>
+        public bool IsPointerNearHand(Vector2 pointer)
+        {
+            if (Camera == null || dynamicRoot == null || HandViews.Count == 0)
+                return false;
+            float minX = float.PositiveInfinity, maxX = float.NegativeInfinity;
+            float minY = float.PositiveInfinity, maxY = float.NegativeInfinity;
+            int count = HandViews.Count;
+            for (int mode = 0; mode < 2; mode++)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    var pose = HandFanGeometry.At(i, count, mode == 1);
+                    var center = new Vector3(pose.X, pose.Y, pose.Z);
+                    var rotation = Quaternion.Euler(0f, pose.Yaw, 0f);
+                    for (int corner = 0; corner < 4; corner++)
+                    {
+                        float x = (corner & 1) == 0 ?
+                            -HandFanGeometry.CardWidth * 0.5f :
+                            HandFanGeometry.CardWidth * 0.5f;
+                        float z = (corner & 2) == 0 ?
+                            -HandFanGeometry.CardLength * 0.5f :
+                            HandFanGeometry.CardLength * 0.5f;
+                        var basePoint = center + rotation * new Vector3(x, 0f, z);
+                        for (int raised = 0; raised < 2; raised++)
+                        {
+                            var point = basePoint +
+                                Vector3.up * (raised == 0 ? 0f : 0.70f);
+                            Vector3 screen = Camera.WorldToScreenPoint(
+                                dynamicRoot.TransformPoint(point));
+                            if (screen.z <= 0f) continue;
+                            minX = Mathf.Min(minX, screen.x);
+                            maxX = Mathf.Max(maxX, screen.x);
+                            minY = Mathf.Min(minY, screen.y);
+                            maxY = Mathf.Max(maxY, screen.y);
+                        }
+                    }
+                }
+            }
+            if (float.IsInfinity(minX)) return false;
+            const float marginX = 16f, marginY = 12f;
+            return pointer.x >= minX - marginX && pointer.x <= maxX + marginX &&
+                pointer.y >= minY - marginY && pointer.y <= maxY + marginY;
         }
 
         public void StagePlacement(FieldLane lane, int slot, Vector3 fromWorld, bool animate)
@@ -243,6 +303,7 @@ namespace Reborn.Presentation
         {
             if (dynamicRoot == null || match == null) return;
             HandViews.Clear();
+            handExpanded = false;
             foreach (Transform child in dynamicRoot)
             {
                 child.gameObject.SetActive(false);
@@ -321,6 +382,7 @@ namespace Reborn.Presentation
         {
             if (dynamicRoot == null) return;
             HandViews.Clear();
+            handExpanded = false;
             foreach (Transform child in dynamicRoot)
             {
                 // Inativa colliders imediatamente; Destroy() e postergado ate o fim do frame.
