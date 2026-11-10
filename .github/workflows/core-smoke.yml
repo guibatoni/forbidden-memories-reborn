@@ -58,6 +58,9 @@ jobs:
       - name: Verify mandatory turns and card inspection (static only)
         run: python3 tools/check_classic_turn_inspection.py
 
+      - name: Verify field-first fusion and full-board play (static only)
+        run: python3 tools/check_field_fusions.py
+
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 
