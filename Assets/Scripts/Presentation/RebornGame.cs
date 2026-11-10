@@ -25,6 +25,12 @@ namespace Reborn.Presentation
             GameContentBundle imported;
             string importStatus;
             bool loaded = OriginalContentLoader.TryLoad(out imported, out importStatus);
+            // The complete local export wins. Without it, reuse the already
+            // indexed Original profile straight from DUELTRACE on Windows.
+            // A malformed existing export is never silently overridden by a
+            // different ISO or DEMO catalog.
+            if (!loaded && !System.IO.File.Exists(OriginalContentLoader.ExpectedPath))
+                loaded = DueltraceLocalProfileLoader.TryLoad(out imported, out importStatus);
             OpponentDeckCatalog pools = null;
             if (loaded)
             {
@@ -44,6 +50,7 @@ namespace Reborn.Presentation
             arena.Build();
             var hud = gameObject.AddComponent<ArenaHud>();
             hud.Initialize(session, arena, loaded ? imported : null, importStatus);
+            hud.ConfigureContentAvailability(loaded);
             var interaction = gameObject.AddComponent<ArenaInteraction>();
             interaction.Initialize(session, arena, hud);
 
