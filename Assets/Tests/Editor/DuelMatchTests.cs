@@ -232,6 +232,27 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void OpponentSupportFallbackSatisfiesMandatoryPlayWithoutEffects()
+        {
+            var match = new DuelMatch(Deck(Support("opening")),
+                Deck(Support("spell"), Support("trap", CardKind.Trap),
+                    Support("equip", CardKind.Equip), Support("ritual", CardKind.Ritual),
+                    Support("spell2")));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] {0}, FieldLane.Support,
+                0, BattlePosition.Attack, GuardianStar.None, true, out _));
+            End(match, DuelSide.Player);
+            Assert.IsTrue(match.TryChooseSupportSet(DuelSide.Opponent,
+                out int hand, out int zone));
+            Assert.IsFalse(match.TryEndTurn(DuelSide.Opponent, out _));
+            Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] {hand},
+                FieldLane.Support, zone, BattlePosition.Defense,
+                GuardianStar.None, true, out _));
+            Assert.IsTrue(match.Opponent.SupportIsFaceDown(zone));
+            Assert.IsFalse(match.CanActivateSupport(DuelSide.Opponent,zone,out _));
+            End(match, DuelSide.Opponent);
+        }
+
+        [Test]
         public void AiHasNoSummonWhenOpponentHandHasNoMonster()
         {
             var match = new DuelMatch(Deck(Monster("p",1000,900)),
