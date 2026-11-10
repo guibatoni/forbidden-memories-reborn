@@ -413,8 +413,10 @@ internal static class Program
             AiBrainVersion.Learning2);
         improvedBrain.StartDuel(freshLearning);
         int beforePositionalEvents = positional.Events.Count;
+        StrategicPlacement winningPlacement;
+        bool plannedWinning = improvedBrain.TryChoosePlacement(positional, out winningPlacement);
         Check(improvedBrain.Tactic == AiTactic.Balanced &&
-            improvedBrain.TryChoosePlacement(positional, out var winningPlacement) &&
+            plannedWinning && winningPlacement != null &&
             winningPlacement.Result.Id == "winning-attacker" &&
             winningPlacement.Position == BattlePosition.Attack &&
             positional.CanPlay(DuelSide.Opponent, winningPlacement.HandIndices,
