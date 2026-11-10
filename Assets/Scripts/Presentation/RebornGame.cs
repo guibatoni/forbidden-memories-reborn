@@ -127,6 +127,9 @@ namespace Reborn.Presentation
                 hud.ResetMatch(newMatch);
             }
             BindMatch(CreateExperimentalMatch());
+            // Launch straight into the playable duel; Sandbox stays available
+            // through the optional HUD button rather than interrupting gameplay.
+            hud.SetDuelMode(true);
             hud.NewMatchRequested += ResetDuel;
             hud.NextOpponentRequested += () =>
             {
