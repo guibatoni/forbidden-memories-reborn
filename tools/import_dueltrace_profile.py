@@ -136,7 +136,16 @@ def make_cards(profile: dict, existing: dict | None) -> tuple[list[dict], dict]:
     if seen != set(range(1, CARD_COUNT + 1)):
         raise ValueError("IDs nao abrangem todas as 722 cartas")
     cards.sort(key=lambda c: c["id"])
-    return cards, {"cards": len(cards), "descriptions": count_descriptions,
+    by_kind = {}
+    for kind in ("Monster", "Spell", "Trap", "Equip", "Ritual"):
+        subset = [c for c in cards if c["kind"] == kind]
+        by_kind[kind] = {
+            "total": len(subset),
+            "withDescription": sum(bool(c["description"]) for c in subset),
+            "withEffectText": sum(bool(c["effectText"]) for c in subset),
+        }
+    return cards, {"cardsByKind": by_kind,
+                   "cards": len(cards), "descriptions": count_descriptions,
                    "effectTexts": count_effects,
                    "missingDescriptions": CARD_COUNT - count_descriptions,
                    "starsFromPriorDiscExport": sum(bool(c["guardianStarA"]) for c in cards)}
@@ -229,7 +238,8 @@ def build_export(profile: dict, prior: dict | None = None, *,
     # previously imported disc export if one exists, otherwise report missing.
     result = {
         "schema": 1,
-        "source": {"edition": "original-ps1-dueltrace", "language": "und",
+        "source": {"edition": "original-ps1-dueltrace",
+                   "language": (prior or {}).get("source", {}).get("language") or "und",
                    "discSha256": sha},
         "cards": cards,
         "fusions": fusions,
