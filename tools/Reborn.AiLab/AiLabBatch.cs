@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using Reborn.Core;
 
 namespace Reborn.AiLab
 {
@@ -15,6 +16,10 @@ namespace Reborn.AiLab
         public int TrainingCompleted { get; set; }
         public int EvaluationGames { get; set; }
         public int ReferenceWins { get; set; }
+        public int LegacyWins { get; set; }
+        public int LegacyUnresolved { get; set; }
+        public double LegacyWinRate { get; set; }
+        public double ImprovementOverLegacy { get; set; }
         public int BeforeWins { get; set; }
         public int AfterWins { get; set; }
         public int BeforeUnresolved { get; set; }
@@ -41,6 +46,11 @@ namespace Reborn.AiLab
         public int UnresolvedBefore { get; set; }
         public int UnresolvedAfter { get; set; }
         public double ScriptedReferenceWinRate { get; set; }
+        public double LegacyBeforeWinRate { get; set; }
+        public double LegacyVsLearning2 { get; set; }
+        public double LegacyVsLearning2ConfidenceLower { get; set; }
+        public double LegacyVsLearning2ConfidenceUpper { get; set; }
+        public int LegacyUnresolved { get; set; }
         public double BeforeWinRate { get; set; }
         public double AfterWinRate { get; set; }
         public double WinRateDifference { get; set; }
@@ -93,7 +103,7 @@ namespace Reborn.AiLab
                     scenario != "aggressive") || !unique.Add(scenario))
                     throw new ArgumentException("Unknown or duplicate scenario: " + scenario);
             long total = (long)scenarios.Count * repetitions *
-                (trainGames + 3L * evalGames);
+                (trainGames + 4L * evalGames);
             if (total > 20000)
                 throw new ArgumentException("Requested more than 20,000 simulated duels; reduce --seeds, --train or --eval");
 
@@ -113,13 +123,20 @@ namespace Reborn.AiLab
                 {
                     int experimentSeed = unchecked(baseSeed +
                         scenarioIndex * 1597334677 + i * 1000003);
-                    var result = AiLab.Run(experimentSeed, trainGames, evalGames, scenario);
+                    var result = AiLab.Run(experimentSeed, trainGames, evalGames, scenario,
+                        AiBrainVersion.Learning2);
+                    var legacy = AiLab.EvaluatePolicy(unchecked(experimentSeed + 200000),
+                        evalGames, scenario, AiBrainVersion.Legacy);
                     var single = new BatchRun {
                         Scenario = scenario, Seed = experimentSeed,
                         TrainingScheduled = trainGames,
                         TrainingCompleted = result.TrainingCompleted,
                         EvaluationGames = evalGames,
                         ReferenceWins = result.ScriptedReference.Wins,
+                        LegacyWins = legacy.Wins,
+                        LegacyUnresolved = legacy.Unresolved,
+                        LegacyWinRate = legacy.WinRate,
+                        ImprovementOverLegacy = result.AdaptiveBefore.WinRate - legacy.WinRate,
                         BeforeWins = result.AdaptiveBefore.Wins,
                         AfterWins = result.AdaptiveAfter.Wins,
                         BeforeUnresolved = result.AdaptiveBefore.Unresolved,
@@ -145,19 +162,30 @@ namespace Reborn.AiLab
             int games = runs.Sum(x => x.EvaluationGames);
             double rawDelta = runs.Average(x => x.WinRateDifference);
             var diffs = runs.Select(x => x.WinRateDifference).ToArray();
+            var legacyDiffs = runs.Select(x => x.ImprovementOverLegacy).ToArray();
             var draws = new double[2000];
+            var drawsLegacy = new double[2000];
             var random = new Random(unchecked(seed ^
                 (0x5F3759DF + scenarioIndex * 8191)));
             for (int b = 0; b < draws.Length; b++)
             {
                 double sampleMean = 0;
+                double sampleLegacy = 0;
                 for (int j = 0; j < n; j++)
-                    sampleMean += diffs[random.Next(n)];
+                {
+                    int chosen = random.Next(n);
+                    sampleMean += diffs[chosen];
+                    sampleLegacy += legacyDiffs[chosen];
+                }
                 draws[b] = sampleMean / n;
+                drawsLegacy[b] = sampleLegacy / n;
             }
             Array.Sort(draws);
+            Array.Sort(drawsLegacy);
             double lower = draws[(int)(0.025 * (draws.Length - 1))];
             double upper = draws[(int)(0.975 * (draws.Length - 1))];
+            double legacyLower = drawsLegacy[(int)(0.025 * (drawsLegacy.Length - 1))];
+            double legacyUpper = drawsLegacy[(int)(0.975 * (drawsLegacy.Length - 1))];
             // With only a few independent training seeds, a cluster
             // interval is highly unstable; never label it a breakthrough.
             string interpretation;
@@ -174,6 +202,11 @@ namespace Reborn.AiLab
                 UnresolvedAfter = runs.Sum(x => x.AfterUnresolved),
                 ScriptedReferenceWinRate = Round(
                     (double)runs.Sum(x => x.ReferenceWins) / games),
+                LegacyBeforeWinRate = Round((double)runs.Sum(x => x.LegacyWins) / games),
+                LegacyVsLearning2 = Round(legacyDiffs.Average()),
+                LegacyVsLearning2ConfidenceLower = Round(legacyLower),
+                LegacyVsLearning2ConfidenceUpper = Round(legacyUpper),
+                LegacyUnresolved = runs.Sum(x => x.LegacyUnresolved),
                 BeforeWinRate = Round((double)runs.Sum(x => x.BeforeWins) / games),
                 AfterWinRate = Round((double)runs.Sum(x => x.AfterWins) / games),
                 WinRateDifference = Round(rawDelta),
@@ -189,7 +222,7 @@ namespace Reborn.AiLab
         {
             if (report == null) throw new ArgumentNullException(nameof(report));
             var output = new StringBuilder();
-            output.AppendLine("scenario,seed,train_scheduled,train_completed,eval_games,reference_wins,before_wins,after_wins,before_unresolved,after_unresolved,before_win_rate,after_win_rate,delta");
+            output.AppendLine("scenario,seed,train_scheduled,train_completed,eval_games,reference_wins,legacy_wins,legacy_unresolved,legacy_win_rate,learning2_vs_legacy,before_wins,after_wins,before_unresolved,after_unresolved,before_win_rate,after_win_rate,delta");
             foreach (var row in report.Runs)
             {
                 output.Append(row.Scenario).Append(',').Append(row.Seed).Append(',')
@@ -197,6 +230,10 @@ namespace Reborn.AiLab
                     .Append(row.TrainingCompleted).Append(',')
                     .Append(row.EvaluationGames).Append(',')
                     .Append(row.ReferenceWins).Append(',')
+                    .Append(row.LegacyWins).Append(',')
+                    .Append(row.LegacyUnresolved).Append(',')
+                    .Append(row.LegacyWinRate.ToString("G17", CultureInfo.InvariantCulture)).Append(',')
+                    .Append(row.ImprovementOverLegacy.ToString("G17", CultureInfo.InvariantCulture)).Append(',')
                     .Append(row.BeforeWins).Append(',')
                     .Append(row.AfterWins).Append(',')
                     .Append(row.BeforeUnresolved).Append(',')
