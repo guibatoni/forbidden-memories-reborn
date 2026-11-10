@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Reborn.Presentation
 {
     /// <summary>HUD IMGUI de prototipo, sem dependencias de fontes externas.</summary>
-    public sealed class ArenaHud : MonoBehaviour
+    public sealed partial class ArenaHud : MonoBehaviour
     {
         private DuelSession session;
         private DuelMatch match;
