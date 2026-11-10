@@ -4,6 +4,7 @@ using System.Collections.Generic;
 namespace Reborn.Core
 {
     public enum AiTactic { Balanced, Aggressive, Defensive, FusionFocused, Counterplay }
+    public enum AiBrainVersion { Legacy = 1, Learning2 = 2 }
 
     /// <summary>
     /// Small anonymized persistent learning record, one per opponent and content edition.
@@ -20,6 +21,8 @@ namespace Reborn.Core
         public int playerFusions;
         public int previousTactic = -1;
         public float[] tacticValues = new float[5];
+        public int[] tacticGames = new int[5];
+        public int[] tacticWins = new int[5];
 
         public AiLearningState() { }
         public AiLearningState(string identity) { key = identity; }
@@ -35,6 +38,15 @@ namespace Reborn.Core
             if (previousTactic < -1 || previousTactic > 4) previousTactic = -1;
             if (tacticValues == null || tacticValues.Length != 5)
                 tacticValues = new float[5];
+            if (tacticGames == null || tacticGames.Length != 5)
+                tacticGames = new int[5];
+            if (tacticWins == null || tacticWins.Length != 5)
+                tacticWins = new int[5];
+            for (int i = 0; i < 5; i++)
+            {
+                tacticGames[i] = Math.Max(0, Math.Min(1000000, tacticGames[i]));
+                tacticWins[i] = Math.Max(0, Math.Min(tacticGames[i], tacticWins[i]));
+            }
             for (int i = 0; i < tacticValues.Length; i++)
             {
                 if (float.IsNaN(tacticValues[i]) || float.IsInfinity(tacticValues[i]))
@@ -53,6 +65,7 @@ namespace Reborn.Core
     {
         private readonly Random random;
         private DuelMatch recordedDuel;
+        public AiBrainVersion Version { get; }
         public AiLearningState State { get; private set; }
         public AiTactic Tactic { get; private set; }
         public PlannedAttackSequence LastAttackPlan { get; private set; }
@@ -71,9 +84,13 @@ namespace Reborn.Core
             }
         }
 
-        public AdaptiveOpponentBrain(Random rng)
+        public AdaptiveOpponentBrain(Random rng,
+            AiBrainVersion version = AiBrainVersion.Learning2)
         {
             random = rng ?? throw new ArgumentNullException(nameof(rng));
+            if (version != AiBrainVersion.Legacy && version != AiBrainVersion.Learning2)
+                throw new ArgumentOutOfRangeException(nameof(version));
+            Version = version;
         }
 
         public void StartDuel(AiLearningState state)
@@ -100,7 +117,13 @@ namespace Reborn.Core
                 if (i == (int)AiTactic.Counterplay)
                     context += Math.Min(0.35, fusionRate * 0.09);
                 if (i == State.previousTactic) context -= 0.70;
-                distribution[i] = 0.24 + Math.Exp(State.tacticValues[i] * 1.6 + context);
+                // The new policy explicitly explores under-tested tactics.
+                // Legacy mode retains the 0.12.1 probabilities for A/B evaluation.
+                double explore = Version == AiBrainVersion.Learning2
+                    ? 0.60 / Math.Sqrt(1.0 + State.tacticGames[i]) : 0;
+                distribution[i] = 0.24 + Math.Exp(
+                    State.tacticValues[i] * (Version == AiBrainVersion.Learning2 ? 1.9 : 1.6)
+                    + context + explore);
                 sum += distribution[i];
             }
             double choice = random.NextDouble() * sum;
@@ -124,14 +147,20 @@ namespace Reborn.Core
             for (int i = 0; i < hand.Count; i++)
             {
                 if (hand[i].Kind != CardKind.Monster) continue;
-                EvaluatePlacement(match, new[] { i }, hand[i], ref chosen, ref bestScore);
+                if (Version == AiBrainVersion.Learning2)
+                    EvaluatePlacementV2(match, new[] { i }, hand[i], ref chosen, ref bestScore);
+                else
+                    EvaluatePlacement(match, new[] { i }, hand[i], ref chosen, ref bestScore);
                 for (int j = i + 1; j < hand.Count; j++)
                 {
                     if (hand[j].Kind != CardKind.Monster) continue;
                     var result = match.PreviewResult(DuelSide.Opponent, new[] { i, j });
                     if (result == null || result.Kind != CardKind.Monster ||
                         result.Id == hand[i].Id || result.Id == hand[j].Id) continue;
-                    EvaluatePlacement(match, new[] { i, j }, result, ref chosen, ref bestScore);
+                    if (Version == AiBrainVersion.Learning2)
+                        EvaluatePlacementV2(match, new[] { i, j }, result, ref chosen, ref bestScore);
+                    else
+                        EvaluatePlacement(match, new[] { i, j }, result, ref chosen, ref bestScore);
                 }
             }
             return chosen != null;
@@ -188,6 +217,128 @@ namespace Reborn.Core
             }
         }
 
+
+        /// <summary>
+        /// Learning 2.0 placement evaluator: compare offensive opportunities
+        /// and enemy counterattacks through the same CombatForecast rules as
+        /// the duel. Only visible field monsters are considered. All actions
+        /// are validated by CanPlay; the preview never changes DuelMatch.
+        /// </summary>
+        private void EvaluatePlacementV2(DuelMatch match, int[] indices,
+            CardDefinition card, ref StrategicPlacement chosen, ref int bestScore)
+        {
+            var stars = card.StarA == card.StarB
+                ? new[] { card.StarA } : new[] { card.StarA, card.StarB };
+            int opposingMonsters = match.Player.MonsterCount;
+            int defendingWalls = 0;
+            int activeThreats = 0;
+            for (int i = 0; i < DuelMatch.ZoneCount; i++)
+            {
+                var enemy = match.Player.Monster(i);
+                if (enemy == null) continue;
+                if (enemy.Position == BattlePosition.Defense) defendingWalls++;
+                else activeThreats++;
+            }
+
+            foreach (var star in stars)
+            {
+                // Every slot is tried, but the rules engine decides legality.
+                for (int slot = 0; slot < DuelMatch.ZoneCount; slot++)
+                {
+                    if (!match.CanPlay(DuelSide.Opponent, indices,
+                        FieldLane.Monster, slot, star, out _)) continue;
+
+                    foreach (var position in new[] {
+                        BattlePosition.Attack, BattlePosition.Defense })
+                    {
+                        var candidate = new MonsterOnField(card, position, star);
+                        int kills = 0, winningAttacks = 0, incomingLosses = 0;
+                        int possibleDamage = 0;
+                        int score = card.Attack / 3 + card.Defense / 6;
+                        if (position == BattlePosition.Attack) score += 310;
+                        else score += card.Defense / 6;
+
+                        for (int i = 0; i < DuelMatch.ZoneCount; i++)
+                        {
+                            var enemy = match.Player.Monster(i);
+                            if (enemy == null) continue;
+                            if (position == BattlePosition.Attack)
+                            {
+                                var outgoing = new CombatForecast(candidate, enemy);
+                                if (outgoing.DefenderDestroyed && !outgoing.AttackerDestroyed &&
+                                    outgoing.DamageToAttacker == 0)
+                                {
+                                    kills++;
+                                    score += 1250 + enemy.Card.Attack / 3;
+                                    if (enemy.Position == BattlePosition.Defense)
+                                        score += 550; // break the defensive stalemate
+                                    possibleDamage = Math.Max(possibleDamage,
+                                        outgoing.DamageToDefender);
+                                    winningAttacks++;
+                                }
+                            }
+                            if (enemy.Position == BattlePosition.Attack)
+                            {
+                                var incoming = new CombatForecast(enemy, candidate);
+                                if (incoming.DefenderDestroyed)
+                                {
+                                    incomingLosses++;
+                                    score -= 1350 + card.Attack / 6;
+                                }
+                                else if (position == BattlePosition.Defense &&
+                                    incoming.DamageToAttacker > 0)
+                                    score += 240;
+                            }
+                        }
+
+                        // An empty opposing field is an immediate direct-attack
+                        // opportunity; defensive placement cannot deal damage.
+                        if (opposingMonsters == 0)
+                        {
+                            if (position == BattlePosition.Attack)
+                                score += 1250 + card.Attack / 2 +
+                                    (card.Attack >= match.Player.Life ? 100000 : 0);
+                            else score -= 2500;
+                        }
+
+                        if (position == BattlePosition.Defense)
+                        {
+                            // Don't build a second wall while an opposing
+                            // defender is waiting to be cleared.
+                            if (defendingWalls > 0 && activeThreats == 0)
+                                score -= 1550;
+                            if (incomingLosses == 0 && activeThreats > 0)
+                                score += 250;
+                        }
+                        else
+                        {
+                            if (kills > 0) score += Math.Min(900, possibleDamage);
+                            if (defendingWalls > 0 && winningAttacks == 0)
+                                score -= 450;
+                        }
+
+                        if (Tactic == AiTactic.Aggressive && position == BattlePosition.Attack)
+                            score += card.Attack / 3 + 250 * kills;
+                        if (Tactic == AiTactic.Defensive)
+                            score += position == BattlePosition.Defense
+                                ? card.Defense / 3 : card.Defense / 9;
+                        if (Tactic == AiTactic.Counterplay && position == BattlePosition.Attack)
+                            score += kills * 420;
+                        if (indices.Length > 1)
+                            score += Tactic == AiTactic.FusionFocused ? 750 : 120;
+
+                        // Seeded tie-break randomness for variety, but strong
+                        // tactical differences dominate the small noise.
+                        score += random.Next(0, 71);
+                        if (score <= bestScore) continue;
+                        bestScore = score;
+                        chosen = new StrategicPlacement(indices, slot, card,
+                            position, star, score);
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// Evaluates the entire current battle phase. The director executes
         /// only the first legal step, then replans after its real resolution.
@@ -223,8 +374,25 @@ namespace Reborn.Core
             }
             bool won = match.Winner.Value == DuelSide.Opponent;
             double reward = won ? 1.0 : -1.0;
-            // Secondary signal rewards surviving with LP, not only wins.
-            reward += (match.Opponent.Life - match.Player.Life) / 16000.0;
+            // Preserve the legacy outcome for controlled A/B comparisons.
+            if (Version == AiBrainVersion.Legacy)
+                reward += (match.Opponent.Life - match.Player.Life) / 16000.0;
+            else
+            {
+                // Reward meaningful progress while prioritizing wins. Avoid
+                // reinforcing stall tactics that merely preserve a wall.
+                double lifeAdvantage = (match.Opponent.Life - match.Player.Life) / 8000.0;
+                int enemyDestroyed = 0, ownDestroyed = 0;
+                foreach (var e in match.Events)
+                {
+                    if (e.Kind != MatchEventKind.Destroy) continue;
+                    if (e.Side == DuelSide.Player) enemyDestroyed++;
+                    else ownDestroyed++;
+                }
+                reward += Math.Max(-0.35, Math.Min(0.35, lifeAdvantage * 0.35));
+                reward += Math.Max(-0.30, Math.Min(0.30,
+                    (enemyDestroyed - ownDestroyed) * 0.06));
+            }
             int index = (int)Tactic;
             float old = State.tacticValues[index];
             State.tacticValues[index] = (float)Math.Max(-2.0, Math.Min(2.0,
@@ -234,6 +402,13 @@ namespace Reborn.Core
             State.playerAttacks = Math.Min(10000000, State.playerAttacks + attacks);
             State.playerFusions = Math.Min(10000000, State.playerFusions + fusions);
             State.previousTactic = index;
+            if (Version == AiBrainVersion.Learning2)
+            {
+                State.tacticGames[index] =
+                    Math.Min(1000000, State.tacticGames[index] + 1);
+                if (won) State.tacticWins[index] =
+                    Math.Min(State.tacticGames[index], State.tacticWins[index] + 1);
+            }
             return true;
         }
     }
