@@ -33,7 +33,8 @@ checks = {
     "right-click no longer rotates the camera": "rightButton." not in orbit,
     "right-click inspects cards": "mouse.rightButton.wasPressedThisFrame" in input_code and "hud.ToggleCardInspection(card.Card)" in input_code,
     "hidden opponent card cannot be inspected": "card.Facedown && !owned" in input_code,
-    "inspector displays no invented effect": "Nenhum texto ou efeito verificado" in inspect and "card.Description" in inspect,
+    "inspector separates missing description and unverified effect": "Descricao original indisponivel neste perfil." in inspect and "card.Description" in inspect and
+        "Execucao no jogo: NAO VERIFICADA" in inspect and "card.HasEffectText" in inspect,
     "inspector renders image and both Guardian stars": "CardArtCatalog.Get(card)" in inspect and "card.StarA" in inspect and "card.StarB" in inspect,
     "modal blocks HUD gameplay": "if (CardInspectionOpen)" in hud and "DrawPinnedCardInspection();" in hud,
     "hand shape code remains unchanged": "HandFanGeometry.WithHoveredCard(index, count," in factory,
