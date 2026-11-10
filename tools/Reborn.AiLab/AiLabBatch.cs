@@ -58,7 +58,10 @@ namespace Reborn.AiLab
         public double WinRateConfidenceUpper { get; set; }
         public double BeforeAverageTurns { get; set; }
         public double AfterAverageTurns { get; set; }
+        // Interpretation refers to training effect for the 2.0 policy.
         public string Interpretation { get; set; }
+        // Separate, same-seed A/B conclusion: Learning 2.0 vs Legacy.
+        public string PolicyInterpretation { get; set; }
     }
 
     public sealed class BatchReport
@@ -214,7 +217,11 @@ namespace Reborn.AiLab
                 WinRateConfidenceUpper = Round(upper),
                 BeforeAverageTurns = Round(runs.Average(x => x.BeforeAverageTurns)),
                 AfterAverageTurns = Round(runs.Average(x => x.AfterAverageTurns)),
-                Interpretation = interpretation
+                Interpretation = interpretation,
+                PolicyInterpretation = n < 10
+                    ? "exploratory-too-few-independent-seeds"
+                    : legacyLower > 0 ? "positive-signal-not-proof"
+                    : legacyUpper < 0 ? "negative-signal" : "inconclusive"
             };
         }
 
