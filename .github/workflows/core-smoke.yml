@@ -71,3 +71,7 @@ jobs:
             ProjectSettings/
             tools/
             README.md
+            !tools/**/bin/**
+            !tools/**/obj/**
+            !Assets/StreamingAssets/RebornContent/**
+            !PrivateExtracts/**

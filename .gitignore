@@ -40,3 +40,7 @@ Assets/Resources/RebornCardArt/
 Assets/StreamingAssets/RebornContent/*.json
 *.bin
 *.raw
+
+# Generated .NET AI Lab builds and local benchmark outputs.
+[Bb]in/
+ai-lab/
