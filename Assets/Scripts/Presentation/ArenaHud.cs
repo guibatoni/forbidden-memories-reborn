@@ -442,8 +442,10 @@ namespace Reborn.Presentation
                 else GUI.Label(new Rect(right+13,247,174,37),
                     "Selecione um monstro no campo para mudar ATK/DEF",small);
 
+                GUI.enabled = player && !InputLocked && match.PlayedThisTurn;
                 if (GUI.Button(new Rect(right+12,296,170,39),
-                    match.Phase == MatchPhase.Main ? "Baixe uma carta" : "Passar turno [Espaco]",button))
+                    match.PlayedThisTurn ? "Passar turno [Espaco]" :
+                    "Baixe uma carta primeiro",button))
                     TryPassPlayerTurn();
                 GUI.enabled = true;
                 GUI.Label(new Rect(right+12,342,177,53),
