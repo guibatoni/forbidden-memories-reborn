@@ -1,3 +1,17 @@
+# Prototype 0.18 — Escolha das cartas e 4 decks iniciais
+
+Sequencia visual: selecione as cartas (Shift para fusao), escolha uma zona,
+Guardian Star (quando disponivel), face-up/face-down, carta baixada e
+ATK/DEF em tela. Nenhuma carta e consumida antes de confirmar.
+
+Quatro decks iniciais alternativos sao sorteados usando os **sete pools
+ponderados originais** (16+16+4+1+1+1+1), desde que tenham sido extraidos
+localmente da mesma ISO. O PS1 original oferece um sorteio, nao quatro.
+
+[Regras, controles e testes do Prototype 0.18](Docs/PROTOTYPE_0_18.md)
+
+---
+
 # Prototype 0.17.2 — Corrigido o carregamento do catalogo Original
 
 A carta ficticia **Fera do Nilo (p04)** nao deve aparecer como se fosse

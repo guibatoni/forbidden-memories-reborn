@@ -73,6 +73,21 @@ def normalize_deck_weights(source):
         raise ValueError("At least 14 weighted cards required for 40 draws capped at three")
     return values
 
+def normalize_starter_weights(source):
+    """Seven starter rows can have only 2-6 cards, unlike opponent decks."""
+    if not isinstance(source, dict):
+        raise ValueError("Starter weights must be a 1-based ID dictionary")
+    values = [0] * 722
+    for key, value in source.items():
+        number = int(key)
+        if number < 1 or number > 722 or type(value) is not int or value < 0 or value > 2048:
+            raise ValueError("Invalid starter pool ID or weight")
+        values[number - 1] = value
+    if sum(values) != 2048:
+        raise ValueError("Starter pool row does not total 2048")
+    return values
+
+
 def load_game(disc_path: Path, pc: Path):
     sys.path.insert(0, str(pc))
     from fm_editor import disc, gamedata
@@ -191,6 +206,24 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
         json.dumps(export_file, indent=2, ensure_ascii=False), encoding="utf-8")
     (target / "opponent_decks.json").write_text(
         json.dumps(deck_file, indent=2, ensure_ascii=False), encoding="utf-8")
+    # Streamable seven-row starter deck table. JsonUtility cannot directly
+    # consume private disc_tables.json's sparse string-key dictionaries.
+    # Never substitute fabricated probabilities for a missing disc table.
+    starter_path = target / "starter_pools.json"
+    if len(starter_pools) == 7:
+        starter_file = {
+            "schema": 1, "source": source,
+            "starterPools": [
+                {"group": row["group"], "draws": row["draws"],
+                 "weights": normalize_starter_weights(row["weights"])}
+                for row in starter_pools
+            ]
+        }
+        starter_path.write_text(json.dumps(
+            starter_file, indent=2, ensure_ascii=False),
+            encoding="utf-8")
+    else:
+        starter_path.unlink(missing_ok=True)
     (private / "disc_tables.json").write_text(
         json.dumps(tables_file, indent=2, ensure_ascii=False), encoding="utf-8")
 

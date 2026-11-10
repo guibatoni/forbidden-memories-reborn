@@ -1,7 +1,7 @@
 name: Reborn Core smoke tests
 on:
   push:
-    branches: [main]
+    branches: [main, feature/prototype-0.18-card-flow-starter-four]
   pull_request:
 permissions:
   contents: read
@@ -76,6 +76,11 @@ jobs:
       - name: Verify Original content startup and explicit demo consent (static)
         run: python3 tools/check_dueltrace_autoload.py
 
+      - name: Verify 0.18 four-starter decks and transactional placement (static)
+        run: |
+          python3 tools/check_card_flow_starter.py
+          python3 tools/test_starter_export.py
+
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 
@@ -86,7 +91,7 @@ jobs:
         run: python3 tools/check_ai_lab_report.py ai-lab/batch.json ai-lab/batch.csv
 
       - name: Publish expanded AI Lab report
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: Reborn-0.16-AiLab-MultiSeed
@@ -97,7 +102,7 @@ jobs:
             ai-lab/batch.csv
 
       - name: Archive clean Unity source (never ROMs or private content)
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: Reborn-0.16-Clean-Source

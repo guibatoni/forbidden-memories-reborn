@@ -10,6 +10,7 @@ core = read("Assets/Scripts/Core/DuelMatch.cs")
 brain = read("Assets/Scripts/Core/AdaptiveOpponentBrain.cs")
 hud = read("Assets/Scripts/Presentation/ArenaHud.cs")
 flow = read("Assets/Scripts/Presentation/ArenaHud.DuelFlow.cs")
+wizard = read("Assets/Scripts/Presentation/ArenaHud.PlacementWizard.cs")
 input_script = read("Assets/Scripts/Presentation/ArenaInteraction.cs")
 card = read("Assets/Scripts/Presentation/CardView.cs")
 arena = read("Assets/Scripts/Presentation/ArenaFactory.cs")
@@ -37,8 +38,12 @@ checks = {
         "if (defender != null && defender.FaceDown) defender.Reveal();" in core,
     "fluent HUD is in separate partial": "public sealed partial class ArenaHud" in hud and
         "public sealed partial class ArenaHud" in flow,
-    "card face selected before guardian controls": hud.find("Face: PARA BAIXO") <
-        hud.find("Guardian: segunda"),
+    "guardian, face and position use sequential modal screens":
+        "BeginPlacementChoices(" in input_script and
+        "placementStep = PlacementChoiceStep.Facing;" in wizard and
+        "placementStep = PlacementChoiceStep.Position;" in wizard and
+        "ConfirmFacing(bool faceDown)" in wizard and
+        "SetPlacedPosition(BattlePosition position)" in wizard,
     "placing a card immediately enters battle": "hud.AfterHandPlacement();" in input_script and
         "match.TryBeginBattle(DuelSide.Player" in flow,
     "no need for attack button": '"Selecionar ataque"' not in hud and
