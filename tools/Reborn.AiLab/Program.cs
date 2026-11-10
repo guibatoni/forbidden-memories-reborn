@@ -24,6 +24,7 @@ namespace Reborn.AiLab
         public string Schema { get; set; } = "reborn-ai-lab-v1";
         public string Description { get; set; } = "Synthetic monster-only cards, deterministic headless evaluation; no retail ISO data.";
         public string ResultMeaning { get; set; } = "Results are empirical. A trained profile is not guaranteed to outperform a fresh profile.";
+        public string Scenario { get; set; } = "balanced";
         public int Seed { get; set; }
         public int TrainingGames { get; set; }
         public int EvaluationGames { get; set; }
@@ -56,7 +57,7 @@ namespace Reborn.AiLab
 
         // The cards are synthetic, uniquely identified, and generated from
         // a seed. Neither game engine nor AI receives any retail/ROM assets.
-        private static IReadOnlyList<CardDefinition> SyntheticDeck(int seed, string prefix)
+        private static IReadOnlyList<CardDefinition> SyntheticDeck(int seed, string prefix, string scenario)
         {
             var rng = new Random(seed);
             var cards = new List<CardDefinition>(DuelMatch.DeckSize);
@@ -66,6 +67,16 @@ namespace Reborn.AiLab
                 int defense = 600 + rng.Next(0, 24) * 100;
                 var starA = Stars[rng.Next(Stars.Length)];
                 var starB = Stars[rng.Next(Stars.Length)];
+                if (prefix == "P" && scenario == "defensive")
+                {
+                    defense += 800;
+                    attack = Math.Max(500, attack - 100);
+                }
+                else if (prefix == "P" && scenario == "aggressive")
+                {
+                    attack += 650;
+                    defense = Math.Max(300, defense - 300);
+                }
                 cards.Add(new CardDefinition(prefix + i.ToString("D2"),
                     "Synthetic " + prefix + i, CardKind.Monster,
                     attack, defense, "Headless test card", starA, starB));
@@ -161,10 +172,10 @@ namespace Reborn.AiLab
         }
 
         private static GameResult Simulate(int seed, AdaptiveOpponentBrain brain,
-            AiLearningState profile, bool train, bool referenceOpponent)
+            AiLearningState profile, bool train, bool referenceOpponent, string scenario)
         {
-            var player = SyntheticDeck(unchecked(seed * 2 + 127), "P");
-            var opponent = SyntheticDeck(unchecked(seed * 2 + 991), "O");
+            var player = SyntheticDeck(unchecked(seed * 2 + 127), "P", scenario);
+            var opponent = SyntheticDeck(unchecked(seed * 2 + 991), "O", scenario);
             var duel = new DuelMatch(player, opponent);
             if (!referenceOpponent)
             {
@@ -206,7 +217,7 @@ namespace Reborn.AiLab
         }
 
         private static RunSummary Evaluate(int seed, int games,
-            AiLearningState profile, bool referenceOpponent)
+            AiLearningState profile, bool referenceOpponent, string scenario)
         {
             var result = new RunSummary { Games = games };
             long turnSum = 0;
@@ -217,7 +228,7 @@ namespace Reborn.AiLab
                 // are held constant during the entire evaluation set.
                 var brain = referenceOpponent ? null :
                     new AdaptiveOpponentBrain(new Random(unchecked(gameSeed + 5137)));
-                var single = Simulate(gameSeed, brain, profile, false, referenceOpponent);
+                var single = Simulate(gameSeed, brain, profile, false, referenceOpponent, scenario);
                 turnSum += single.Turns;
                 result.TotalAttacks += single.OpponentAttacks;
                 result.TotalFusions += single.OpponentFusions;
@@ -241,17 +252,21 @@ namespace Reborn.AiLab
             };
         }
 
-        public static BenchmarkReport Run(int seed, int trainingGames, int evalGames)
+        public static BenchmarkReport Run(int seed, int trainingGames, int evalGames,
+            string scenario = "balanced")
         {
+            if (scenario != "balanced" && scenario != "defensive" && scenario != "aggressive")
+                throw new ArgumentException("Unknown synthetic scenario: " + scenario);
             if (trainingGames < 1 || trainingGames > 250)
                 throw new ArgumentOutOfRangeException(nameof(trainingGames), "Use 1..250");
             if (evalGames < 1 || evalGames > 250)
                 throw new ArgumentOutOfRangeException(nameof(evalGames), "Use 1..250");
             var fresh = new AiLearningState("lab:ephemeral");
             var report = new BenchmarkReport {
-                Seed = seed, TrainingGames = trainingGames, EvaluationGames = evalGames,
-                ScriptedReference = Evaluate(unchecked(seed + 200000), evalGames, null, true),
-                AdaptiveBefore = Evaluate(unchecked(seed + 200000), evalGames, Copy(fresh), false)
+                Seed = seed, Scenario = scenario,
+                TrainingGames = trainingGames, EvaluationGames = evalGames,
+                ScriptedReference = Evaluate(unchecked(seed + 200000), evalGames, null, true, scenario),
+                AdaptiveBefore = Evaluate(unchecked(seed + 200000), evalGames, Copy(fresh), false, scenario)
             };
             var trained = Copy(fresh);
             int completed = 0;
@@ -259,14 +274,14 @@ namespace Reborn.AiLab
             {
                 int gameSeed = unchecked(seed + 900000 + i * 7919);
                 var brain = new AdaptiveOpponentBrain(new Random(unchecked(gameSeed + 5137)));
-                var match = Simulate(gameSeed, brain, trained, true, false);
+                var match = Simulate(gameSeed, brain, trained, true, false, scenario);
                 if (match.Winner.HasValue) completed++;
             }
             report.TrainingCompleted = completed;
             report.LearnedDuels = trained.duels;
             report.LearnedTacticValues = (float[])trained.tacticValues.Clone();
             report.AdaptiveAfter = Evaluate(unchecked(seed + 200000),
-                evalGames, Copy(trained), false);
+                evalGames, Copy(trained), false, scenario);
             report.WinRateDifference = report.AdaptiveAfter.WinRate -
                 report.AdaptiveBefore.WinRate;
             return report;
@@ -312,7 +327,38 @@ namespace Reborn.AiLab
             }
             if (first.TrainingCompleted != first.LearnedDuels)
                 throw new Exception("Learning count differs from finished training duels");
-            Console.WriteLine("PASS: deterministic paired seeds, bounded games, independent evaluation and consistent learning counts");
+            var batch = AiLabBatch.Run(61, 2, 3, 3,
+                new[] { "balanced", "defensive", "aggressive" });
+            var batchAgain = AiLabBatch.Run(61, 2, 3, 3,
+                new[] { "balanced", "defensive", "aggressive" });
+            if (JsonSerializer.Serialize(batch) != JsonSerializer.Serialize(batchAgain))
+                throw new Exception("Batch benchmark not reproducible");
+            if (batch.Scenarios.Count != 3 || batch.Runs.Count != 9 ||
+                batch.TotalSimulatedDuels != 99 ||
+                batch.Scenarios.Any(x => x.Repetitions != 3 ||
+                    x.TrainingCompleted > x.TrainingScheduled ||
+                    x.EvaluationGames != 9 ||
+                    x.WinRateConfidenceLower > x.WinRateConfidenceUpper ||
+                    x.WinRateConfidenceLower < -1 ||
+                    x.WinRateConfidenceUpper > 1))
+                throw new Exception("Batch summary accounting is inconsistent");
+            if (batch.Runs.Select(x => x.Scenario).Distinct().Count() != 3 ||
+                batch.Runs.GroupBy(x => x.Scenario).Any(group =>
+                    group.Select(x => x.Seed).Distinct().Count() != 3))
+                throw new Exception("Batch seeds or scenario isolation failed");
+            bool invalidRejected = false;
+            try { AiLabBatch.Run(1, 2, 2, 1, new[] { "balanced", "unknown" }); }
+            catch (ArgumentException) { invalidRejected = true; }
+            if (!invalidRejected) throw new Exception("Invalid scenario was accepted");
+            Console.WriteLine("PASS: deterministic batch comparisons, three scenarios, paired seeds, bounded simulations, bootstrap intervals and consistent accounting");
+        }
+
+        private static void Save(string path, string contents)
+        {
+            string full = Path.GetFullPath(path);
+            Directory.CreateDirectory(Path.GetDirectoryName(full));
+            File.WriteAllText(full, contents + Environment.NewLine);
+            Console.WriteLine("AI Lab report: " + full);
         }
 
         private static int Main(string[] args)
@@ -321,7 +367,8 @@ namespace Reborn.AiLab
             {
                 if (Array.IndexOf(args, "--help") >= 0)
                 {
-                    Console.WriteLine("AiLab --train 20 --eval 20 --seed 1209 --out <path.json> | --self-test");
+                    Console.WriteLine("AI Lab: --batch --seeds 5 --train 30 --eval 30 --seed 1209 --scenarios balanced,defensive,aggressive --out report.json --csv seeds.csv");
+                    Console.WriteLine("Legacy single-seed mode (omit --batch): --train 20 --eval 20 --seed 1209 --out report.json; --self-test");
                     return 0;
                 }
                 if (Array.IndexOf(args, "--self-test") >= 0)
@@ -329,8 +376,28 @@ namespace Reborn.AiLab
                     SelfTest();
                     return 0;
                 }
-                var report = AiLab.Run(ArgInt(args, "--seed", 1209),
-                    ArgInt(args, "--train", 20), ArgInt(args, "--eval", 20));
+                bool batchMode = Array.IndexOf(args, "--batch") >= 0;
+                int seed = ArgInt(args, "--seed", 1209);
+                int trainingGames = ArgInt(args, "--train", batchMode ? 30 : 20);
+                int evaluationGames = ArgInt(args, "--eval", batchMode ? 30 : 20);
+                int repetitions = ArgInt(args, "--seeds", 5);
+                if (batchMode)
+                {
+                    string scenarioArg = ArgString(args, "--scenarios") ?? "balanced,defensive,aggressive";
+                    var scenarioNames = scenarioArg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    var aggregate = AiLabBatch.Run(seed, trainingGames, evaluationGames,
+                        repetitions, scenarioNames);
+                    string outputPath = ArgString(args, "--out");
+                    if (outputPath != null) Save(outputPath, JsonSerializer.Serialize(aggregate,
+                        new JsonSerializerOptions { WriteIndented = true }));
+                    string csvPath = ArgString(args, "--csv");
+                    if (csvPath != null) Save(csvPath, AiLabBatch.ToCsv(aggregate));
+                    Console.WriteLine(JsonSerializer.Serialize(aggregate,
+                        new JsonSerializerOptions { WriteIndented = true }));
+                    return 0;
+                }
+                var report = AiLab.Run(seed,
+                    trainingGames, evaluationGames);
                 string output = JsonSerializer.Serialize(report,
                     new JsonSerializerOptions { WriteIndented = true });
                 string path = ArgString(args, "--out");
