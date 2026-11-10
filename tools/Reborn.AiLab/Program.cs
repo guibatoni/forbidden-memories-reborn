@@ -116,9 +116,22 @@ namespace Reborn.AiLab
                     }
                 }
             }
-            if (bestHand >= 0 && !duel.TryPlay(side, new[] { bestHand },
-                FieldLane.Monster, bestSlot, bestPosition, bestStar, out var reason))
-                throw new InvalidOperationException("Reference placement illegal: " + reason);
+            if (bestHand >= 0)
+            {
+                if (!duel.TryPlay(side, new[] { bestHand },
+                    FieldLane.Monster, bestSlot, bestPosition, bestStar, out var reason))
+                    throw new InvalidOperationException("Reference placement illegal: " + reason);
+            }
+            else if (duel.TryChooseFieldCombination(side, true,
+                out int fusionHand, out int fusionSlot, out var fusionResult) ||
+                duel.TryChooseFieldCombination(side, false,
+                out fusionHand, out fusionSlot, out fusionResult))
+            {
+                if (!duel.TryPlayOnField(side, new[] { fusionHand }, fusionSlot,
+                    BattlePosition.Attack, fusionResult.StarA, false,
+                    out _, out _, out var reason))
+                    throw new InvalidOperationException("Reference field play illegal: " + reason);
+            }
         }
 
         private static void TakeReferenceAttacks(DuelMatch duel, DuelSide side)
@@ -161,8 +174,18 @@ namespace Reborn.AiLab
                     placement.Star, out var reason))
                     throw new InvalidOperationException("Adaptive placement illegal: " + reason);
             }
-            // No legal play under the strict turn rule: treat this as an
-            // unresolved synthetic benchmark, never skip the placement.
+            if (!duel.PlayedThisTurn &&
+                (duel.TryChooseFieldCombination(DuelSide.Opponent, true,
+                    out int hand, out int slot, out var preview) ||
+                 duel.TryChooseFieldCombination(DuelSide.Opponent, false,
+                    out hand, out slot, out preview)))
+            {
+                if (!duel.TryPlayOnField(DuelSide.Opponent, new[] { hand }, slot,
+                    BattlePosition.Attack, preview.StarA, false,
+                    out _, out _, out var fieldReason))
+                    throw new InvalidOperationException("Adaptive field play illegal: " + fieldReason);
+            }
+            // If absolutely no verified play exists, do not bypass the rule.
             if (!duel.PlayedThisTurn) return;
             // Match the Unity AI: set defensive monsters can be flipped
             // in later turns, subject to the DuelMatch legality checks.
