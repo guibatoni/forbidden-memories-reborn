@@ -20,7 +20,17 @@ namespace Reborn.Presentation
         public int FusionCount { get; set; }
         public bool OpponentBusy { get; private set; }
         public bool PlayerAttackBusy { get; private set; }
-        public bool InputLocked => OpponentBusy || PlayerAttackBusy;
+        private bool missingOriginalContent;
+        private bool demoAcknowledged;
+        public bool ContentImportRequired => missingOriginalContent && !demoAcknowledged;
+        public bool InputLocked => OpponentBusy || PlayerAttackBusy || ContentImportRequired;
+
+        /// <summary>No arbitrary placeholder gameplay before explicit demo opt-in.</summary>
+        public void ConfigureContentAvailability(bool originalLoaded)
+        {
+            missingOriginalContent = !originalLoaded;
+            demoAcknowledged = false;
+        }
         public event Action<int, int> PlayerAttackRequested;
         public void SetPlayerAttackBusy(bool active) { PlayerAttackBusy = active; }
         private int opponentPaceIndex; // 0 detalhado, 1 normal, 2 rapido
@@ -155,7 +165,7 @@ namespace Reborn.Presentation
         {
             float x = pointer.x;
             float y = Screen.height - pointer.y;
-            return CardInspectionOpen || showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
+            return ContentImportRequired || CardInspectionOpen || showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
                 (x > Screen.width - 220f && y < 638f);
         }
 
@@ -197,6 +207,11 @@ namespace Reborn.Presentation
         {
             if (session == null) return;
             InitStyles();
+            if (ContentImportRequired)
+            {
+                DrawMissingOriginalContent();
+                return;
+            }
             if (CardInspectionOpen)
             {
                 DrawPinnedCardInspection();
@@ -278,6 +293,41 @@ namespace Reborn.Presentation
             }
             DrawCardInspection();
             if (showStory && story != null) DrawStory();
+        }
+
+        /// <summary>
+        /// Do not silently label fictional p01-p08 cards as the retail catalog.
+        /// The game remains playable in an explicitly acknowledged demo mode.
+        /// </summary>
+        private void DrawMissingOriginalContent()
+        {
+            Panel(new Rect(0f, 0f, Screen.width, Screen.height),
+                new Color(0.009f, 0.015f, 0.035f, 0.985f));
+            float w = Mathf.Min(700f, Screen.width - 28f);
+            float h = Mathf.Min(450f, Screen.height - 22f);
+            float x = (Screen.width - w) * 0.5f;
+            float y = (Screen.height - h) * 0.5f;
+            Panel(new Rect(x,y,w,h),new Color(0.035f, 0.053f, 0.105f, 0.99f));
+            Panel(new Rect(x+15f,y+14f,w-30f,5f),new Color(0.90f,0.68f,0.31f));
+            GUI.Label(new Rect(x+25f,y+32f,w-50f,55f),
+                "CATALOGO ORIGINAL AINDA NAO CARREGADO",heading);
+            var info = "O Reborn encontrou apenas as cartas ficticias de demonstracao.\n" +
+                "Nenhuma carta p01-p08 pertence ao catalogo original do PS1.\n\n" +
+                "1. Pare o modo Play no Unity.\n" +
+                "2. Na pasta do projeto, execute no PowerShell:\n" +
+                "   .\\tools\\IMPORTAR_DO_DUELTRACE.ps1 -ArtesLocais\n" +
+                "3. Aguarde a validacao das 722 cartas e reinicie o Play.\n\n" +
+                "O Unity tambem tenta ler automaticamente um unico perfil\n" +
+                "Original validado do DUELTRACE instalado neste Windows.";
+            GUI.Label(new Rect(x+25f,y+92f,w-50f,250f),info,body);
+            GUI.Label(new Rect(x+25f,y+h-94f,w-50f,48f),
+                "Diagnostico: " + importStatus,small);
+            if (GUI.Button(new Rect(x+25f,y+h-45f,w-50f,33f),
+                "Continuar apenas no modo DEMONSTRACAO",button))
+            {
+                demoAcknowledged = true;
+                Announce("DEMONSTRACAO: cartas ficticias p01-p08. Importe o catalogo Original.");
+            }
         }
 
         private void DrawMatchHud()
