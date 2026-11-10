@@ -104,7 +104,7 @@ namespace Reborn.Presentation
             SelectedSupportSlot = -1;
             FusionCount = 0;
             AttackMode = false;
-            Message = active ? "MODO DUELO 0.14: interface de cartas 2.5D, motor experimental." :
+            Message = active ? "MODO DUELO 0.14.2: interface de cartas 2.5D, motor experimental." :
                 "Sandbox visual 0.3 restaurado.";
             ModeChanged?.Invoke(active);
         }
@@ -275,7 +275,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.14",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.14.2",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -340,7 +340,7 @@ namespace Reborn.Presentation
                 }
             }
             Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.14",heading);
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.14.2",heading);
             if (finished)
             {
                 GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
