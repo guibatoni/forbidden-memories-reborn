@@ -414,8 +414,9 @@ namespace Reborn.Core
                 return false;
             var attacker = Side(side).Monster(fromSlot);
             var defender = targetSlot >= 0 ? Side(Other(side)).Monster(targetSlot) : null;
-            // A set defender becomes visible only as the real attack resolves.
+            // Set monsters are revealed only when they actually participate in combat.
             if (defender != null && defender.FaceDown) defender.Reveal();
+            if (attacker.FaceDown) attacker.Reveal();
             attacker.AttackedThisTurn = true;
             Emit(MatchEventKind.Attack, side, attacker.Card.Id,
                 FieldLane.Monster, fromSlot, targetSlot);
