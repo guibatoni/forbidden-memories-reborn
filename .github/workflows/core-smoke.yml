@@ -76,6 +76,9 @@ jobs:
       - name: Verify Original content startup and explicit demo consent (static)
         run: python3 tools/check_dueltrace_autoload.py
 
+      - name: Verify 0.18 four-starter decks and transactional placement (static)
+        run: python3 tools/check_card_flow_starter.py
+
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 
