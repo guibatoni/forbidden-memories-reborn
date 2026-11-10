@@ -161,6 +161,9 @@ namespace Reborn.AiLab
                     placement.Star, out var reason))
                     throw new InvalidOperationException("Adaptive placement illegal: " + reason);
             }
+            // No legal play under the strict turn rule: treat this as an
+            // unresolved synthetic benchmark, never skip the placement.
+            if (!duel.PlayedThisTurn) return;
             // Match the Unity AI: set defensive monsters can be flipped
             // in later turns, subject to the DuelMatch legality checks.
             for (int i = 0; i < DuelMatch.ZoneCount; i++)
@@ -204,11 +207,16 @@ namespace Reborn.AiLab
                 else
                 {
                     TakeReferencePlacement(duel, side);
+                    if (!duel.PlayedThisTurn) break;
                     if (!duel.TryBeginBattle(side, out var reason))
                         throw new InvalidOperationException("Reference battle illegal: " + reason);
                     TakeReferenceAttacks(duel, side);
                 }
                 if (duel.Phase == MatchPhase.Finished) break;
+                // Fully occupied synthetic fields have no supported action.
+                // Count the run as unresolved instead of silently violating
+                // the mandatory-card rule or throwing in a benchmark.
+                if (!duel.PlayedThisTurn) break;
                 if (!duel.TryEndTurn(side, out var turnReason))
                     throw new InvalidOperationException("Turn end illegal: " + turnReason);
                 actions++;
