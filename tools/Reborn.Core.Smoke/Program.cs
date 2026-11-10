@@ -244,9 +244,140 @@ internal static class Program
             "0.19 synthetic training mode never executes Original PS1 spells");
     }
 
+    private static void CheckVerifiedEquipEngine()
+    {
+        var rules = VerifiedEquipCatalog.OriginalPs1Foundation();
+        var megamorph = new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+        var castle = new CardDefinition("668","Bright Castle",CardKind.Equip,0,0,"");
+        Check(rules.Count == 2 &&
+            rules.CanApply(megamorph,M("001",1200,900),out var megaRule) &&
+            megaRule.AttackGain == 1000 && megaRule.DefenseGain == 1000 &&
+            rules.CanApply(castle,M("050",500,500),out var castleRule) &&
+            castleRule.AttackGain == 500 && castleRule.DefenseGain == 500,
+            "0.20 PS1 universal Megamorph and Bright Castle are explicitly verified");
+
+        var specific = new VerifiedEquipCatalog();
+        specific.AddTargets("315",500,500,new[]{"001","002"});
+        var treasure = new CardDefinition("315","Dragon Treasure",CardKind.Equip,0,0,"");
+        Check(specific.CanApply(treasure,M("001",1000,1000),out _) &&
+            !specific.CanApply(treasure,M("003",1000,1000),out _) &&
+            !specific.CanApply(megamorph,M("001",1000,1000),out _),
+            "0.20 monster-ID equip allowlist never guesses compatibility by name or type");
+
+        var match = new DuelMatch(
+            Deck(M("own",1700,900),megamorph,castle),
+            Deck(M("enemy",900,900)),null,null,null,rules);
+        Play(match,DuelSide.Player);
+        End(match,DuelSide.Player);
+        Play(match,DuelSide.Opponent);
+        End(match,DuelSide.Opponent);
+        int handBefore = match.Player.Hand.Count;
+        int graveBefore = match.Player.Graveyard.Count;
+        Check(match.CanEquipFromHand(DuelSide.Player,0,0,out _,out _) &&
+            match.Player.Monster(0).EffectiveAttack == 1700 &&
+            match.Events.Count > 0,
+            "0.20 read-only equip preview leaves monster unmodified");
+        Check(match.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            match.Player.Monster(0).EffectiveAttack == 2700 &&
+            match.Player.Monster(0).EffectiveDefense == 1900 &&
+            match.Player.Monster(0).EquipCount == 1 &&
+            match.Player.Hand.Count == handBefore-1 &&
+            match.Player.Graveyard.Count == graveBefore+1 &&
+            match.Player.Graveyard.Last().Id == "657" &&
+            match.Player.Support(0) == null &&
+            match.Events.Any(e=>e.Kind==MatchEventKind.Equipped &&
+                e.CardId=="657" && e.Value==1000),
+            "0.20 Megamorph adds +1000 ATK/DEF and vanishes, consuming exactly one hand play");
+        Check(!match.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            !match.CanEquipFromHand(DuelSide.Player,0,0,out _,out _),
+            "0.20 cannot consume a second hand play in the same turn");
+        Battle(match,DuelSide.Player);
+        Check(match.TryPreviewAttack(DuelSide.Player,0,0,out var equippedForecast,out _) &&
+            equippedForecast.AttackerBase == 2700 &&
+            equippedForecast.AttackerEquipBonus == 1000 &&
+            equippedForecast.DamageToDefender == 1800,
+            "0.20 combat prediction includes equipped ATK without changing LP/events");
+        Check(match.TryAttack(DuelSide.Player,0,0,out _) &&
+            match.Opponent.Life == 6200,
+            "0.20 resolved combat uses the same equipped attack power");
+        End(match,DuelSide.Player);
+        // Opponent has lost its first monster: place the next in a new zone.
+        Check(match.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Monster,0,BattlePosition.Defense,
+            GuardianStar.None,out _),"0.20 fixture opponent placement after combat");
+        End(match,DuelSide.Opponent);
+        Check(match.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            match.Player.Monster(0).EffectiveAttack == 3200 &&
+            match.Player.Monster(0).EffectiveDefense == 2400 &&
+            match.Player.Monster(0).EquipCount == 2 &&
+            match.Player.Graveyard.Any(c=>c.Id=="668"),
+            "0.20 stacking two retail equips preserves both bonuses");
+
+        var concealed = new DuelMatch(
+            Deck(M("hidden",1500,1500),megamorph),
+            Deck(M("foe",950,950)),null,null,null,rules);
+        Check(concealed.TryPlay(DuelSide.Player,new[]{0},FieldLane.Monster,0,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.20 facedown monster set");
+        End(concealed,DuelSide.Player);
+        Play(concealed,DuelSide.Opponent);
+        End(concealed,DuelSide.Opponent);
+        int concealedEvents=concealed.Events.Count;
+        int concealedHand=concealed.Player.Hand.Count;
+        Check(!concealed.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            concealed.Player.Monster(0).FaceDown &&
+            concealed.Player.Monster(0).EquipCount==0 &&
+            concealed.Events.Count==concealedEvents &&
+            concealed.Player.Hand.Count==concealedHand &&
+            !concealed.PlayedThisTurn,
+            "0.20 hidden monster cannot be boosted or revealed by rejected equip");
+
+        var saved = new DuelMatch(
+            Deck(M("own",1600,1300),megamorph),
+            Deck(M("enemy",600,600)),null,null,null,rules);
+        Play(saved,DuelSide.Player);
+        End(saved,DuelSide.Player);
+        Play(saved,DuelSide.Opponent);
+        End(saved,DuelSide.Opponent);
+        Check(saved.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,1,
+            BattlePosition.Attack,GuardianStar.None,true,out _) &&
+            saved.Player.SupportIsFaceDown(1) &&
+            !saved.CanEquipFromSupport(DuelSide.Player,1,0,out _,out _),
+            "0.20 set equip is not activatable in same turn");
+        End(saved,DuelSide.Player);
+        Check(saved.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Monster,1,BattlePosition.Attack,
+            GuardianStar.None,out _),"0.20 fixture set equip next turn");
+        End(saved,DuelSide.Opponent);
+        Check(saved.CanEquipFromSupport(DuelSide.Player,1,0,out _,out _) &&
+            saved.TryEquipFromSupport(DuelSide.Player,1,0,out _) &&
+            saved.Player.Support(1)==null &&
+            saved.Player.Monster(0).EffectiveAttack==2600 &&
+            !saved.PlayedThisTurn &&
+            !saved.TryEquipFromSupport(DuelSide.Player,1,0,out _),
+            "0.20 next-turn set equip activates exactly once, without consuming placement");
+
+        var unknown = new VerifiedEquipCatalog();
+        var failed = new DuelMatch(
+            Deck(M("mine",1100,1100),megamorph),
+            Deck(M("rival",800,800)),null,null,null,unknown);
+        Play(failed,DuelSide.Player);
+        End(failed,DuelSide.Player);
+        Play(failed,DuelSide.Opponent);
+        End(failed,DuelSide.Opponent);
+        int eventsBefore=failed.Events.Count;
+        Check(!failed.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            failed.Events.Count==eventsBefore &&
+            !failed.PlayedThisTurn &&
+            failed.Player.Monster(0).EquipCount==0 &&
+            failed.Player.Hand.Any(c=>c.Id=="657"),
+            "0.20 missing verified compatibility never consumes physical cards");
+    }
+
     private static void Main()
     {
         CheckOriginalStarterChoices();
+        CheckVerifiedEquipEngine();
         CheckVerifiedMagicEngine();
         var m = Match(M("mine",2000,1500),M("theirs",1200,800));
         Check(!m.TryEndTurn(DuelSide.Player,out _),
