@@ -65,9 +65,11 @@ namespace Reborn.Presentation
                 if (game.TryPlay(DuelSide.Opponent, plan.HandIndices, FieldLane.Monster,
                     zone, plan.Position, plan.Star,
                     plan.Position == BattlePosition.Defense, out var reason))
-                    hud.Announce("Oponente " + (plan.IsFusion ? "fundiu e invocou " : "invocou ") +
-                        monster.Name + " na zona " + (zone + 1) +
-                        " (" + plan.Position + ", " + plan.Star + ").");
+                    hud.Announce(plan.Position == BattlePosition.Defense
+                        ? "Oponente setou um monstro virado para baixo na zona " + (zone + 1) + "."
+                        : "Oponente " + (plan.IsFusion ? "fundiu e invocou " : "invocou ") +
+                            monster.Name + " na zona " + (zone + 1) +
+                            " (" + plan.Position + ", " + plan.Star + ").");
                 else
                 {
                     arena.ClearStagedPlacement();
@@ -79,6 +81,24 @@ namespace Reborn.Presentation
             {
                 hud.Announce("Oponente nao possui uma invocacao valida.");
                 yield return Pause(0.85f);
+            }
+
+            // Existing set monsters may switch to attack before the battle
+            // phase. A newly summoned monster cannot switch this turn.
+            for (int attempt = 0; attempt < DuelMatch.ZoneCount &&
+                game.Phase != MatchPhase.Finished; attempt++)
+            {
+                if (brain == null || !brain.TryChoosePositionChange(game,
+                    out int defenseSlot, out var nextPosition)) break;
+                if (!game.TryChangePosition(DuelSide.Opponent, defenseSlot,
+                    nextPosition, out var changeReason))
+                {
+                    hud.Announce("Posicao nao alterada: " + changeReason);
+                    break;
+                }
+                hud.Announce("Oponente mudou a posicao do monstro da zona " +
+                    (defenseSlot + 1) + " para ATK.");
+                yield return Pause(0.50f);
             }
 
             if (game.Phase != MatchPhase.Finished && game.Phase == MatchPhase.Main)
@@ -109,7 +129,12 @@ namespace Reborn.Presentation
                 yield return Pause(1.00f);
 
                 if (targetSlot >= 0 && game.Player.Monster(targetSlot) != null)
-                    hud.Announce("IA declarou ataque a " + game.Player.Monster(targetSlot).Card.Name + ".");
+                {
+                    var defending = game.Player.Monster(targetSlot);
+                    hud.Announce(defending.FaceDown
+                        ? "IA atacou uma carta virada para baixo."
+                        : "IA declarou ataque a " + defending.Card.Name + ".");
+                }
                 else
                     hud.Announce("IA declarou ataque direto!");
                 if (hud.AnimationsEnabled)
