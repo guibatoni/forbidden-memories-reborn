@@ -94,9 +94,18 @@ namespace Reborn.Presentation
 
         public void TryActivateSelectedSupport()
         {
-            if (match == null || SelectedSupportSlot < 0) return;
-            if (!match.CanActivateSupport(DuelSide.Player, SelectedSupportSlot, out var reason))
+            if (match == null || SelectedSupportSlot < 0 || InputLocked ||
+                match.CurrentSide != DuelSide.Player) return;
+            int selected = SelectedSupportSlot;
+            var card = match.Player.Support(selected);
+            if (card == null) return;
+            if (!match.TryActivateSupport(DuelSide.Player, selected, out var reason))
+            {
                 Announce(reason);
+                return;
+            }
+            SelectedSupportSlot = -1;
+            Announce("Magia ativada: " + card.Name + ".");
         }
     }
 }
