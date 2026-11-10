@@ -5,7 +5,8 @@
 param(
     [string]$Perfil = "",
     [string]$RelatorioFusoes = "",
-    [switch]$IncluirLoteRevisado
+    [switch]$IncluirLoteRevisado,
+    [switch]$ArtesLocais
 )
 $ErrorActionPreference = "Stop"
 $project = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -23,6 +24,7 @@ if ($Perfil) {
     }
     $parameters += @("--profile", (Resolve-Path -LiteralPath $Perfil).Path)
 }
+if ($ArtesLocais) { $parameters += "--copy-local-art" }
 if ($IncluirLoteRevisado) {
     if (-not $RelatorioFusoes) {
         throw "-IncluirLoteRevisado exige -RelatorioFusoes validado pelo DUELTRACE."
