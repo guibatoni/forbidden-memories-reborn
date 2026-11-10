@@ -17,7 +17,7 @@ checks = {
         "if (forecast.DefenderDestroyed)" in engine,
     "guardian bonuses for attacker and defender": "GuardianStarRules.Bonus(attacker.Star, defender.Star)" in forecast and
         "GuardianStarRules.Bonus(defender.Star, attacker.Star)" in forecast,
-    "defense comparison uses DEF": "defender.Card.Attack : defender.Card.Defense" in forecast,
+    "defense comparison uses DEF including Equip": "defender.EffectiveAttack : defender.EffectiveDefense" in forecast,
     "defender destruction uses effective attack": "EffectiveAttack > EffectiveDefense" in forecast,
     "defense battle does not damage defender's LP": "if (DefenderPosition == BattlePosition.Attack)" in forecast,
     "both sides announce actual forecast": "CombatExplanation.Describe(preview)" in player and
