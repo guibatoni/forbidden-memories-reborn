@@ -48,8 +48,9 @@ checks = {
     "direct attacks accept enemy field": "PointerOverOpponentField(pointer)" in input_script and
         "match.Opponent.MonsterCount == 0 ? -1" in input_script,
     "hand fan has overlap/rotation and enlarged cards": "private CardView MakeHandCard(" in arena and
-        "new Vector3(1.90f, 0.12f, 2.55f)" in arena and
-        "view.SetFanRotation(" in arena,
+        "HandFanGeometry.CardWidth" in arena and
+        "HandFanGeometry.CardLength" in arena and
+        "view.SetHandLayoutTarget(" in arena,
     "shift fusion sequence numbered": "fusionSelection.Add(index)" in input_script and
         "view.SetFusionOrder(fusionSelection.IndexOf(view.HandIndex) + 1)" in input_script and
         "Badge_Number" in card,
