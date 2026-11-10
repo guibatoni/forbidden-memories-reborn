@@ -384,6 +384,24 @@ namespace Reborn.Presentation
                 }
                 else if (zone != null && !zone.Opponent &&
                     zone.Lane == FieldLane.Monster &&
+                    match.Player.Monster(zone.Index) != null &&
+                    hud.SelectedSupportSlot >= 0 &&
+                    match.Player.Support(hud.SelectedSupportSlot) != null &&
+                    match.Player.Support(hud.SelectedSupportSlot).Kind == CardKind.Equip)
+                {
+                    int supportSlot = hud.SelectedSupportSlot;
+                    int monsterSlot = zone.Index;
+                    if (match.CanEquipFromSupport(DuelSide.Player,
+                        supportSlot, monsterSlot, out var rule, out var reason))
+                    {
+                        hud.BeginEquipChoice(match.Player.Support(supportSlot),
+                            match.Player.Monster(monsterSlot), rule,
+                            () => CommitSetEquip(supportSlot, monsterSlot));
+                    }
+                    else hud.Message = reason;
+                }
+                else if (zone != null && !zone.Opponent &&
+                    zone.Lane == FieldLane.Monster &&
                     match.Player.Monster(zone.Index) != null)
                 {
                     var monster = match.Player.Monster(zone.Index);
@@ -413,10 +431,14 @@ namespace Reborn.Presentation
                     hud.SelectedSupportSlot = zone.Index;
                     hud.SelectedFieldMonster = -1;
                     hud.SelectedAttacker = -1;
-                    hud.Message = match.CanActivateSupport(DuelSide.Player,
-                        zone.Index, out var supportReason)
-                        ? "Magia pronta: use Ativar suporte setado no painel."
-                        : supportReason;
+                    var supportCard = match.Player.Support(zone.Index);
+                    if (supportCard != null && supportCard.Kind == CardKind.Equip)
+                        hud.Message = "Equip preparado: clique no seu monstro revelado.";
+                    else
+                        hud.Message = match.CanActivateSupport(DuelSide.Player,
+                            zone.Index, out var supportReason)
+                            ? "Magia pronta: use Ativar suporte setado no painel."
+                            : supportReason;
                 }
                 else if (zone != null && !zone.Opponent &&
                     match.Phase == MatchPhase.Main && hud.SelectedHandIndex >= 0)
@@ -531,6 +553,24 @@ namespace Reborn.Presentation
             // The wizard is presentation only; no card has been consumed yet.
             hud.BeginPlacementChoices(outcome, ritual,
                 () => CommitMatchCard(zone));
+        }
+
+        private bool CommitSetEquip(int supportSlot, int monsterSlot)
+        {
+            if (match == null) return false;
+            var card = match.Player.Support(supportSlot);
+            if (card == null) return false;
+            if (!match.TryEquipFromSupport(DuelSide.Player, supportSlot,
+                monsterSlot, out var reason))
+            {
+                hud.Message = reason;
+                return false;
+            }
+            hud.Announce("Equip preparado ativado: " + card.Name + ".");
+            hud.SelectedSupportSlot = -1;
+            hud.SelectedFieldMonster = monsterSlot;
+            UpdateLegalHighlights();
+            return true;
         }
 
         private bool CommitEquipFromHand(int handIndex, int monsterSlot)
