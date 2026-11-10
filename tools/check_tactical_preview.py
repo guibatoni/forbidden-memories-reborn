@@ -8,6 +8,7 @@ def read(path):
 
 engine = read("Assets/Scripts/Core/DuelMatch.cs")
 brain = read("Assets/Scripts/Core/AdaptiveOpponentBrain.cs")
+planner = read("Assets/Scripts/Core/MultiAttackPlanner.cs")
 hud = read("Assets/Scripts/Presentation/ArenaHud.cs")
 input_script = read("Assets/Scripts/Presentation/ArenaInteraction.cs")
 combat = read("Assets/Scripts/Presentation/CombatExplanation.cs")
@@ -23,9 +24,9 @@ checks = {
     "preview hides on disabled/locked inputs": "hud.PreviewTargetSlot = -1;" in input_script,
     "combat details use real projected bonuses": "CombatExplanation.Describe(estimate)" in hud and
         "DefenderGuardianBonus" in combat,
-    "same forecast drives AI": "match.TryPreviewAttack(DuelSide.Opponent" in brain,
-    "AI avoids defense backlash": "forecast.DamageToAttacker > 0" in brain,
-    "AI only considers destructive attacks": "if (!forecast.DefenderDestroyed) continue;" in brain,
+    "same forecast drives AI planner": "MultiAttackPlanner.TryPlan(match" in brain and "match.TryPreviewAttack(DuelSide.Opponent" in planner,
+    "planner avoids defense backlash": "forecast.DamageToAttacker > 0" in planner,
+    "planner only considers destructive attacks": "if (!forecast.IsDirect && !forecast.DefenderDestroyed) return;" in planner,
     "empty slots reject attack": "targetSlot >= 0 && defender == null" in engine,
     "explicit direct attack remains": "targetSlot == -1 && enemy.MonsterCount != 0" in engine,
     "smoke covers defensive Guardian and target safety": "adaptive AI refuses losing defense" in smoke and

@@ -9,9 +9,9 @@ namespace Reborn.Tests
     {
         private static CardDefinition M(string id, int attack)
             => new CardDefinition(id, id, CardKind.Monster, attack, attack, "");
-        private static IReadOnlyList<CardDefinition> Deck(CardDefinition first)
+        private static IReadOnlyList<CardDefinition> Deck(params CardDefinition[] first)
         {
-            var cards = new List<CardDefinition> { first };
+            var cards = new List<CardDefinition>(first);
             for (int i = 1; i < 40; i++) cards.Add(M("f" + i, 900));
             return cards;
         }
@@ -54,7 +54,7 @@ namespace Reborn.Tests
         public void MultistepSearchClearsWallWithWeakerMonsterBeforeDirectAttack()
         {
             var match = new DuelMatch(
-                Deck(M("defender", 200)),
+                Deck(new CardDefinition("defender", "defender", CardKind.Monster, 200, 1800, "")),
                 Deck(M("low", 2100), M("high", 3200)));
             Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0 },
                 FieldLane.Monster, 0, BattlePosition.Defense,

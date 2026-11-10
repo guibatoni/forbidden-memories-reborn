@@ -22,7 +22,7 @@ storage = source("Assets/Scripts/Presentation/AdaptiveAiStorage.cs")
 hud = source("Assets/Scripts/Presentation/ArenaHud.cs")
 checks = {
     "only legal placements": "match.CanPlay(DuelSide.Opponent" in brain,
-    "only legal attacks use shared forecast": "match.TryPreviewAttack(DuelSide.Opponent" in brain,
+    "legal attack planning uses shared forecast": "MultiAttackPlanner.TryPlan(match" in brain and "match.TryPreviewAttack(DuelSide.Opponent" in source("Assets/Scripts/Core/MultiAttackPlanner.cs"),
     "no peeking at player hand": "match.Player.Hand" not in brain,
     "five adaptive tactics": "Counterplay" in brain and "FusionFocused" in brain,
     "learning requires completed matches": "match.Phase != MatchPhase.Finished" in brain,
