@@ -112,19 +112,20 @@ def make_cards(profile: dict, existing: dict | None) -> tuple[list[dict], dict]:
             raise ValueError("ATK/DEF divergentes no mesmo SHA: #" + str(cid))
         # DUELTRACE's current card catalog has no built-in PS1 descriptions.
         desc = str(row.get("description") or previous.get("description") or "").strip()
-        effect = str(row.get("effect_text") or "").strip()
+        effect = str(row.get("effect_text") or previous.get("effectText") or "").strip()
         if len(desc) > 4096 or len(effect) > 1800:
             raise ValueError("Texto excessivo para #" + str(cid))
         if "\x00" in desc or "\x00" in effect:
             raise ValueError("Texto binario nao permitido para #" + str(cid))
-        source = str(row.get("effect_source") or "") if effect else ""
-        status = str(row.get("effect_status") or "") if effect else ""
+        source = str(row.get("effect_source") or previous.get("effectSource") or "") if effect else ""
+        status = str(row.get("effect_status") or previous.get("effectStatus") or "") if effect else ""
         if effect and (not source or status in ("", "nao_identificado")):
             raise ValueError("Texto de efeito sem procedencia: #" + str(cid))
         cards.append({
             "id": cid, "name": name, "kind": kind,
             "attack": attack, "defense": defense,
             "description": desc,
+            "typeLabel": str(row.get("type_label") or previous.get("typeLabel") or "").strip(),
             "guardianStarA": previous.get("guardianStarA") or "",
             "guardianStarB": previous.get("guardianStarB") or "",
             "effectText": effect, "effectSource": source,
