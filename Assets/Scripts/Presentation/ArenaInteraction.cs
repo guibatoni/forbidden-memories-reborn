@@ -582,6 +582,8 @@ namespace Reborn.Presentation
                         " substituiu o monstro anterior.");
                     hud.AfterHandPlacement();
                     hud.SelectedFieldMonster = zone.Index;
+                    hud.MarkPlacedMonster(zone.Index);
+                    success = true;
                 }
                 else
                 {
