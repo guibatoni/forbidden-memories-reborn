@@ -38,6 +38,29 @@ namespace Reborn.Core
         public const float CompactBaseZ = -7.52f;
         public const float ExpandedBaseZ = -7.28f;
 
+        /// <summary>
+        /// On expanded hand hover, move only the neighboring cards away from
+        /// the highlighted card. Index/order stay intact and the focused card
+        /// retains its base position for drag and Shift-fusion interaction.
+        /// No displacement is applied while the pointer is over the arena.
+        /// </summary>
+        public static HandFanPose WithHoveredCard(
+            int index, int count, bool expanded, int hoveredIndex)
+        {
+            var pose = At(index, count, expanded);
+            if (hoveredIndex < -1 || hoveredIndex >= count)
+                throw new ArgumentOutOfRangeException(nameof(hoveredIndex));
+            if (!expanded || hoveredIndex < 0 || index == hoveredIndex)
+                return pose;
+
+            int separation = Math.Abs(index - hoveredIndex);
+            float displacement = separation == 1 ? 0.30f :
+                separation == 2 ? 0.14f : 0.06f;
+            float direction = index < hoveredIndex ? -1f : 1f;
+            return new HandFanPose(pose.X + direction * displacement,
+                pose.Y, pose.Z, pose.Yaw);
+        }
+
         public static HandFanPose At(int index, int count, bool expanded)
         {
             if (count < 1 || count > 5)
