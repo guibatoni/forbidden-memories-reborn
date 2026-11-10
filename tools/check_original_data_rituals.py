@@ -46,8 +46,12 @@ checks = {
     "DUELTRACE audit does not promote candidates automatically":
         "def compare(" in audit and "matchingPairs" in audit and
         "No data is uploaded" in audit,
-    "ritual catalog requires 3 exact distinct monsters":
-        "tributeIds.Length != 3" in catalog and "!seen.Add(tribute)" in catalog,
+    "ritual catalog allows repeated IDs but requires 3 valid materials":
+        "tributeIds.Length != 3" in catalog and
+        "Ritual material ID cannot be empty" in catalog and
+        "!seen.Add(tribute)" not in catalog,
+    "ritual execution picks three distinct physical field slots":
+        "new HashSet<int>()" in ritual and "taken.Add(matchSlot)" in ritual,
     "ritual requires own face-up field monsters":
         "monster.FaceDown" in ritual and
         "monster.Card.Id != recipe.TributeIds[needed]" in ritual,
