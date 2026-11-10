@@ -54,6 +54,18 @@ namespace Reborn.Presentation
             transform.localRotation = homeLocalRotation;
         }
 
+        /// <summary>
+        /// Animated home pose. Do not move the object immediately: the Update
+        /// loop also handles hover raise, selection and active drag gestures.
+        /// The BoxCollider is on the root and follows the same pose.
+        /// </summary>
+        public void SetHandLayoutTarget(Vector3 position, Quaternion rotation)
+        {
+            if (HandIndex < 0) return;
+            homeLocalPosition = position;
+            homeLocalRotation = rotation;
+        }
+
         public void SetFusionOrder(int order)
         {
             if (fusionBadge == null) return;
