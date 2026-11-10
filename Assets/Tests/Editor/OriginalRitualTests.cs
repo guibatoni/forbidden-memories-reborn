@@ -16,7 +16,8 @@ namespace Reborn.Tests
                 cards.Add(M("filler" + cards.Count));
             return cards;
         }
-        private static DuelMatch ReadyForRitual(out CardDefinition summoned)
+        private static DuelMatch ReadyForRitual(out CardDefinition summoned,
+            bool firstFaceDown = false)
         {
             summoned = new CardDefinition("summoned","Test result",CardKind.Monster,
                 2800,2300,"");
@@ -30,7 +31,7 @@ namespace Reborn.Tests
             {
                 Assert.IsTrue(game.TryPlay(DuelSide.Player,new[] {0},
                     FieldLane.Monster,slot,BattlePosition.Attack,
-                    GuardianStar.None,out _));
+                    GuardianStar.None,slot == 0 && firstFaceDown,out _));
                 Assert.IsTrue(game.TryEndTurn(DuelSide.Player,out _));
                 Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[] {0},
                     FieldLane.Monster,slot,BattlePosition.Defense,
@@ -66,7 +67,13 @@ namespace Reborn.Tests
         [Test]
         public void FaceDownTributeMustBeRevealedBeforeRitual()
         {
-            var game = ReadyForRitual(out _);
+            var game = ReadyForRitual(out _, true);
+            int eventsBefore = game.Events.Count;
+            Assert.IsNull(game.PreviewRitual(DuelSide.Player,0));
+            Assert.IsFalse(game.TrySummonRitual(DuelSide.Player,0,1,
+                BattlePosition.Attack,GuardianStar.None,out _,out _));
+            Assert.AreEqual(eventsBefore,game.Events.Count);
+            Assert.IsTrue(game.Player.Monster(0).FaceDown);
             Assert.IsTrue(game.TryChangePosition(DuelSide.Player,0,
                 BattlePosition.Defense,out _));
             // Face-up defense is acceptable, as only facedown is disallowed.
