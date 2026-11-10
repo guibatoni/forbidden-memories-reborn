@@ -75,12 +75,29 @@ namespace Reborn.Core
                     plan.Slot, plan.Position, plan.Star, out _);
             }
             if (!match.PlayedThisTurn &&
+                match.TryChooseFieldCombination(DuelSide.Opponent, true,
+                    out int fusionHand, out int fusionSlot, out var fusionResult))
+            {
+                match.TryPlayOnField(DuelSide.Opponent, new[] { fusionHand },
+                    fusionSlot, BattlePosition.Attack, fusionResult.StarA, false,
+                    out _, out _, out _);
+            }
+            if (!match.PlayedThisTurn &&
                 match.TryChooseSupportSet(DuelSide.Opponent,
                     out int supportHand, out int supportSlot))
             {
                 match.TryPlay(DuelSide.Opponent, new[] {supportHand},
                     FieldLane.Support, supportSlot, BattlePosition.Defense,
                     GuardianStar.None, true, out _);
+            }
+            if (!match.PlayedThisTurn &&
+                match.TryChooseFieldCombination(DuelSide.Opponent, false,
+                    out int replacementHand, out int replacementSlot,
+                    out var replacementResult))
+            {
+                match.TryPlayOnField(DuelSide.Opponent, new[] { replacementHand },
+                    replacementSlot, BattlePosition.Attack,
+                    replacementResult.StarA, false, out _, out _, out _);
             }
             // Never bypass compulsory placement in this headless test AI.
             if (!match.PlayedThisTurn) return;

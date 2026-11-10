@@ -58,6 +58,9 @@ jobs:
       - name: Verify mandatory turns and card inspection (static only)
         run: python3 tools/check_classic_turn_inspection.py
 
+      - name: Verify field-first fusion and full-board play (static only)
+        run: python3 tools/check_field_fusions.py
+
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 
@@ -71,7 +74,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.13-AiLab-Learning2
+          name: Reborn-0.16-AiLab-MultiSeed
           retention-days: 90
           if-no-files-found: error
           path: |
@@ -82,7 +85,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.14.3-Clean-Source
+          name: Reborn-0.16-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |

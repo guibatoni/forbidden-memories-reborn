@@ -59,6 +59,7 @@ namespace Reborn.Presentation
         private bool showStory;
         private Vector2 storyScroll;
         public CardDefinition HoveredCard { get; set; }
+        public CardDefinition FieldFusionPreview { get; set; }
         public bool CardPreviewEnabled { get; private set; } = true;
         private GUIStyle heading;
         private GUIStyle body;
@@ -97,6 +98,7 @@ namespace Reborn.Presentation
             PlayerAttackBusy = false;
             recentActions.Clear();
             CloseCardInspection();
+            FieldFusionPreview = null;
             SelectedHandIndex = -1;
             HoveredCard = null;
             SelectedAttacker = -1;
@@ -117,6 +119,7 @@ namespace Reborn.Presentation
             PlayerAttackBusy = false;
             recentActions.Clear();
             CloseCardInspection();
+            FieldFusionPreview = null;
             SelectedHandIndex = -1;
             HoveredCard = null;
             SelectedAttacker = -1;
@@ -282,7 +285,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.15",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.16",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -291,8 +294,19 @@ namespace Reborn.Presentation
                 (match.Phase == MatchPhase.Battle ? "Batalha" : "Principal");
             GUI.Label(new Rect(23,130,224,25),"Turno: " + match.Turn +
                 "   Fase: " + phaseName,small);
-            GUI.Label(new Rect(23,156,230,24),"Selecao fusao: " + FusionCount + "/5",small);
-            if (SelectedHandIndex >= 0 && SelectedHandIndex < match.Player.Hand.Count)
+            GUI.Label(new Rect(23,156,230,24),"Materiais da mao: " + FusionCount + "/5",small);
+            if (FieldFusionPreview != null && match.Phase == MatchPhase.Main)
+            {
+                GUI.Label(new Rect(23,183,227,44),
+                    "FUSAO NO CAMPO: " + FieldFusionPreview.Name,body);
+                GUI.Label(new Rect(23,226,227,24),
+                    "ATK " + FieldFusionPreview.Attack +
+                    "  DEF " + FieldFusionPreview.Defense,small);
+                GUI.Label(new Rect(23,249,227,50),
+                    "Guardian: " + FieldFusionPreview.StarA +
+                    " / " + FieldFusionPreview.StarB,small);
+            }
+            else if (SelectedHandIndex >= 0 && SelectedHandIndex < match.Player.Hand.Count)
             {
                 var card = match.Player.Hand[SelectedHandIndex];
                 GUI.Label(new Rect(23,183,227,44),card.Name,body);
@@ -347,7 +361,7 @@ namespace Reborn.Presentation
                 }
             }
             Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.15",heading);
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.16",heading);
             if (finished)
             {
                 GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
@@ -488,7 +502,7 @@ namespace Reborn.Presentation
             if (!CardPreviewEnabled) return;
             // Combat forecast takes precedence over enlarged card inspection.
             if (DuelModeActive && AttackMode && SelectedAttacker >= 0) return;
-            CardDefinition card = HoveredCard;
+            CardDefinition card = FieldFusionPreview ?? HoveredCard;
             if (card == null && SelectedHandIndex >= 0)
             {
                 if (DuelModeActive && match != null && SelectedHandIndex < match.Player.Hand.Count)

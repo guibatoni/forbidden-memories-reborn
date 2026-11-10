@@ -130,3 +130,22 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
   explicit SPACE end-turn, safe right-click card inspection, animated draw.
 - Static/.NET CI checks apply; Unity scene compilation and visual validation
   are still pending. No ROM, card art or user save data included.
+
+
+## Prototype 0.16 — In-field fusions (draft, 10/nov/2026)
+- Recovery branch: `backup/prototype-0.16-draft`
+- Feature branch: `feature/prototype-0.16-field-fusions`
+- Pull request: #3 (stacked on 0.15 PR #2, which depends on #1)
+- Field monster is material zero, followed by 1–5 ordered hand cards;
+  validated recipes, failure replacement, occupied-slot placement and
+  non-mutating preview are included.
+- Strict compulsory hand play is preserved. AI tries a verified field
+  combination, then support placement, then safe replacement where legal.
+- GitHub CI source artifact name after main merge:
+  `Reborn-0.16-Clean-Source` (source only, 90-day retention).
+- Synthetic AI Lab artifact name after main merge:
+  `Reborn-0.16-AiLab-MultiSeed`.
+- Important: headless C# and source-contract CI is not Unity 3D compilation.
+  The Unity 6000.3.28f1 interaction/animation tests remain mandatory.
+- No retail ISO, copied card illustrations, private exports, personal
+  opponent learning data or original-disc content in public source.

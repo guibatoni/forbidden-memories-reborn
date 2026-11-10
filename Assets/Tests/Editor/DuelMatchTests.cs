@@ -89,6 +89,98 @@ namespace Reborn.Tests
 
 
         [Test]
+        public void FieldFusionStartsWithTableCardThenConsumesHandInSelectionOrder()
+        {
+            var recipes = new FusionCatalog();
+            var first = Monster("firstResult", 1900, 1700);
+            var final = Monster("finalResult", 3000, 2800, GuardianStar.Mercury);
+            recipes.Add("base", "a", first);
+            recipes.Add("firstResult", "b", final);
+            var match = new DuelMatch(
+                Deck(Monster("base", 800, 900), Monster("a", 500, 600),
+                    Monster("b", 700, 800)),
+                Deck(Monster("enemy", 1000, 1000)), recipes);
+            Play(match, DuelSide.Player, 0);
+            End(match, DuelSide.Player);
+            Play(match, DuelSide.Opponent, 0);
+            End(match, DuelSide.Opponent);
+            var cards = new[] { 0, 1 };
+            int count = match.Events.Count;
+            Assert.AreEqual(final, match.PreviewFieldResult(
+                DuelSide.Player, cards, 0));
+            Assert.AreEqual(count, match.Events.Count);
+            Assert.IsTrue(match.CanPlayOnField(DuelSide.Player, cards, 0,
+                GuardianStar.Mercury, out var preview, out var reason), reason);
+            Assert.AreEqual(final, preview);
+            Assert.IsTrue(match.TryPlayOnField(DuelSide.Player, cards, 0,
+                BattlePosition.Attack, GuardianStar.Mercury, true,
+                out var result, out bool fused, out reason), reason);
+            Assert.IsTrue(fused);
+            Assert.AreEqual(final, result);
+            Assert.AreEqual(final, match.Player.Monster(0).Card);
+            Assert.IsFalse(match.Player.Monster(0).FaceDown);
+            Assert.AreEqual(3, match.Player.Graveyard.Count);
+            Assert.IsFalse(match.TryPlayOnField(DuelSide.Player, new[] { 0 }, 0,
+                BattlePosition.Attack, GuardianStar.None, false,
+                out _, out _, out _));
+        }
+
+        [Test]
+        public void UnsupportedFieldEquipIsRejectedButMonsterReplacementIsLegal()
+        {
+            var match = new DuelMatch(
+                Deck(Monster("old", 2600, 2100),
+                    Support("equip", CardKind.Equip), Monster("replacement", 1200, 900)),
+                Deck(Monster("enemy", 1000, 1000)));
+            Play(match, DuelSide.Player);
+            End(match, DuelSide.Player);
+            Play(match, DuelSide.Opponent);
+            End(match, DuelSide.Opponent);
+            long events = match.Events.Count;
+            Assert.IsFalse(match.CanPlayOnField(DuelSide.Player, new[] { 0 },
+                0, GuardianStar.None, out _, out _));
+            Assert.IsFalse(match.TryPlayOnField(DuelSide.Player, new[] { 0 },
+                0, BattlePosition.Attack, GuardianStar.None, false,
+                out _, out _, out _));
+            Assert.AreEqual(events, match.Events.Count);
+            Assert.AreEqual("old", match.Player.Monster(0).Card.Id);
+            Assert.IsTrue(match.TryPlayOnField(DuelSide.Player, new[] { 1 },
+                0, BattlePosition.Defense, GuardianStar.None, true,
+                out var result, out bool fused, out _));
+            Assert.IsFalse(fused);
+            Assert.AreEqual("replacement", result.Id);
+            Assert.IsTrue(match.Player.Monster(0).FaceDown);
+            Assert.AreEqual("old", match.Player.Graveyard[0].Id);
+        }
+
+        [Test]
+        public void FullMonsterFieldCanStillUseMandatoryHandPlayByReplacingOne()
+        {
+            var match = Match(Monster("player", 1500, 1000),
+                Monster("opponent", 1200, 1300));
+            for (int slot = 0; slot < DuelMatch.ZoneCount; slot++)
+            {
+                Play(match, DuelSide.Player, slot);
+                End(match, DuelSide.Player);
+                Play(match, DuelSide.Opponent, slot);
+                End(match, DuelSide.Opponent);
+            }
+            Assert.AreEqual(5, match.Player.MonsterCount);
+            Assert.IsFalse(match.CanPlay(DuelSide.Player, new[] { 0 },
+                FieldLane.Monster, 0, GuardianStar.None, out _));
+            Assert.IsFalse(match.TryEndTurn(DuelSide.Player, out _));
+            Assert.IsTrue(match.TryChooseFieldCombination(DuelSide.Player, false,
+                out int hand, out int slotChosen, out var result));
+            Assert.IsTrue(match.CanPlayOnField(DuelSide.Player, new[] { hand },
+                slotChosen, result.StarA, out _, out _));
+            Assert.IsTrue(match.TryPlayOnField(DuelSide.Player, new[] { hand },
+                slotChosen, BattlePosition.Attack, result.StarA, false,
+                out _, out _, out _));
+            Assert.AreEqual(5, match.Player.MonsterCount);
+            End(match, DuelSide.Player);
+        }
+
+        [Test]
         public void MandatoryPlayAndRepeatablePositionChangesUntilAttack()
         {
             var match = Match(Monster("mine", 2300, 1500), Monster("enemy", 500, 900));
