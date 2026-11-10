@@ -359,6 +359,7 @@ namespace Reborn.Presentation
         {
             SetAttackAim(-1, -1);
             if (dynamicRoot == null || match == null) return;
+            int previousHandCount = HandViews.Count;
             HandViews.Clear();
             handExpanded = false;
             highlightedHandIndex = -1;
@@ -371,6 +372,8 @@ namespace Reborn.Presentation
             for (int i = 0; i < hand.Count; i++)
             {
                 var view = MakeHandCard("Match_Hand_" + (i+1), hand[i], i, hand.Count);
+                if (i >= previousHandCount)
+                    view.AnimateDrawFrom(new Vector3(-6.05f, 0.66f, -4.4f));
                 HandViews.Add(view);
             }
             foreach (var side in new [] { DuelSide.Player, DuelSide.Opponent })
@@ -440,6 +443,7 @@ namespace Reborn.Presentation
         {
             SetAttackAim(-1, -1);
             if (dynamicRoot == null) return;
+            int previousHandCount = HandViews.Count;
             HandViews.Clear();
             handExpanded = false;
             highlightedHandIndex = -1;
@@ -452,6 +456,8 @@ namespace Reborn.Presentation
             for (int i = 0; i < session.Hand.Count; i++)
             {
                 var view = MakeHandCard("Hand_" + (i+1), session.Hand[i], i, session.Hand.Count);
+                if (i >= previousHandCount)
+                    view.AnimateDrawFrom(new Vector3(-6.05f, 0.66f, -4.4f));
                 HandViews.Add(view);
             }
             for (int i = 0; i < 5; i++)
