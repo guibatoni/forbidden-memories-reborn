@@ -506,6 +506,42 @@ internal static class Program
             supportSet.Events.Count == eventsBeforeUnsupported &&
             supportSet.Player.SupportIsFaceDown(1),
             "unverified support effects remain disabled without consuming the set card");
+
+        var hiddenCombat = new DuelMatch(Deck(M("weakAttacker", 1300, 1000)),
+            Deck(M("hiddenDefender", 500, 1800)));
+        Play(hiddenCombat, DuelSide.Player);
+        End(hiddenCombat, DuelSide.Player);
+        Check(hiddenCombat.TryPlay(DuelSide.Opponent, new[] { 0 },
+            FieldLane.Monster, 0, BattlePosition.Defense, GuardianStar.None,
+            true, out _) && hiddenCombat.Opponent.Monster(0).FaceDown,
+            "opponent defense can be set face down");
+        End(hiddenCombat, DuelSide.Opponent);
+        Battle(hiddenCombat, DuelSide.Player);
+        int hiddenPreviewEvents = hiddenCombat.Events.Count;
+        Check(hiddenCombat.TryPreviewAttack(DuelSide.Player, 0, 0,
+            out var hiddenForecast, out _) &&
+            hiddenForecast.DamageToAttacker == 500 &&
+            hiddenCombat.Opponent.Monster(0).FaceDown &&
+            hiddenCombat.Events.Count == hiddenPreviewEvents,
+            "forecast is read-only and does not flip a face-down defender");
+        Check(hiddenCombat.TryAttack(DuelSide.Player, 0, 0, out _) &&
+            !hiddenCombat.Opponent.Monster(0).FaceDown &&
+            hiddenCombat.Player.Life == 7500,
+            "face-down defender is revealed on actual combat, without false destruction");
+
+        var concealedAttacker = new DuelMatch(
+            Deck(M("hiddenAttack", 2100, 1200)),
+            Deck(M("opponentCard", 300, 800)));
+        Check(concealedAttacker.TryPlay(DuelSide.Player, new[] { 0 },
+            FieldLane.Monster, 0, BattlePosition.Attack, GuardianStar.None,
+            true, out _) && concealedAttacker.Player.Monster(0).FaceDown,
+            "attacker may be set face down in attack position");
+        Battle(concealedAttacker, DuelSide.Player);
+        Check(concealedAttacker.TryAttack(DuelSide.Player, 0, -1, out _) &&
+            !concealedAttacker.Player.Monster(0).FaceDown,
+            "face-down attacker is revealed on successful attack");
+        Check(supportSet.Player.SupportSetTurn(1) == 1,
+            "support card records the original turn it was set");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }
