@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.14.4 (proposed)
+
+Legal battle target aiming: a lightweight gold arc connects the selected
+attacker to a valid hovered enemy target, including direct attacks when legal.
+Visual feedback only; existing rules, camera and hand interaction unchanged.
+
+[Prototype 0.14.4 verification](Docs/PROTOTYPE_0_14_4.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.14.3
 
 More readable field play: legal placement zones in cyan, a bright hover
