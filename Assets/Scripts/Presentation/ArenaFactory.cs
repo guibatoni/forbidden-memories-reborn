@@ -31,6 +31,8 @@ namespace Reborn.Presentation
             new Color(0.58f, 1f, 0.91f), true);
         private readonly Material attackHover = ArenaVisuals.Mat(
             new Color(1f, 0.67f, 0.41f), true);
+        private readonly Material attackSelected = ArenaVisuals.Mat(
+            new Color(1f, 0.93f, 0.36f), true);
         private readonly Material paper = ArenaVisuals.Mat(new Color(0.80f, 0.71f, 0.55f));
         private readonly Material orange = ArenaVisuals.Mat(new Color(0.55f, 0.31f, 0.16f));
         private readonly Material violet = ArenaVisuals.Mat(new Color(0.32f, 0.20f, 0.43f));
@@ -100,7 +102,7 @@ namespace Reborn.Presentation
                         var view = slot.AddComponent<ZoneView>();
                         view.Initialize(lane, i, opponent, edges, gold,
                             opponent ? red : cyan,
-                            opponent ? attackHover : validHover, gold);
+                            opponent ? attackHover : validHover, attackSelected);
                         Zones.Add(view);
                     }
                 }
