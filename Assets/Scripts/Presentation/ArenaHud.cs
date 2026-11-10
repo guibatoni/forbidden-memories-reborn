@@ -23,7 +23,7 @@ namespace Reborn.Presentation
         private bool missingOriginalContent;
         private bool demoAcknowledged;
         public bool ContentImportRequired => missingOriginalContent && !demoAcknowledged;
-        public bool InputLocked => OpponentBusy || PlayerAttackBusy || ContentImportRequired;
+        public bool InputLocked => OpponentBusy || PlayerAttackBusy || ContentImportRequired || PlacementWizardOpen;
 
         /// <summary>No arbitrary placeholder gameplay before explicit demo opt-in.</summary>
         public void ConfigureContentAvailability(bool originalLoaded)
@@ -103,6 +103,7 @@ namespace Reborn.Presentation
         public void SetDuelMode(bool active)
         {
             if (match == null) return;
+            CancelPlacementChoices();
             DuelModeActive = active;
             OpponentBusy = false;
             PlayerAttackBusy = false;
@@ -124,6 +125,7 @@ namespace Reborn.Presentation
 
         public void ResetMatch(DuelMatch model)
         {
+            CancelPlacementChoices();
             match = model;
             OpponentBusy = false;
             PlayerAttackBusy = false;
@@ -165,7 +167,7 @@ namespace Reborn.Presentation
         {
             float x = pointer.x;
             float y = Screen.height - pointer.y;
-            return ContentImportRequired || CardInspectionOpen || showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
+            return ContentImportRequired || PlacementWizardOpen || CardInspectionOpen || showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
                 (x > Screen.width - 220f && y < 638f);
         }
 
@@ -210,6 +212,11 @@ namespace Reborn.Presentation
             if (ContentImportRequired)
             {
                 DrawMissingOriginalContent();
+                return;
+            }
+            if (PlacementWizardOpen)
+            {
+                DrawPlacementChoices();
                 return;
             }
             if (CardInspectionOpen)
@@ -335,7 +342,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.17",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.18",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -474,18 +481,13 @@ namespace Reborn.Presentation
                         "SUA BATALHA" : "SUA JOGADA") : "Turno da IA",small);
                 GUI.Label(new Rect(right+13,77,175,19),AiInsight,small);
                 GUI.Label(new Rect(right+12,101,177,23),
-                    "1 Face > 2 ATK/DEF > 3 Guardian",small);
-                bool canPlace = player && !InputLocked && match.Phase == MatchPhase.Main;
-                GUI.enabled = canPlace;
-                if (GUI.Button(new Rect(right+12,128,170,33),
-                    PlaceFaceDown ? "Face: PARA BAIXO" : "Face: PARA CIMA",button))
-                    PlaceFaceDown = !PlaceFaceDown;
-                if (GUI.Button(new Rect(right+12,168,170,33),
-                    UseDefense ? "Colocar: DEF" : "Colocar: ATK",button))
-                    UseDefense = !UseDefense;
-                if (GUI.Button(new Rect(right+12,208,170,33),
-                    UseSecondaryStar ? "Guardian: segunda" : "Guardian: primeira",button))
-                    UseSecondaryStar = !UseSecondaryStar;
+                    "JOGADA PASSO A PASSO",small);
+                GUI.Label(new Rect(right+12,131,177,106),
+                    "1. Selecione cartas da mao\n" +
+                    "2. Escolha uma zona\n" +
+                    "3. Guardian Star (tela)\n" +
+                    "4. Face-up / Face-down (tela)\n" +
+                    "5. ATK/DEF apos posicionar",small);
                 GUI.enabled = player && !InputLocked;
 
                 if (SelectedFieldMonster >= 0 && match.Player.Monster(SelectedFieldMonster) != null)
