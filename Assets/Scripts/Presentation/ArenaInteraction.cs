@@ -72,7 +72,12 @@ namespace Reborn.Presentation
             hud.FieldFusionPreview = null;
             hud.CloseCardInspection();
             arena.SetAttackAim(-1, -1);
-            arena.RefreshMatch(match);
+            // Entering Battle changes only the phase. Rebuilding all card
+            // GameObjects here would destroy the 0.58-second summon motion
+            // just started by the preceding Play event.
+            bool phaseOnly = match.Events.Count > 0 &&
+                match.Events[match.Events.Count - 1].Kind == MatchEventKind.BattleStarted;
+            if (!phaseOnly) arena.RefreshMatch(match);
             UpdateLegalHighlights();
         }
 
