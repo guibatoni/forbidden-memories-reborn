@@ -349,6 +349,40 @@ internal static class Program
             BattlePosition.Attack,GuardianStar.Mercury,out _,out _),
             "ritual respects single hand placement limit per turn");
 
+        // Retail PS1 permits triple-copy rituals: three equal card IDs must
+        // still be three DIFFERENT physical monsters on the duel field.
+        var triples = new RitualCatalog();
+        triples.Add("triple-ritual",new[]{"blue","blue","blue"},
+            M("ultimate",4500,3800));
+        var tripleDuel = new DuelMatch(
+            Deck(M("blue",3000,2500),M("blue",3000,2500),
+                M("blue",3000,2500),
+                new CardDefinition("triple-ritual","Triple",
+                    CardKind.Ritual,0,0,"")),
+            Deck(M("enemy",500,500)),new FusionCatalog(),triples);
+        for (int tributeSlot=0;tributeSlot<3;tributeSlot++)
+        {
+            Check(tripleDuel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,tributeSlot,BattlePosition.Attack,
+                GuardianStar.None,out _),
+                "triple-copy ritual places one separate physical monster");
+            End(tripleDuel,DuelSide.Player);
+            Check(tripleDuel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Monster,tributeSlot,BattlePosition.Defense,
+                GuardianStar.None,out _),
+                "triple-copy ritual setup preserves opponent compulsory play");
+            End(tripleDuel,DuelSide.Opponent);
+        }
+        Check(tripleDuel.TrySummonRitual(DuelSide.Player,0,2,
+                BattlePosition.Attack,GuardianStar.None,
+                out var tripleResult,out _) &&
+              tripleResult.Id=="ultimate" &&
+              tripleDuel.Player.Monster(0)==null &&
+              tripleDuel.Player.Monster(1)==null &&
+              tripleDuel.Player.Monster(2).Card.Id=="ultimate" &&
+              tripleDuel.Player.Graveyard.Count==4,
+              "triple-copy PS1 ritual accepts duplicate IDs in separate field slots");
+
         var standardDeck = DemoDeck.Create();
         var shuffledA = DeckRandomizer.Shuffle(standardDeck, new Random(154));
         var shuffledB = DeckRandomizer.Shuffle(standardDeck, new Random(154));
