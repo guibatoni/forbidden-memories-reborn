@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.15 (draft)
+
+Classic turn controls: mandatory placement before ending turn, Q/E to toggle
+ATK/DEF repeatedly until attacking, SPACE to pass explicitly, and enlarged
+right-click card inspection. New cards glide into the unchanged inverted fan.
+
+[0.15 controls, limitations and Unity validation](Docs/PROTOTYPE_0_15.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.14.4 (proposed)
 
 Legal battle target aiming: a lightweight gold arc connects the selected
