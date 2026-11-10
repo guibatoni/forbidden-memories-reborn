@@ -456,6 +456,56 @@ internal static class Program
             !updatedBrain.RecordCompletedDuel(learningDuel) &&
             counting.tacticGames.Sum() == 1,
             "Learning 2.0 records one loss, updates only the active tactic and never trains twice");
+
+        // New PS1-inspired duel controls: orientation, one hand play,
+        // toggling an old monster, and preserving attack commitment.
+        var fluid = new DuelMatch(
+            Deck(M("setMonster", 2200, 1800), S("hiddenSpell")),
+            Deck(M("enemy", 1600, 1400)));
+        Check(fluid.TryPlay(DuelSide.Player, new[] { 0 }, FieldLane.Monster,
+            0, BattlePosition.Defense, GuardianStar.None, true, out _) &&
+            fluid.Player.Monster(0).FaceDown,
+            "one monster can be set face-down in defense");
+        Check(!fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Attack, out _),
+            "newly summoned monster cannot change position during its placement turn");
+        Check(!fluid.CanPlay(DuelSide.Player, new[] { 0 },
+            FieldLane.Support, 0, GuardianStar.None, out _),
+            "one hand placement per turn remains enforced");
+        Battle(fluid, DuelSide.Player);
+        End(fluid, DuelSide.Player);
+        Play(fluid, DuelSide.Opponent);
+        End(fluid, DuelSide.Opponent);
+        Check(fluid.CanChangePosition(DuelSide.Player, 0,
+            BattlePosition.Attack, out _) &&
+            fluid.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _) &&
+            fluid.Player.Monster(0).Position == BattlePosition.Attack &&
+            !fluid.Player.Monster(0).FaceDown,
+            "set monster can be flipped to attack only on its owner's later turn");
+        Check(!fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Defense, out _),
+            "a monster cannot change position twice in one turn");
+        Battle(fluid, DuelSide.Player);
+        Check(fluid.TryAttack(DuelSide.Player, 0, 0, out _) &&
+            fluid.Player.Monster(0).AttackedThisTurn,
+            "flipped monster can attack after legal reposition");
+        Check(!fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Defense, out _),
+            "attacker cannot switch back to defense after attacking");
+
+        var supportSet = new DuelMatch(Deck(S("setEquip"), M("backup", 1500, 1500)),
+            Deck(M("other", 1000, 1000)));
+        Check(supportSet.TryPlay(DuelSide.Player, new[] { 0 }, FieldLane.Support,
+            1, BattlePosition.Attack, GuardianStar.None, true, out _) &&
+            supportSet.Player.SupportIsFaceDown(1),
+            "spell/equip support can be set facedown independently of monsters");
+        Battle(supportSet, DuelSide.Player);
+        int eventsBeforeUnsupported = supportSet.Events.Count;
+        Check(!supportSet.CanActivateSupport(DuelSide.Player, 1, out _) &&
+            supportSet.Events.Count == eventsBeforeUnsupported &&
+            supportSet.Player.SupportIsFaceDown(1),
+            "unverified support effects remain disabled without consuming the set card");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }
