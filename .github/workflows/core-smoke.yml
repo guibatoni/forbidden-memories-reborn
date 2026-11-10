@@ -73,6 +73,9 @@ jobs:
           python3 tools/import_dueltrace_profile.py --help > /dev/null
           python3 tools/test_dueltrace_bridge.py
 
+      - name: Verify Original content startup and explicit demo consent (static)
+        run: python3 tools/check_dueltrace_autoload.py
+
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 
