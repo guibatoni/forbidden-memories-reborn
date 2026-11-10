@@ -80,3 +80,10 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - A/B benchmark CI artifact: Reborn-0.13-AiLab-Learning2
 - ChatGPT Library: Forbidden Memories Reborn / Backups / Prototype 0.13
 - Preserves previous local adaptive profiles; no user save data in public artifacts.
+
+
+## Prototype 0.13.1 — Unity compilation hotfix
+- GitHub recovery branch: backup/prototype-0.13.1
+- GitHub Actions clean-source artifact: Reborn-0.13.1-Clean-Source
+- ChatGPT Library folder: Forbidden Memories Reborn/Backups/Prototype 0.13.1
+- Fixes public Core to Presentation MonsterCount access; no changes to AI Learning 2.0 behavior.

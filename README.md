@@ -1,3 +1,13 @@
+# Prototype 0.13.1 — Unity cross-assembly hotfix
+
+Fixes the `MatchSide.MonsterCount` CS1061 error in `ArenaHud.cs`.
+Core now exposes the read-only count to the separate presentation assembly.
+A new independent C# assembly smoke test guards against regressions.
+
+[Hotfix notes](Docs/HOTFIX_0_13_1.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.13 AI Learning 2.0
 
 Improved risk-aware attack/defense placement, migration-safe persistent

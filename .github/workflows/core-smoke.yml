@@ -16,6 +16,9 @@ jobs:
       - name: Compile and run deterministic Core checks
         run: dotnet run --project tools/Reborn.Core.Smoke/Reborn.Core.Smoke.csproj --configuration Release
 
+      - name: Compile the Core public API from a different C# assembly
+        run: dotnet run --project tools/Reborn.CrossAssembly.Smoke/Reborn.CrossAssembly.Smoke.csproj --configuration Release
+
       - name: Check presentation boundaries (static only)
         run: python3 tools/check_presentation_contracts.py
 
@@ -64,7 +67,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.13-Clean-Source
+          name: Reborn-0.13.1-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |
