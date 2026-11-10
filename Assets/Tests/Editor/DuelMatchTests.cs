@@ -42,6 +42,29 @@ namespace Reborn.Tests
 
         private static void Begin(DuelMatch match, DuelSide side)
         {
+            // Scenario setup may advance to later turns; satisfy the new
+            // mandatory placement with a harmless free board slot first.
+            if (!match.PlayedThisTurn)
+            {
+                var owner = match.Side(side);
+                bool placed = false;
+                for (int i = 0; i < owner.Hand.Count && !placed; i++)
+                {
+                    var card = owner.Hand[i];
+                    var lane = card.Kind == CardKind.Monster ?
+                        FieldLane.Monster : FieldLane.Support;
+                    for (int slot = 4; slot >= 0; slot--)
+                    {
+                        if (!match.CanPlay(side, new[] {i}, lane, slot,
+                            card.StarA, out _)) continue;
+                        Assert.IsTrue(match.TryPlay(side, new[] {i}, lane, slot,
+                            BattlePosition.Defense, card.StarA, out _));
+                        placed = true;
+                        break;
+                    }
+                }
+                Assert.IsTrue(placed, "Test setup needs at least one legal hand play");
+            }
             Assert.IsTrue(match.TryBeginBattle(side, out var error), error);
         }
 
@@ -66,23 +89,53 @@ namespace Reborn.Tests
 
 
         [Test]
+        public void MandatoryPlayAndRepeatablePositionChangesUntilAttack()
+        {
+            var match = Match(Monster("mine", 2300, 1500), Monster("enemy", 500, 900));
+            Assert.IsFalse(match.TryEndTurn(DuelSide.Player, out var rejected));
+            StringAssert.Contains("Baixe", rejected);
+            Assert.IsFalse(match.TryBeginBattle(DuelSide.Player, out _));
+            Play(match, DuelSide.Player);
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _));
+            Begin(match, DuelSide.Player);
+            Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, -1, out _));
+            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
+            End(match, DuelSide.Player);
+            Assert.AreEqual(DuelSide.Opponent, match.CurrentSide);
+        }
+
+        [Test]
         public void SetMonsterFlipsOnLaterTurnAndCannotMoveAfterAttack()
         {
-            var match = Match(Monster("mine", 2100, 1400), Monster("enemy", 1200, 900));
+            var match = new DuelMatch(
+                Deck(Monster("mine", 2100, 1400), Support("turn2Spell")),
+                Deck(Monster("enemy", 1200, 900)));
             Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0 },
                 FieldLane.Monster, 0, BattlePosition.Defense,
                 GuardianStar.None, true, out _));
             Assert.IsTrue(match.Player.Monster(0).FaceDown);
-            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Attack, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
             End(match, DuelSide.Player);
             Play(match, DuelSide.Opponent);
             End(match, DuelSide.Opponent);
             Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Attack, out _));
             Assert.IsFalse(match.Player.Monster(0).FaceDown);
-            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Defense, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _));
             Begin(match, DuelSide.Player);
             Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, 0, out _));
             Assert.IsTrue(match.Player.Monster(0).AttackedThisTurn);
@@ -168,6 +221,7 @@ namespace Reborn.Tests
             long count = match.Events.Count;
             Assert.IsFalse(SimpleOpponentAi.TryChoosePlay(match,out _,out _));
             Assert.AreEqual(count,match.Events.Count);
+            Play(match,DuelSide.Player);
             End(match,DuelSide.Player);
             count = match.Events.Count;
             Assert.IsTrue(SimpleOpponentAi.TryChoosePlay(match,out int hand,out int slot));
@@ -183,6 +237,7 @@ namespace Reborn.Tests
             var match = new DuelMatch(Deck(Monster("p",1000,900)),
                 Deck(Support("s1"),Support("s2"),Support("s3"),
                     Support("s4"),Support("s5")));
+            Play(match,DuelSide.Player);
             End(match,DuelSide.Player);
             Assert.IsFalse(SimpleOpponentAi.TryChoosePlay(match,out _,out _));
             Assert.IsFalse(match.PlayedThisTurn);
@@ -209,7 +264,10 @@ namespace Reborn.Tests
         [Test]
         public void AiSelectsDirectAttackOnlyWhenEnemyHasNoMonster()
         {
-            var match = Match(Monster("p",1200,1000), Monster("o",1800,1000));
+            var match = new DuelMatch(
+                Deck(Support("opening")), Deck(Monster("o",1800,1000)));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+                BattlePosition.Attack,GuardianStar.None,true,out _));
             End(match,DuelSide.Player);
             Play(match,DuelSide.Opponent,0);
             Begin(match,DuelSide.Opponent);
@@ -588,6 +646,7 @@ namespace Reborn.Tests
             End(match,DuelSide.Player);
             Assert.AreEqual(DuelSide.Opponent,match.CurrentSide);
             Assert.AreEqual(4,match.Player.Hand.Count);
+            Play(match,DuelSide.Opponent);
             End(match,DuelSide.Opponent);
             Assert.AreEqual(DuelSide.Player,match.CurrentSide);
             Assert.AreEqual(5,match.Player.Hand.Count);
@@ -599,6 +658,8 @@ namespace Reborn.Tests
         public void CannotPlayAfterBeginningBattle()
         {
             var match = Match(Monster("p",1800,1000),Monster("o",1000,1000));
+            Assert.IsFalse(match.TryBeginBattle(DuelSide.Player,out _));
+            Play(match,DuelSide.Player);
             Begin(match,DuelSide.Player);
             Assert.IsFalse(match.TryPlay(DuelSide.Player,new [] {0},FieldLane.Monster,0,
                 BattlePosition.Attack,GuardianStar.None,out _));
@@ -659,7 +720,9 @@ namespace Reborn.Tests
         [Test]
         public void SimpleOpponentAiCompletesAnOpponentTurn()
         {
-            var match=Match(Monster("p",500,500),Monster("o",1900,900));
+            var match=new DuelMatch(Deck(Support("opening")),Deck(Monster("o",1900,900)));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+                BattlePosition.Attack,GuardianStar.None,true,out _));
             End(match,DuelSide.Player);
             SimpleOpponentAi.TakeTurn(match);
             Assert.AreEqual(DuelSide.Player,match.CurrentSide);
