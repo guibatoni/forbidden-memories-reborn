@@ -1,3 +1,14 @@
+# Prototype 0.17.1 — Reaproveitamento do banco DUELTRACE (rascunho)
+
+A ponte local de dados importa nomes, IDs, subtipos, ATK/DEF, receitas revisadas e
+textos informativos de efeitos do perfil Original do DUELTRACE. O Reborn usa
+molduras e animacoes proprias; o motor nao executa efeitos nao verificados.
+
+Consulte [o guia de importacao DUELTRACE](Docs/PROTOTYPE_0_17_1_DUELTRACE.md).
+Para importar no Windows, execute tools/IMPORTAR_DO_DUELTRACE.ps1.
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.17 (em validação)
 
 Esta versão prepara a importação **local e privada** das 722 cartas, descrições

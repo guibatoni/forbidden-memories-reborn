@@ -67,6 +67,12 @@ jobs:
       - name: Disc-free importer and full-content validator
         run: python3 tools/test_disc_import.py
 
+      - name: Test DUELTRACE original catalog bridge (synthetic data only)
+        run: |
+          python3 -m py_compile tools/import_dueltrace_profile.py
+          python3 tools/import_dueltrace_profile.py --help > /dev/null
+          python3 tools/test_dueltrace_bridge.py
+
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 
