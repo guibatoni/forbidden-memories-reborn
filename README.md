@@ -1,3 +1,14 @@
+# Forbidden Memories Reborn — Prototype 0.14.1
+
+**Responsive inverted card fan:** corrected tilt/curvature, more spacing
+when hovering the hand (+0.90 tabletop units), compact/lowered layout
+when the pointer returns to the arena, and smooth transitions that
+preserve dragging and Shift-fusion selections.
+
+[Review the responsive hand changes](Docs/PROTOTYPE_0_14_1.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.14
 
 **Fluent PS1-inspired duel controls:** larger overlapping MTGA-style

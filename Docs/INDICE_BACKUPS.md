@@ -96,3 +96,11 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - MTGA-like fan hand, numbered Shift fusions, face choice, automatic battle,
   direct attacker-to-target clicks and legal monster position changes.
 - Unverified spell, equip, ritual and trap effects remain disabled.
+
+
+## Prototype 0.14.1 — Responsive Card Fan
+- Recovery branch: backup/prototype-0.14.1
+- GitHub Actions source artifact: Reborn-0.14.1-Clean-Source
+- ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.14.1
+- Inverted fan, +0.90 open spacing, compact/lowered arena focus,
+  smooth animations and preserved Shift-fusion ordering.
