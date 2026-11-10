@@ -16,6 +16,7 @@ namespace Reborn.Presentation
         private Quaternion homeLocalRotation;
         private GameObject fusionBadge;
         private TextMesh fusionBadgeText;
+        private static Material badgeMaterial;
         private bool selected;
         private bool hovered;
         private bool dragging;
@@ -74,9 +75,14 @@ namespace Reborn.Presentation
             backing.transform.SetParent(fusionBadge.transform, false);
             backing.transform.localScale = new Vector3(0.34f, 0.045f, 0.34f);
             var collider = backing.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
-            backing.GetComponent<Renderer>().sharedMaterial =
-                ArenaVisuals.Mat(new Color(0.13f, 0.48f, 0.67f), true);
+            if (collider != null)
+            {
+                collider.enabled = false;
+                Destroy(collider);
+            }
+            if (badgeMaterial == null)
+                badgeMaterial = ArenaVisuals.Mat(new Color(0.13f, 0.48f, 0.67f), true);
+            backing.GetComponent<Renderer>().sharedMaterial = badgeMaterial;
             var label = new GameObject("Badge_Number");
             label.transform.SetParent(fusionBadge.transform, false);
             label.transform.localPosition = new Vector3(0f, 0.045f, 0f);
