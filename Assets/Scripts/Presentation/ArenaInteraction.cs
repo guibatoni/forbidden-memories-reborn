@@ -223,6 +223,12 @@ namespace Reborn.Presentation
             hud.PreviewTargetSlot = hud.AttackMode && hud.SelectedAttacker >= 0 &&
                 zone != null && zone.Opponent && zone.Lane == FieldLane.Monster
                 ? zone.Index : -1;
+            if (hoveredZone != zone)
+            {
+                if (hoveredZone != null) hoveredZone.SetHighlight(false);
+                hoveredZone = zone;
+                if (hoveredZone != null) hoveredZone.SetHighlight(true);
+            }
             if (hoveredCard != card)
             {
                 if (hoveredCard != null) hoveredCard.SetHovered(false);
@@ -433,25 +439,56 @@ namespace Reborn.Presentation
             {
                 if (hud.DuelModeActive && match != null)
                 {
-                    if (match.Phase == MatchPhase.Battle)
+                    if (match.Phase == MatchPhase.Battle &&
+                        match.CurrentSide == DuelSide.Player && !hud.InputLocked)
                     {
-                        bool eligible = zone.Opponent ?
-                            hud.SelectedAttacker >= 0 &&
-                                (match.Opponent.MonsterCount == 0 ||
-                                 (zone.Lane == FieldLane.Monster &&
-                                  match.Opponent.Monster(zone.Index) != null)) :
-                            zone.Lane == FieldLane.Monster &&
-                                match.Player.Monster(zone.Index) != null;
+                        bool eligible = false;
+                        if (zone.Opponent)
+                        {
+                            if (hud.SelectedAttacker >= 0)
+                            {
+                                if (match.Opponent.MonsterCount == 0)
+                                    eligible = match.CanAttack(DuelSide.Player,
+                                        hud.SelectedAttacker, -1, out _);
+                                else if (zone.Lane == FieldLane.Monster &&
+                                    match.Opponent.Monster(zone.Index) != null)
+                                    eligible = match.CanAttack(DuelSide.Player,
+                                        hud.SelectedAttacker, zone.Index, out _);
+                            }
+                        }
+                        else if (zone.Lane == FieldLane.Monster &&
+                            match.Player.Monster(zone.Index) != null)
+                        {
+                            // Available attack sources stay highlighted until
+                            // selected. Already-attacked/defending monsters
+                            // do not misleadingly look attack-ready.
+                            if (match.Opponent.MonsterCount == 0)
+                                eligible = match.CanAttack(DuelSide.Player,
+                                    zone.Index, -1, out _);
+                            else for (int target = 0; target < DuelMatch.ZoneCount; target++)
+                            {
+                                if (match.Opponent.Monster(target) == null) continue;
+                                if (!match.CanAttack(DuelSide.Player,
+                                    zone.Index, target, out _)) continue;
+                                eligible = true;
+                                break;
+                            }
+                        }
                         zone.SetCombatTarget(eligible);
+                        zone.SetCombatSource(!zone.Opponent &&
+                            zone.Lane == FieldLane.Monster &&
+                            zone.Index == hud.SelectedAttacker &&
+                            eligible);
                         continue;
                     }
                     var selection = fusionSelection.Count > 0 ?
                         (IReadOnlyList<int>)fusionSelection : new [] { lastSelectedHand };
-                    var card = match.PreviewResult(DuelSide.Player,selection);
+                    var card = match.PreviewResult(DuelSide.Player, selection);
                     var star = card == null ? GuardianStar.None :
                         (hud.UseSecondaryStar ? card.StarB : card.StarA);
-                    zone.SetLegal(!zone.Opponent &&
-                        match.CanPlay(DuelSide.Player,selection,zone.Lane,zone.Index,star,out _));
+                    zone.SetLegal(!zone.Opponent && card != null &&
+                        match.CanPlay(DuelSide.Player, selection,
+                            zone.Lane, zone.Index, star, out _));
                 }
                 else zone.SetLegal(!zone.Opponent &&
                     session.CanPlace(lastSelectedHand, zone.Lane, zone.Index, out _));
