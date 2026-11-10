@@ -77,7 +77,9 @@ jobs:
         run: python3 tools/check_dueltrace_autoload.py
 
       - name: Verify 0.18 four-starter decks and transactional placement (static)
-        run: python3 tools/check_card_flow_starter.py
+        run: |
+          python3 tools/check_card_flow_starter.py
+          python3 tools/test_starter_export.py
 
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
