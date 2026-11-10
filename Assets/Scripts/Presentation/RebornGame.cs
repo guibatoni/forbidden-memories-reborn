@@ -32,6 +32,12 @@ namespace Reborn.Presentation
             if (!loaded && !System.IO.File.Exists(OriginalContentLoader.ExpectedPath))
                 loaded = DueltraceLocalProfileLoader.TryLoad(out imported, out importStatus);
             OpponentDeckCatalog pools = null;
+            VerifiedEquipCatalog verifiedEquips = null;
+            if (loaded)
+            {
+                verifiedEquips = OriginalEquipLoader.Load(imported, out string equipStatus);
+                Debug.Log("REBORN: " + equipStatus);
+            }
             if (loaded)
             {
                 if (OpponentDeckLoader.TryLoad(imported, out pools, out string info))
@@ -120,7 +126,8 @@ namespace Reborn.Presentation
                     new VerifiedSpellCatalog();
                 return new DuelMatch(playerDeck, opponentDeck,
                     loaded ? imported.Fusions : DemoDeck.CreateSampleFusions(),
-                    loaded ? imported.Rituals : new RitualCatalog(), effects);
+                    loaded ? imported.Rituals : new RitualCatalog(), effects,
+                    verifiedEquips);
             }
 
             var opponentDirector = gameObject.AddComponent<OpponentTurnDirector>();
@@ -162,6 +169,8 @@ namespace Reborn.Presentation
                             evt.Lane ?? FieldLane.Monster);
                     else if (evt.Kind == MatchEventKind.SupportActivated)
                         arena.PlaySpellActivation(evt.Side, evt.Slot);
+                    else if (evt.Kind == MatchEventKind.Equipped)
+                        arena.PlayEquipActivation(evt.Side, evt.Slot);
                 };
             }
 
