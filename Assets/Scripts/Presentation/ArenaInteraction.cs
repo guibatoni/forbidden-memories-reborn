@@ -69,6 +69,7 @@ namespace Reborn.Presentation
             hud.PreviewTargetSlot = -1;
             fusionSelection.Clear();
             hud.FusionCount = 0;
+            hud.FieldFusionPreview = null;
             hud.CloseCardInspection();
             arena.SetAttackAim(-1, -1);
             arena.RefreshMatch(match);
@@ -204,6 +205,7 @@ namespace Reborn.Presentation
                 hoveredZone = null;
                 hud.HoveredCard = null;
                 hud.PreviewTargetSlot = -1;
+                hud.FieldFusionPreview = null;
                 arena.SetAttackAim(-1, -1);
                 arena.SetHandFocus(false);
                 arena.SetHandHover(-1);
@@ -247,6 +249,19 @@ namespace Reborn.Presentation
             FindPointerTargets(pointer,dragging ? pressedHand : -1,
                 out CardView card,out ZoneView zone);
             if (overHud) { card = null; zone = null; }
+            hud.FieldFusionPreview = null;
+            if (zone != null && !zone.Opponent &&
+                zone.Lane == FieldLane.Monster &&
+                match.Phase == MatchPhase.Main &&
+                fusionSelection.Count > 0 &&
+                match.Player.Monster(zone.Index) != null)
+            {
+                // Pure preview. No material or turn is consumed while hovering.
+                var prediction = match.PreviewFieldResult(
+                    DuelSide.Player, fusionSelection, zone.Index);
+                if (prediction != null && prediction.Kind == CardKind.Monster)
+                    hud.FieldFusionPreview = prediction;
+            }
             if (mouse.rightButton.wasPressedThisFrame && !overHud)
             {
                 InspectKnownCard(card);
