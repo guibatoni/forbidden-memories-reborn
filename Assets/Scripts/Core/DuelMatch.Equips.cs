@@ -45,6 +45,59 @@ namespace Reborn.Core
             return true;
         }
 
+        /// <summary>
+        /// Activate a previously set equip: the existing support card vanishes
+        /// when its bonus is applied. This does not use the turn's mandatory
+        /// hand placement because the card entered the field in an earlier turn.
+        /// </summary>
+        public bool CanEquipFromSupport(DuelSide side, int supportSlot,
+            int monsterSlot, out VerifiedEquipRule rule, out string reason)
+        {
+            rule = null;
+            if (Phase == MatchPhase.Finished || CurrentSide != side)
+                return Reject(out reason, "Nao e seu turno");
+            var owner = Side(side);
+            if (supportSlot < 0 || supportSlot >= ZoneCount ||
+                owner.Support(supportSlot) == null)
+                return Reject(out reason, "Equipamento setado nao encontrado");
+            if (owner.Support(supportSlot).Kind != CardKind.Equip ||
+                !owner.SupportIsFaceDown(supportSlot))
+                return Reject(out reason, "Selecione um Equip virado para baixo");
+            if (owner.SupportSetTurn(supportSlot) == Turn)
+                return Reject(out reason, "Equip recem-setado aguarda o turno seguinte");
+            if (monsterSlot < 0 || monsterSlot >= ZoneCount)
+                return Reject(out reason, "Zona invalida");
+            var monster = owner.Monster(monsterSlot);
+            if (monster == null || monster.FaceDown)
+                return Reject(out reason, "Alvo deve ser um monstro proprio revelado");
+            if (!verifiedEquips.CanApply(owner.Support(supportSlot), monster.Card,
+                out rule))
+                return Reject(out reason, "Equip sem compatibilidade verificada para o alvo");
+            if (!monster.CanApplyEquip(rule.AttackGain, rule.DefenseGain))
+                return Reject(out reason, "Bonus fora do limite");
+            reason = "";
+            return true;
+        }
+
+        public bool TryEquipFromSupport(DuelSide side, int supportSlot,
+            int monsterSlot, out string reason)
+        {
+            if (!CanEquipFromSupport(side, supportSlot, monsterSlot,
+                out var rule, out reason)) return false;
+            var owner = Side(side);
+            var card = owner.Support(supportSlot);
+            owner.SetSupport(supportSlot, null);
+            owner.Monster(monsterSlot).ApplyEquip(rule.AttackGain, rule.DefenseGain);
+            owner.Bury(card);
+            Emit(MatchEventKind.Equipped, side, card.Id,
+                FieldLane.Monster, monsterSlot, rule.AttackGain);
+            Emit(MatchEventKind.Graveyard, side, card.Id,
+                FieldLane.Support, supportSlot);
+            SignalChanged();
+            reason = "";
+            return true;
+        }
+
         public bool TryEquipFromHand(DuelSide side, int handIndex, int monsterSlot,
             out string reason)
         {
