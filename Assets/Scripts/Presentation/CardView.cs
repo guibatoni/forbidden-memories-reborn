@@ -124,8 +124,11 @@ namespace Reborn.Presentation
             // smoothly while keeping its collider attached to the card root.
             if (HandIndex < 0) return;
             float factor = 1f - Mathf.Exp(-14f * Time.deltaTime);
-            float raise = (hovered || selected) ? 0.58f : 0f;
-            float scale = dragging ? 1.18f : ((hovered || selected) ? 1.14f : 1f);
+            // Hover takes priority and lifts the focused card above its
+            // neighbors; an off-hover fusion selection stays more subtle.
+            float raise = hovered ? 0.80f : (selected ? 0.22f : 0f);
+            float scale = dragging ? 1.18f :
+                (hovered ? 1.18f : (selected ? 1.065f : 1f));
             if (!dragging)
                 transform.localPosition = Vector3.Lerp(transform.localPosition,
                     homeLocalPosition + Vector3.up * raise, factor);
