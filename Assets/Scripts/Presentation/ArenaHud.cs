@@ -100,9 +100,11 @@ namespace Reborn.Presentation
             HoveredCard = null;
             SelectedAttacker = -1;
             PreviewTargetSlot = -1;
+            SelectedFieldMonster = -1;
+            SelectedSupportSlot = -1;
             FusionCount = 0;
             AttackMode = false;
-            Message = active ? "MODO DUELO 0.10: interface de cartas 2.5D, motor experimental." :
+            Message = active ? "MODO DUELO 0.14: interface de cartas 2.5D, motor experimental." :
                 "Sandbox visual 0.3 restaurado.";
             ModeChanged?.Invoke(active);
         }
@@ -117,6 +119,8 @@ namespace Reborn.Presentation
             HoveredCard = null;
             SelectedAttacker = -1;
             PreviewTargetSlot = -1;
+            SelectedFieldMonster = -1;
+            SelectedSupportSlot = -1;
             FusionCount = 0;
             AttackMode = false;
             ModeChanged?.Invoke(DuelModeActive);
@@ -271,7 +275,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.10",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.14",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -305,6 +309,13 @@ namespace Reborn.Presentation
                         "Aponte para uma das cinco zonas de monstros adversarios. " +
                         "Os valores efetivos e o resultado previsto aparecerao aqui.",small);
                 }
+                else if (previewTarget >= 0 && match.Opponent.Monster(previewTarget) != null &&
+                    match.Opponent.Monster(previewTarget).FaceDown)
+                {
+                    GUI.Label(new Rect(23,370,225,140),
+                        "Carta adversaria virada para baixo. Os valores reais so " +
+                        "serao revelados quando o ataque for resolvido.",small);
+                }
                 else if (match.TryPreviewAttack(DuelSide.Player,SelectedAttacker,
                     previewTarget,out var estimate,out var reason))
                 {
@@ -329,7 +340,7 @@ namespace Reborn.Presentation
                 }
             }
             Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.10",heading);
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.14",heading);
             if (finished)
             {
                 GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
@@ -383,61 +394,69 @@ namespace Reborn.Presentation
             }
             else
             {
-                GUI.Label(new Rect(right+13,52,175,28),
-                    match.CurrentSide == DuelSide.Player ? "Seu turno" : "Turno da IA",small);
-                GUI.Label(new Rect(right+13,75,175,18),AiInsight,small);
-                if (GUI.Button(new Rect(right+12,91,170,34),"Iniciar combate",button))
-                {
-                    if (!match.TryBeginBattle(DuelSide.Player,out var error)) Message = error;
-                    else Message = "Selecione seu monstro e depois um alvo.";
-                }
-                if (GUI.Button(new Rect(right+12,132,170,34),"Encerrar turno",button))
-                {
-                    if (!match.TryEndTurn(DuelSide.Player,out var error)) Message = error;
-                    else
-                    {
-                        AttackMode = false; SelectedAttacker = -1;
-                        PreviewTargetSlot = -1;
-                        if (match.Phase == MatchPhase.Finished)
-                            Message = "Duelo encerrado.";
-                        else
-                        {
-                            OpponentBusy = true;
-                            Message = "Turno adversario: preparando jogada...";
-                            OpponentTurnRequested?.Invoke();
-                        }
-                    }
-                }
-                if (GUI.Button(new Rect(right+12,173,170,34),AttackMode ? "Ataque: ON" : "Selecionar ataque",button))
-                {
-                    AttackMode = !AttackMode; SelectedAttacker = -1;
-                    PreviewTargetSlot = -1;
-                }
-                if (GUI.Button(new Rect(right+12,214,170,34),"Atacar diretamente",button))
-                    TryDirectAttack();
-                if (GUI.Button(new Rect(right+12,255,170,34),
-                    UseDefense ? "Posicao: DEF" : "Posicao: ATK",button))
+                bool player = match.CurrentSide == DuelSide.Player;
+                GUI.Label(new Rect(right+13,52,175,27),
+                    player ? (match.Phase == MatchPhase.Battle ?
+                        "SUA BATALHA" : "SUA JOGADA") : "Turno da IA",small);
+                GUI.Label(new Rect(right+13,77,175,19),AiInsight,small);
+                GUI.Label(new Rect(right+12,101,177,23),
+                    "1 Face > 2 ATK/DEF > 3 Guardian",small);
+                bool canPlace = player && !InputLocked && match.Phase == MatchPhase.Main;
+                GUI.enabled = canPlace;
+                if (GUI.Button(new Rect(right+12,128,170,33),
+                    PlaceFaceDown ? "Face: PARA BAIXO" : "Face: PARA CIMA",button))
+                    PlaceFaceDown = !PlaceFaceDown;
+                if (GUI.Button(new Rect(right+12,168,170,33),
+                    UseDefense ? "Colocar: DEF" : "Colocar: ATK",button))
                     UseDefense = !UseDefense;
-                if (GUI.Button(new Rect(right+12,296,170,34),
+                if (GUI.Button(new Rect(right+12,208,170,33),
                     UseSecondaryStar ? "Guardian: segunda" : "Guardian: primeira",button))
                     UseSecondaryStar = !UseSecondaryStar;
-                if (GUI.Button(new Rect(right+12,337,170,34),"Novo duelo",button))
+                GUI.enabled = player && !InputLocked;
+
+                if (SelectedFieldMonster >= 0 && match.Player.Monster(SelectedFieldMonster) != null)
+                {
+                    var monster = match.Player.Monster(SelectedFieldMonster);
+                    var next = monster.Position == BattlePosition.Attack ?
+                        BattlePosition.Defense : BattlePosition.Attack;
+                    GUI.enabled = player && !InputLocked &&
+                        match.CanChangePosition(DuelSide.Player,SelectedFieldMonster,next,out _);
+                    if (GUI.Button(new Rect(right+12,250,170,36),
+                        "Alterar para " + (next == BattlePosition.Attack ? "ATK" : "DEF"),button))
+                        TryChangeSelectedMonster();
+                    GUI.enabled = player && !InputLocked;
+                }
+                else if (SelectedSupportSlot >= 0)
+                {
+                    if (GUI.Button(new Rect(right+12,250,170,36),
+                        "Ativar suporte setado",button))
+                        TryActivateSelectedSupport();
+                }
+                else GUI.Label(new Rect(right+13,247,174,37),
+                    "Selecione um monstro no campo para mudar ATK/DEF",small);
+
+                if (GUI.Button(new Rect(right+12,296,170,39),
+                    match.Phase == MatchPhase.Main ? "Passar sem baixar" : "Passar turno",button))
+                    TryPassPlayerTurn();
+                GUI.enabled = true;
+                GUI.Label(new Rect(right+12,342,177,53),
+                    "ATACAR: seu monstro > alvo\nDIRETO: clique na area rival",small);
+                if (GUI.Button(new Rect(right+12,404,170,33),"Novo duelo",button))
                     NewMatchRequested?.Invoke();
-                if (GUI.Button(new Rect(right+12,378,170,34),"Voltar ao Sandbox",button))
+                if (GUI.Button(new Rect(right+12,446,170,33),"Voltar ao Sandbox",button))
                     SetDuelMode(false);
-                if (GUI.Button(new Rect(right+12,419,170,34),
+                if (GUI.Button(new Rect(right+12,488,170,30),
                     AnimationsEnabled ? "Animacoes: ON" : "Animacoes: OFF",button))
                     AnimationsEnabled = !AnimationsEnabled;
-                if (GUI.Button(new Rect(right+12,465,170,34),
+                if (GUI.Button(new Rect(right+12,529,170,30),
                     "Ritmo IA: " + OpponentPaceLabel,button))
                     opponentPaceIndex = (opponentPaceIndex+1)%3;
-                if (GUI.Button(new Rect(right+12,508,170,31),
+                if (HasOpponentSelection &&
+                    GUI.Button(new Rect(right+12,568,170,30),"Proximo oponente",button))
+                    NextOpponentRequested?.Invoke();
+                else if (GUI.Button(new Rect(right+12,568,170,30),
                     CardPreviewEnabled ? "Detalhes: ON" : "Detalhes: OFF",button))
                     CardPreviewEnabled = !CardPreviewEnabled;
-                GUI.Label(new Rect(right+13,547,175,28),"Oponente: " + OpponentSource,small);
-                if (HasOpponentSelection &&
-                    GUI.Button(new Rect(right+12,579,170,29),"Proximo oponente",button))
-                    NextOpponentRequested?.Invoke();
             }
             float width = Mathf.Min(820f,Screen.width-550f);
             if (width > 280f)
