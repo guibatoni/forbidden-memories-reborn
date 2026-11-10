@@ -39,6 +39,9 @@ namespace Reborn.Presentation
             public int attack;
             public int defense;
             public string description;
+            public string effectText;
+            public string effectSource;
+            public string effectStatus;
             public string guardianStarA;
             public string guardianStarB;
         }
@@ -122,7 +125,8 @@ namespace Reborn.Presentation
                     if ((a == GuardianStar.None) != (b == GuardianStar.None))
                         throw new InvalidDataException("Guardian Stars devem vir em par: #" + entry.id);
                     cards.Add(new CardDefinition(entry.id.ToString("000"),entry.name,kind,
-                        entry.attack,entry.defense,entry.description,a,b));
+                        entry.attack,entry.defense,entry.description,a,b,
+                        entry.effectText,entry.effectSource,entry.effectStatus));
                 }
                 // Only fusions explicitly flagged as verified are accepted.
                 // The flag is source metadata, not proof of binary equivalence.
@@ -209,7 +213,8 @@ namespace Reborn.Presentation
                 status = $"Importado (nao validado contra a ISO): {cards.Count}/722 cartas, " +
                     $"{bundle.MissingDescriptions} descricoes vazias, {opponents.Count} oponentes, " +
                     $"{(script == null ? 0 : script.Nodes.Count)} eventos, " +
-                    $"{fusions.Count} receitas importadas, {rituals.Count} rituais.";
+                    $"{fusions.Count} receitas importadas, {rituals.Count} rituais, " +
+                    $"{cards.FindAll(c => c.HasEffectText).Count} textos de efeito informativos.";
                 return true;
             }
             catch (Exception ex)
