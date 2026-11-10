@@ -106,15 +106,38 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
             "guardianStarB": gamedata.STAR_NAMES[second],
         })
 
+    # Preserve *all* combinations performed by the PS1 game, including the
+    # odd-record over-read combinations that the executable actually allows.
+    # They are tagged to distinguish disc table entries from reader quirks.
     fusions = []
-    skipped_glitches = 0
+    glitch_count = 0
     for (left, right), result in sorted(data.fusions.items()):
-        if (left, right) in data.glitch_fusions:
-            skipped_glitches += 1
-            continue
-        if all(1 <= v <= 722 for v in (left, right, result)):
-            fusions.append({"materialA": left, "materialB": right,
-                            "result": result, "verified": True})
+        if not all(1 <= v <= 722 for v in (left, right, result)):
+            raise ValueError("Fusion table contains an out-of-range original ID")
+        is_glitch = (left, right) in data.glitch_fusions
+        glitch_count += int(is_glitch)
+        fusions.append({
+            "materialA": left, "materialB": right, "result": result,
+            "verified": True,
+            "origin": "ps1-reader-quirk" if is_glitch else "disc-fusion-table",
+        })
+
+    # The ORIGINAL title has three specific, face-up tributes in the field.
+    # The ritual result is not a hand card and has no TCG level-sum check.
+    rituals = []
+    for ritual_id, sequence in sorted(data.rituals.items()):
+        if len(sequence) != 4:
+            raise ValueError("Original ritual does not have three tributes: " + str(ritual_id))
+        t1, t2, t3, monster_result = map(int, sequence)
+        involved = [int(ritual_id), t1, t2, t3, monster_result]
+        if not all(1 <= v <= 722 for v in involved):
+            raise ValueError("Ritual references a card beyond 1..722: " + str(ritual_id))
+        if cards[int(ritual_id) - 1]["kind"] != "Ritual" or \
+                cards[monster_result - 1]["kind"] != "Monster" or \
+                any(cards[t - 1]["kind"] != "Monster" for t in (t1, t2, t3)):
+            raise ValueError("Ritual references unexpected card types: " + str(ritual_id))
+        rituals.append({"ritualCard": int(ritual_id), "tributes": [t1, t2, t3],
+                        "result": monster_result, "verified": True})
     opponents = []
     pools = []
     for index, weights in enumerate(data.pools):
@@ -147,7 +170,7 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
     deck_file = {"schema": 1, "source": source, "deckPools": deck_pools}
     export_file = {"schema": 1, "source": source,
                    "cards": cards, "opponents": opponents, "story": None,
-                   "fusions": fusions}
+                   "fusions": fusions, "rituals": rituals}
     tables_file = {"schema": 1, "source": source,
                    "deckMode": "WEIGHTED_POOLS_NOT_FIXED_DECKS",
                    "duelists": pools, "starterPools": starter_pools,
@@ -156,7 +179,7 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
                    "guardianStars": {"names": gamedata.STAR_NAMES,
                                      "advantage": "two original cycles, +500"},
                    "parserNotes": data.notes,
-                   "glitchFusionsExcluded": skipped_glitches,
+                   "ps1ReaderQuirkFusionsIncluded": glitch_count,
                    "cardsWithPartialStarPairs": partial_stars}
 
     # Originals and derivative assets must stay local, out of public Git history.
@@ -208,9 +231,23 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
                 shutil.copyfile(original, output)
             images += 1
 
+    categories = {}
+    for card in cards:
+        kind = card["kind"]
+        row = categories.setdefault(kind, {"total": 0, "withDescription": 0,
+                                            "missingDescription": 0})
+        row["total"] += 1
+        if isinstance(card.get("description"), str) and card["description"].strip():
+            row["withDescription"] += 1
+        else:
+            row["missingDescription"] += 1
     report = {
         "source": source, "cards": len(cards), "fusions": len(fusions),
-        "glitchFusionsExcluded": skipped_glitches, "duelists": len(opponents),
+        "ps1ReaderQuirkFusionsIncluded": glitch_count,
+        "rituals": len(rituals), "descriptionCoverageByKind": categories,
+        "descriptionCount": sum(x["withDescription"] for x in categories.values()),
+        "missingDescriptionCount": sum(x["missingDescription"] for x in categories.values()),
+        "duelists": len(opponents),
         "starterPools": len(starter_pools), "opponentDeckPools": len(deck_pools), "artsImported": images,
         "artSource": "disc-derived PNG; visual quality limited by PS1 originals",
         "tables": str(private / "disc_tables.json"),
@@ -219,7 +256,9 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
         "warnings": ["Story branches are not extracted by this tool",
                      "Opponent decks are weight pools, not fixed deck sequences",
                      "Effects and text need gameplay validation",
-                     "This image may be a mod and must not be labeled retail without checksum verification"],
+                     "This image may be a mod (Drop x15) and must not be labeled retail without checksum verification",
+                     "Descriptions are original disc text, not confirmed gameplay effects",
+                     "Retail reader quirks are tagged, not silently discarded"],
     }
     (private / "import-report.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
