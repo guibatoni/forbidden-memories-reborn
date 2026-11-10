@@ -122,7 +122,7 @@ namespace Reborn.Core
     /// decks remain pending verified ISO extraction. Guarding these unknowns prevents
     /// fake mechanics or placeholder data from entering the production engine.
     /// </summary>
-    public sealed class DuelMatch
+    public sealed partial class DuelMatch
     {
         public const int DeckSize = 40;
         public const int ZoneCount = 5;
