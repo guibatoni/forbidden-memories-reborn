@@ -191,6 +191,24 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
         json.dumps(export_file, indent=2, ensure_ascii=False), encoding="utf-8")
     (target / "opponent_decks.json").write_text(
         json.dumps(deck_file, indent=2, ensure_ascii=False), encoding="utf-8")
+    # Streamable seven-row starter deck table. JsonUtility cannot directly
+    # consume private disc_tables.json's sparse string-key dictionaries.
+    # Never substitute fabricated probabilities for a missing disc table.
+    starter_path = target / "starter_pools.json"
+    if len(starter_pools) == 7:
+        starter_file = {
+            "schema": 1, "source": source,
+            "starterPools": [
+                {"group": row["group"], "draws": row["draws"],
+                 "weights": normalize_deck_weights(row["weights"])}
+                for row in starter_pools
+            ]
+        }
+        starter_path.write_text(json.dumps(
+            starter_file, indent=2, ensure_ascii=False),
+            encoding="utf-8")
+    else:
+        starter_path.unlink(missing_ok=True)
     (private / "disc_tables.json").write_text(
         json.dumps(tables_file, indent=2, ensure_ascii=False), encoding="utf-8")
 
