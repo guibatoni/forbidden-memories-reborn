@@ -1,3 +1,12 @@
+# Forbidden Memories Reborn — Prototype 0.12 AI Lab
+
+Offline benchmark of the adaptive opponent AI with **seeded synthetic duels**,
+before/after training comparison, win/loss/unresolved accounting and an
+exported JSON report. This measures adaptation; it does not guarantee better
+play. See [Prototype 0.12](Docs/PROTOTYPE_0_12.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.11
 
 **Opponent AI plans multiple attacks:** evaluates visible targets and Guardian

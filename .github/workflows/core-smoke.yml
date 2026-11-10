@@ -40,11 +40,26 @@ jobs:
       - name: Verify bounded multistep AI planner (static only)
         run: python3 tools/check_multiattack.py
 
+      - name: AI Lab deterministic regression
+        run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
+
+      - name: Generate experimental AI training report (synthetic cards only)
+        run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --train 20 --eval 20 --seed 1209 --out ai-lab/benchmark.json
+
+      - name: Publish AI Lab report
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Reborn-0.12-AiLab-Report
+          retention-days: 90
+          if-no-files-found: error
+          path: ai-lab/benchmark.json
+
       - name: Archive clean Unity source (never ROMs or private content)
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.11-Clean-Source
+          name: Reborn-0.12-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |

@@ -56,3 +56,11 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.11
 - Offline multistep attack planner, preserving camera and duel rules.
 - No ROM, copyrighted art, extracted private content or learning saves.
+
+
+## Prototype 0.12
+- GitHub recovery branch: backup/prototype-0.12
+- Source CI artifact: Reborn-0.12-Clean-Source
+- Benchmark report CI artifact: Reborn-0.12-AiLab-Report
+- ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.12
+- No personal AI save, ISO, protected images or disc-derived data in the archives.
