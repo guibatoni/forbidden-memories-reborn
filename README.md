@@ -1,3 +1,14 @@
+# Forbidden Memories Reborn — Prototype 0.12.1 AI Lab MultiSeed
+
+Expanded offline AI evaluation over **10 seeds and 3 synthetic opponent scenarios**
+with paired before/after results, per-seed CSV and seed-cluster bootstrap
+confidence intervals. Runs alongside existing 0.12 and changes neither
+Unity gameplay nor the learning files.
+
+[Read the 0.12.1 lab guide](Docs/PROTOTYPE_0_12_1.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.12 AI Lab
 
 Offline benchmark of the adaptive opponent AI with **seeded synthetic duels**,

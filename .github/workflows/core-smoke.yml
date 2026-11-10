@@ -43,23 +43,28 @@ jobs:
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 
-      - name: Generate experimental AI training report (synthetic cards only)
-        run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --train 20 --eval 20 --seed 1209 --out ai-lab/benchmark.json
+      - name: Generate multi-seed scenario comparison (synthetic cards only)
+        run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --batch --seeds 10 --train 20 --eval 25 --seed 1209 --scenarios balanced,defensive,aggressive --out ai-lab/batch.json --csv ai-lab/batch.csv
 
-      - name: Publish AI Lab report
+      - name: Validate AI Lab report and paired seed accounting
+        run: python3 tools/check_ai_lab_report.py ai-lab/batch.json ai-lab/batch.csv
+
+      - name: Publish expanded AI Lab report
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.12-AiLab-Report
+          name: Reborn-0.12.1-AiLab-MultiSeed
           retention-days: 90
           if-no-files-found: error
-          path: ai-lab/benchmark.json
+          path: |
+            ai-lab/batch.json
+            ai-lab/batch.csv
 
       - name: Archive clean Unity source (never ROMs or private content)
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.12-Clean-Source
+          name: Reborn-0.12.1-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |
