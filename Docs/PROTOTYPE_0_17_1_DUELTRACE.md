@@ -19,6 +19,12 @@ Se houver varios perfis/versoes com nomes parecidos, especificar:
 
     powershell -ExecutionPolicy Bypass -File .\tools\IMPORTAR_DO_DUELTRACE.ps1 -Perfil "C:\Users\...\AppData\Local\ForbiddenMemoriesMultiMod\profiles\<sha>\profile.json"
 
+Para reaproveitar tambem as 722 imagens PNG ja extraidas pelo DUELTRACE,
+adicione -ArtesLocais ao comando. Isso copia apenas imagens ausentes em
+Assets/Resources/RebornCardArt, sem sobrescrever artes personalizadas.
+Nao distribua um build que contenha imagens originais do jogo sem a
+autorizacao necessaria; o Unity pode embutir esses assets no executavel.
+
 A ponte le o perfil somente localmente e grava:
 - Assets/StreamingAssets/RebornContent/original_export.json
 - PrivateExtracts/reborn-disc/dueltrace-bridge-report.json
