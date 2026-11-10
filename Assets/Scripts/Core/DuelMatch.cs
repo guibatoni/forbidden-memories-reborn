@@ -306,6 +306,33 @@ namespace Reborn.Core
             return true;
         }
 
+        /// <summary>
+        /// Read-only fallback for opponents with only support cards available.
+        /// The caller must still explicitly TryPlay exactly one card.
+        /// Unverified effects are never activated.
+        /// </summary>
+        public bool TryChooseSupportSet(DuelSide side, out int handIndex, out int slot)
+        {
+            handIndex = -1;
+            slot = -1;
+            if (Phase != MatchPhase.Main || CurrentSide != side || hasPlayed)
+                return false;
+            var hand = Side(side).Hand;
+            for (int h = 0; h < hand.Count; h++)
+            {
+                if (hand[h].Kind == CardKind.Monster) continue;
+                for (int field = 0; field < ZoneCount; field++)
+                {
+                    if (!CanPlay(side, new[] { h }, FieldLane.Support,
+                        field, GuardianStar.None, out _)) continue;
+                    handIndex = h;
+                    slot = field;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public bool CanChangePosition(DuelSide side, int slot,
             BattlePosition newPosition, out string reason)
         {
