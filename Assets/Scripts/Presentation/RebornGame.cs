@@ -110,9 +110,17 @@ namespace Reborn.Presentation
                 }
                 brain.StartDuel(storage.Get(identity));
                 hud.SetAiInsight(brain.TacticLabel, brain.State.duels);
+                // Activate only published original-PS1 card-ID rules; imported
+                // mod descriptions never run as scripts or substitute rules.
+                bool originalPs1 = loaded &&
+                    imported.Edition.StartsWith("original-ps1",
+                        StringComparison.OrdinalIgnoreCase);
+                var effects = originalPs1 ?
+                    VerifiedSpellCatalog.OriginalPs1Core() :
+                    new VerifiedSpellCatalog();
                 return new DuelMatch(playerDeck, opponentDeck,
                     loaded ? imported.Fusions : DemoDeck.CreateSampleFusions(),
-                    loaded ? imported.Rituals : new RitualCatalog());
+                    loaded ? imported.Rituals : new RitualCatalog(), effects);
             }
 
             var opponentDirector = gameObject.AddComponent<OpponentTurnDirector>();
@@ -150,7 +158,10 @@ namespace Reborn.Presentation
                     }
                     if (!hud.DuelModeActive || !hud.AnimationsEnabled || hud.Match != duel) return;
                     if (evt.Kind == MatchEventKind.Destroy)
-                        arena.PlayMatchDestruction(evt.Side, evt.Slot);
+                        arena.PlayMatchDestruction(evt.Side, evt.Slot,
+                            evt.Lane ?? FieldLane.Monster);
+                    else if (evt.Kind == MatchEventKind.SupportActivated)
+                        arena.PlaySpellActivation(evt.Side, evt.Slot);
                 };
             }
 
