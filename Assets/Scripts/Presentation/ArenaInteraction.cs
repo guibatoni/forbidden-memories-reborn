@@ -195,6 +195,13 @@ namespace Reborn.Presentation
         private void UpdateMatchInput()
         {
             if (match == null || arena.Camera == null) return;
+            if (hud.PlacementWizardOpen)
+            {
+                if (Keyboard.current != null &&
+                    Keyboard.current.escapeKey.wasPressedThisFrame)
+                    hud.CancelPlacementChoices();
+                return;
+            }
             if (match.Phase == MatchPhase.Finished || hud.InputLocked ||
                 match.CurrentSide != DuelSide.Player)
             {
@@ -454,8 +461,49 @@ namespace Reborn.Presentation
 
         private void PlaceMatchCard(ZoneView zone)
         {
+            if (zone == null || zone.Opponent || hud.PlacementWizardOpen ||
+                match == null || match.Phase != MatchPhase.Main ||
+                match.PlayedThisTurn) return;
+            var selected = fusionSelection.Count > 0 ?
+                (IReadOnlyList<int>)fusionSelection : new[] { hud.SelectedHandIndex };
+            bool onField = zone.Lane == FieldLane.Monster &&
+                match.Player.Monster(zone.Index) != null;
+            bool ritual = onField && selected.Count == 1 &&
+                selected[0] >= 0 && selected[0] < match.Player.Hand.Count &&
+                match.Player.Hand[selected[0]].Kind == CardKind.Ritual;
+            var outcome = ritual ?
+                match.PreviewRitual(DuelSide.Player, selected[0]) :
+                onField ? match.PreviewFieldResult(DuelSide.Player, selected, zone.Index) :
+                match.PreviewResult(DuelSide.Player, selected);
+            if (outcome == null)
+            {
+                hud.Message = "Materiais invalidos ou ritual sem tributos.";
+                return;
+            }
+            string reason;
+            bool allowed = ritual ?
+                match.CanSummonRitual(DuelSide.Player, selected[0], zone.Index,
+                    outcome.StarA, out _, out reason) :
+                onField ?
+                match.CanPlayOnField(DuelSide.Player, selected, zone.Index,
+                    outcome.StarA, out _, out reason) :
+                match.CanPlay(DuelSide.Player, selected, zone.Lane, zone.Index,
+                    outcome.StarA, out reason);
+            if (!allowed)
+            {
+                hud.Message = reason;
+                return;
+            }
+            // The wizard is presentation only; no card has been consumed yet.
+            hud.BeginPlacementChoices(outcome, ritual,
+                () => CommitMatchCard(zone));
+        }
+
+        private bool CommitMatchCard(ZoneView zone)
+        {
             if (zone == null || zone.Opponent ||
-                match.Phase != MatchPhase.Main || match.PlayedThisTurn) return;
+                match.Phase != MatchPhase.Main || match.PlayedThisTurn) return false;
+            bool success = false;
             var selected = fusionSelection.Count > 0 ?
                 (IReadOnlyList<int>)fusionSelection : new [] { hud.SelectedHandIndex };
             bool onField = zone.Lane == FieldLane.Monster &&
@@ -469,7 +517,7 @@ namespace Reborn.Presentation
                 if (expected == null)
                 {
                     hud.Message = "Ritual requer tres tributos especificos virados para cima.";
-                    return;
+                    return false;
                 }
                 var ritualStar = hud.UseSecondaryStar ?
                     expected.StarB : expected.StarA;
@@ -477,7 +525,7 @@ namespace Reborn.Presentation
                     zone.Index, ritualStar, out _, out var previewReason))
                 {
                     hud.Message = previewReason;
-                    return;
+                    return false;
                 }
                 var sourceView = FindHandView(selected[0]);
                 var from = sourceView != null ?
@@ -493,6 +541,8 @@ namespace Reborn.Presentation
                     hud.Announce("Ritual invocado: " + summoned.Name + "!");
                     hud.AfterHandPlacement();
                     hud.SelectedFieldMonster = zone.Index;
+                    hud.MarkPlacedMonster(zone.Index);
+                    success = true;
                 }
                 else
                 {
@@ -500,13 +550,13 @@ namespace Reborn.Presentation
                     hud.Message = ritualReason;
                 }
                 UpdateLegalHighlights();
-                return;
+                return success;
             }
             // Unlike a hand-only combination, field material is FIRST.
             var result = onField ?
                 match.PreviewFieldResult(DuelSide.Player, selected, zone.Index) :
                 match.PreviewResult(DuelSide.Player, selected);
-            if (result == null) { hud.Message = "Selecao invalida."; return; }
+            if (result == null) { hud.Message = "Selecao invalida."; return false; }
             var star = hud.UseSecondaryStar ? result.StarB : result.StarA;
             var position = hud.UseDefense ? BattlePosition.Defense : BattlePosition.Attack;
             var source = FindHandView(hud.SelectedHandIndex);
@@ -518,7 +568,7 @@ namespace Reborn.Presentation
                     star, out _, out var previewReason))
                 {
                     hud.Message = previewReason;
-                    return; // Never animate or consume cards for invalid effects.
+                    return false; // Never animate or consume cards for invalid effects.
                 }
                 arena.StagePlacement(zone.Lane, zone.Index, origin, hud.AnimationsEnabled);
                 if (match.TryPlayOnField(DuelSide.Player, selected, zone.Index,
@@ -559,6 +609,9 @@ namespace Reborn.Presentation
                     hud.AfterHandPlacement();
                     hud.SelectedFieldMonster = zone.Lane == FieldLane.Monster ?
                         zone.Index : -1;
+                    if (zone.Lane == FieldLane.Monster)
+                        hud.MarkPlacedMonster(zone.Index);
+                    success = true;
                 }
                 else
                 {
@@ -567,6 +620,7 @@ namespace Reborn.Presentation
                 }
             }
             UpdateLegalHighlights();
+            return success;
         }
 
         /// <summary>
