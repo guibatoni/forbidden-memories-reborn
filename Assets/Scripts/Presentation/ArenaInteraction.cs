@@ -89,6 +89,11 @@ namespace Reborn.Presentation
             FindPointerTargets(pointer, dragging ? pressedHand : -1,
                 out CardView card, out ZoneView zone);
             if (overHud) { card = null; zone = null; }
+            // Expand on hand hover (or its stable projected screen region).
+            // Dragging holds the fan open until the user releases the card.
+            arena.SetHandFocus(!overHud && (dragging ||
+                (card != null && card.HandIndex >= 0) ||
+                arena.IsPointerNearHand(pointer)));
 
             if (hoveredCard != card)
             {
@@ -178,6 +183,7 @@ namespace Reborn.Presentation
                 hoveredZone = null;
                 hud.HoveredCard = null;
                 hud.PreviewTargetSlot = -1;
+                arena.SetHandFocus(false);
                 return;
             }
             var mouse = Mouse.current;
@@ -198,6 +204,9 @@ namespace Reborn.Presentation
             FindPointerTargets(pointer,dragging ? pressedHand : -1,
                 out CardView card,out ZoneView zone);
             if (overHud) { card = null; zone = null; }
+            arena.SetHandFocus(!overHud && (dragging ||
+                (card != null && card.HandIndex >= 0) ||
+                arena.IsPointerNearHand(pointer)));
             hud.PreviewTargetSlot = hud.AttackMode && hud.SelectedAttacker >= 0 &&
                 zone != null && zone.Opponent && zone.Lane == FieldLane.Monster
                 ? zone.Index : -1;
