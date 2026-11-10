@@ -70,3 +70,26 @@ Recovery branch: backup/prototype-0.13
 ChatGPT Library: Forbidden Memories Reborn / Backups / Prototype 0.13
 Only source and synthetic benchmark metrics are shared publicly; disc
 images, extracted card artworks, scripts and local AI saves are not.
+
+
+## First measured A/B run (seed 1209; 10 training seeds per scenario)
+Automated test: https://github.com/guibatoni/forbidden-memories-reborn/actions/runs/42737466287
+
+| Scenario | Legacy v1 | 2.0 untrained | 2.0 trained | 2.0 vs v1 95% seed-block bootstrap CI | Unresolved v1 / 2.0 fresh / 2.0 trained |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Balanced | 49.2% | 52.4% | 52.4% | +1.2 to +5.2 percentage points | 0 / 0 / 0 |
+| Defensive | 30.0% | 28.8% | 29.6% | -4.4 to +1.6 percentage points | 102 / 109 / 112 |
+| Aggressive | 4.4% | 4.0% | 4.0% | -1.2 to 0 percentage points | 0 / 0 / 0 |
+
+The **policy change** has a positive exploratory signal on the balanced
+scenario but not on the others. The **additional training** does not have a
+consistent, positive signal for any scenario in this experiment.
+
+Keep these two separate questions in mind: improved tactical placement is not
+the same thing as evidence that the preference-learning routine is effective.
+The defensive scenario's unresolved games have become slightly more frequent.
+We should prioritize legal ways to break board stalls and test using verified
+card mechanics, not invent rules to force a winner.
+
+The 95% intervals are seed-block bootstrap estimates from only ten independent
+training seeds and should not be treated as proof of generalization.
