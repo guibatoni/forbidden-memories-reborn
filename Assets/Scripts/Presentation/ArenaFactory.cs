@@ -319,6 +319,49 @@ namespace Reborn.Presentation
                 side == DuelSide.Player ? ArenaVisuals.Cyan : ArenaVisuals.Red);
         }
 
+        /// <summary>
+        /// A distinct, generated field-combination burst. Purely visual:
+        /// match state was already validated and committed in DuelMatch.
+        /// </summary>
+        public void PlayFieldCombinationEffect(DuelSide side, int monsterSlot,
+            bool fused, bool animate)
+        {
+            if (!animate) return;
+            foreach (var zone in Zones)
+            {
+                if (zone.Lane != FieldLane.Monster ||
+                    zone.Opponent != (side == DuelSide.Opponent) ||
+                    zone.Index != monsterSlot) continue;
+                var fx = new GameObject(fused ? "Field_Fusion_Spark" : "Field_Replacement_Spark");
+                fx.transform.SetParent(root, false);
+                fx.transform.position = zone.transform.position + Vector3.up * 0.7f;
+                var particles = fx.AddComponent<ParticleSystem>();
+                particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = particles.main;
+                main.loop = false;
+                main.playOnAwake = false;
+                main.duration = 0.36f;
+                main.startLifetime = 0.46f;
+                main.startSpeed = fused ? 2.2f : 1.2f;
+                main.startSize = fused ? 0.13f : 0.09f;
+                main.maxParticles = 60;
+                main.startColor = fused ? ArenaVisuals.Cyan : ArenaVisuals.Gold;
+                var emission = particles.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new[] {
+                    new ParticleSystem.Burst(0f, (short)(fused ? 32 : 15))
+                });
+                var shape = particles.shape;
+                shape.shapeType = ParticleSystemShapeType.Sphere;
+                shape.radius = 0.22f;
+                particles.GetComponent<ParticleSystemRenderer>().sharedMaterial =
+                    fused ? cyan : gold;
+                particles.Play();
+                Object.Destroy(fx, 1.25f);
+                return;
+            }
+        }
+
         public void ClearStagedPlacement() { hasPendingPlace = false; }
 
         /// <summary>Efeito demonstrativo. Remocao real so ocorrera quando existir motor de combate.</summary>
