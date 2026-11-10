@@ -77,7 +77,7 @@ def validate(data):
         if str(lookup[rid].get('kind','')).lower() != 'ritual' or \
                 str(lookup[result].get('kind','')).lower() != 'monster':
             errors.append(f'rituals[{i}] tipos incompatíveis')
-        if len(set(tributes)) != 3 or any(
+        if any(
                 type(t) is not int or t not in lookup or
                 str(lookup[t].get('kind','')).lower() != 'monster'
                 for t in tributes):
