@@ -36,7 +36,7 @@ checks = {
         "hoveredZone.SetHighlight(true);" in input_code,
     "selected source persists during battle": "zone.SetCombatSource(!zone.Opponent" in input_code,
     "no illegal selection persists after returning to main": "selectedAttacker = false;" in zone,
-    "summon animation still starts from staged hand": "pendingOrigin,placed.transform.position" in factory and
+    "summon animation still starts from staged hand": "Play(pendingOrigin,placed.transform.position)" in factory and
         "new CardMotion" in factory,
     "summon arc uses gentle travel ease": "Mathf.Sin(t * Mathf.PI) * 0.88f" in motion and
         "1f - Mathf.Pow(1f - t, 3f)" in motion,
@@ -44,8 +44,8 @@ checks = {
         "transform.rotation = restingRotation;" in motion,
     "summon settles at exact destination": "transform.position = to;" in motion and
         "transform.localScale = restingScale;" in motion,
-    "smoothing is purely visual": "DuelMatch" not in motion and
-        "TryAttack" not in motion and "TryPlay" not in motion,
+    "smoothing is purely visual": "using Reborn.Core;" not in motion and
+        "TryAttack(" not in motion and "TryPlay(" not in motion,
     "original fixed camera is unchanged": "Camera.fieldOfView = 48f;" in factory and
         "Orbit.ResetView();" in factory,
     "duel rules unchanged": "public bool CanAttack(" in core and
