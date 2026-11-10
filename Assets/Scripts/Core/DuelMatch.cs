@@ -5,7 +5,7 @@ namespace Reborn.Core
 {
     public enum MatchEventKind
     {
-        Reset, Draw, Play, Fusion, FusionFailed, BattleStarted, PositionChanged, SupportActivated, Attack,
+        Reset, Draw, Play, Fusion, FusionFailed, RitualSummoned, BattleStarted, PositionChanged, SupportActivated, Attack,
         Destroy, LifeChanged, TurnStarted, Graveyard, Finished
     }
 
@@ -130,6 +130,7 @@ namespace Reborn.Core
         private readonly MatchSide player;
         private readonly MatchSide opponent;
         private readonly FusionCatalog fusions;
+        private readonly RitualCatalog rituals;
         private readonly List<MatchEvent> history = new List<MatchEvent>();
         private long sequence;
         private bool hasPlayed;
@@ -146,13 +147,15 @@ namespace Reborn.Core
         public bool PlayedThisTurn => hasPlayed;
 
         public DuelMatch(IReadOnlyList<CardDefinition> playerDeck,
-            IReadOnlyList<CardDefinition> opponentDeck, FusionCatalog catalog = null)
+            IReadOnlyList<CardDefinition> opponentDeck, FusionCatalog catalog = null,
+            RitualCatalog ritualCatalog = null)
         {
             CheckDeck(playerDeck, nameof(playerDeck));
             CheckDeck(opponentDeck, nameof(opponentDeck));
             player = new MatchSide(playerDeck);
             opponent = new MatchSide(opponentDeck);
             fusions = catalog ?? new FusionCatalog();
+            rituals = ritualCatalog ?? new RitualCatalog();
             Emit(MatchEventKind.Reset, DuelSide.Player);
             DrawToHand(player, DuelSide.Player, false);
             DrawToHand(opponent, DuelSide.Opponent, false);
