@@ -270,7 +270,7 @@ namespace Reborn.Tests
         public void FacedownTargetCanSwitchToAttackWithoutRevealingUntilHit()
         {
             var match = Match(Monster("attacker", 1700, 800),
-                Monster("concealed", 900, 700));
+                Monster("concealed", 2300, 1700));
             Play(match, DuelSide.Player);
             End(match, DuelSide.Player);
             Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] { 0 },
@@ -291,11 +291,11 @@ namespace Reborn.Tests
             Assert.IsTrue(match.Opponent.Monster(0).FaceDown,
                 "Attack prediction must not reveal the target");
             Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, 0, out _));
-            // The target may be destroyed in battle. Preserve evidence
-            // through the event instead of querying an emptied field slot.
             Assert.IsTrue(match.Events.Count > before);
-            Assert.IsFalse(match.Opponent.Monster(0)?.FaceDown ?? false,
-                "If it survives, the target must be face-up");
+            Assert.IsNotNull(match.Opponent.Monster(0),
+                "Strong target should survive to verify its revealed state");
+            Assert.IsFalse(match.Opponent.Monster(0).FaceDown,
+                "A facedown target is revealed when attacked");
         }
 
         [Test]
