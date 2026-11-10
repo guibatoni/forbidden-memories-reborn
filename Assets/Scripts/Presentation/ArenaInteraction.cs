@@ -39,6 +39,8 @@ namespace Reborn.Presentation
                 pressedHand = -1; dragging = false;
                 fusionSelection.Clear(); hud.FusionCount = 0;
                 hud.SelectedHandIndex = -1;
+                hud.SelectedFieldMonster = -1;
+                hud.SelectedSupportSlot = -1;
                 if (active && match != null) arena.RefreshMatch(match);
                 else arena.Refresh(session);
                 UpdateLegalHighlights();
@@ -61,6 +63,8 @@ namespace Reborn.Presentation
             hud.SelectedHandIndex = -1;
             hud.HoveredCard = null;
             hud.SelectedAttacker = -1;
+            hud.SelectedFieldMonster = -1;
+            hud.SelectedSupportSlot = -1;
             hud.PreviewTargetSlot = -1;
             fusionSelection.Clear();
             hud.FusionCount = 0;
@@ -182,6 +186,8 @@ namespace Reborn.Presentation
             {
                 hud.SelectedHandIndex = -1;
                 hud.SelectedAttacker = -1;
+                hud.SelectedFieldMonster = -1;
+                hud.SelectedSupportSlot = -1;
                 hud.PreviewTargetSlot = -1;
                 fusionSelection.Clear(); hud.FusionCount = 0;
                 pressedHand = -1; dragging = false;
