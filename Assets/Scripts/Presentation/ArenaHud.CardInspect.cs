@@ -71,8 +71,11 @@ namespace Reborn.Presentation
                 return;
             }
             float cursorY = y + 85f;
+            string category = CardFaceBuilder.KindLabel(card.Kind);
+            if (!string.IsNullOrWhiteSpace(card.TypeLabel))
+                category += " - " + card.TypeLabel;
             GUI.Label(new Rect(infoX, cursorY, infoW, 25f),
-                "Tipo: " + CardFaceBuilder.KindLabel(card.Kind), body);
+                "Tipo: " + category, body);
             cursorY += 37f;
             if (card.Kind == CardKind.Monster)
             {
