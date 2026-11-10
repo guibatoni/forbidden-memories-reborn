@@ -25,6 +25,7 @@ namespace Reborn.AiLab
         public string Description { get; set; } = "Synthetic monster-only cards, deterministic headless evaluation; no retail ISO data.";
         public string ResultMeaning { get; set; } = "Results are empirical. A trained profile is not guaranteed to outperform a fresh profile.";
         public string Scenario { get; set; } = "balanced";
+        public string Policy { get; set; } = "learning2";
         public int Seed { get; set; }
         public int TrainingGames { get; set; }
         public int EvaluationGames { get; set; }
@@ -217,7 +218,8 @@ namespace Reborn.AiLab
         }
 
         private static RunSummary Evaluate(int seed, int games,
-            AiLearningState profile, bool referenceOpponent, string scenario)
+            AiLearningState profile, bool referenceOpponent, string scenario,
+            AiBrainVersion version)
         {
             var result = new RunSummary { Games = games };
             long turnSum = 0;
@@ -227,7 +229,7 @@ namespace Reborn.AiLab
                 // Brain RNG is fresh for each paired test; profile values
                 // are held constant during the entire evaluation set.
                 var brain = referenceOpponent ? null :
-                    new AdaptiveOpponentBrain(new Random(unchecked(gameSeed + 5137)));
+                    new AdaptiveOpponentBrain(new Random(unchecked(gameSeed + 5137)), version);
                 var single = Simulate(gameSeed, brain, profile, false, referenceOpponent, scenario);
                 turnSum += single.Turns;
                 result.TotalAttacks += single.OpponentAttacks;
@@ -241,6 +243,18 @@ namespace Reborn.AiLab
             return result;
         }
 
+        public static RunSummary EvaluatePolicy(int seed, int games,
+            string scenario, AiBrainVersion version)
+        {
+            if (games < 1 || games > 250) throw new ArgumentOutOfRangeException(nameof(games));
+            if (scenario != "balanced" && scenario != "defensive" && scenario != "aggressive")
+                throw new ArgumentException("Unknown scenario", nameof(scenario));
+            if (version != AiBrainVersion.Legacy && version != AiBrainVersion.Learning2)
+                throw new ArgumentOutOfRangeException(nameof(version));
+            return Evaluate(seed, games, new AiLearningState("lab:isolated"),
+                false, scenario, version);
+        }
+
         private static AiLearningState Copy(AiLearningState state)
         {
             return new AiLearningState("lab:ephemeral") {
@@ -248,12 +262,15 @@ namespace Reborn.AiLab
                 playerAttacks = state.playerAttacks,
                 playerFusions = state.playerFusions,
                 previousTactic = state.previousTactic,
-                tacticValues = (float[])state.tacticValues.Clone()
+                tacticValues = (float[])state.tacticValues.Clone(),
+                tacticGames = (int[])state.tacticGames.Clone(),
+                tacticWins = (int[])state.tacticWins.Clone()
             };
         }
 
         public static BenchmarkReport Run(int seed, int trainingGames, int evalGames,
-            string scenario = "balanced")
+            string scenario = "balanced",
+            AiBrainVersion version = AiBrainVersion.Learning2)
         {
             if (scenario != "balanced" && scenario != "defensive" && scenario != "aggressive")
                 throw new ArgumentException("Unknown synthetic scenario: " + scenario);
@@ -261,19 +278,24 @@ namespace Reborn.AiLab
                 throw new ArgumentOutOfRangeException(nameof(trainingGames), "Use 1..250");
             if (evalGames < 1 || evalGames > 250)
                 throw new ArgumentOutOfRangeException(nameof(evalGames), "Use 1..250");
+            if (version != AiBrainVersion.Legacy && version != AiBrainVersion.Learning2)
+                throw new ArgumentException("Invalid policy version", nameof(version));
             var fresh = new AiLearningState("lab:ephemeral");
             var report = new BenchmarkReport {
                 Seed = seed, Scenario = scenario,
+                Policy = version == AiBrainVersion.Legacy ? "legacy" : "learning2",
                 TrainingGames = trainingGames, EvaluationGames = evalGames,
-                ScriptedReference = Evaluate(unchecked(seed + 200000), evalGames, null, true, scenario),
-                AdaptiveBefore = Evaluate(unchecked(seed + 200000), evalGames, Copy(fresh), false, scenario)
+                ScriptedReference = Evaluate(unchecked(seed + 200000), evalGames,
+                    null, true, scenario, version),
+                AdaptiveBefore = Evaluate(unchecked(seed + 200000), evalGames,
+                    Copy(fresh), false, scenario, version)
             };
             var trained = Copy(fresh);
             int completed = 0;
             for (int i = 0; i < trainingGames; i++)
             {
                 int gameSeed = unchecked(seed + 900000 + i * 7919);
-                var brain = new AdaptiveOpponentBrain(new Random(unchecked(gameSeed + 5137)));
+                var brain = new AdaptiveOpponentBrain(new Random(unchecked(gameSeed + 5137)), version);
                 var match = Simulate(gameSeed, brain, trained, true, false, scenario);
                 if (match.Winner.HasValue) completed++;
             }
@@ -281,7 +303,7 @@ namespace Reborn.AiLab
             report.LearnedDuels = trained.duels;
             report.LearnedTacticValues = (float[])trained.tacticValues.Clone();
             report.AdaptiveAfter = Evaluate(unchecked(seed + 200000),
-                evalGames, Copy(trained), false, scenario);
+                evalGames, Copy(trained), false, scenario, version);
             report.WinRateDifference = report.AdaptiveAfter.WinRate -
                 report.AdaptiveBefore.WinRate;
             return report;
@@ -334,8 +356,10 @@ namespace Reborn.AiLab
             if (JsonSerializer.Serialize(batch) != JsonSerializer.Serialize(batchAgain))
                 throw new Exception("Batch benchmark not reproducible");
             if (batch.Scenarios.Count != 3 || batch.Runs.Count != 9 ||
-                batch.TotalSimulatedDuels != 99 ||
+                batch.TotalSimulatedDuels != 126 ||
                 batch.Scenarios.Any(x => x.Repetitions != 3 ||
+                    x.LegacyBeforeWinRate < 0 || x.LegacyBeforeWinRate > 1 ||
+                    x.LegacyVsLearning2ConfidenceLower > x.LegacyVsLearning2ConfidenceUpper ||
                     x.TrainingCompleted > x.TrainingScheduled ||
                     x.EvaluationGames != 9 ||
                     x.WinRateConfidenceLower > x.WinRateConfidenceUpper ||
@@ -350,7 +374,12 @@ namespace Reborn.AiLab
             try { AiLabBatch.Run(1, 2, 2, 1, new[] { "balanced", "unknown" }); }
             catch (ArgumentException) { invalidRejected = true; }
             if (!invalidRejected) throw new Exception("Invalid scenario was accepted");
-            Console.WriteLine("PASS: deterministic batch comparisons, three scenarios, paired seeds, bounded simulations, bootstrap intervals and consistent accounting");
+            var upgraded = new AdaptiveOpponentBrain(new Random(17), AiBrainVersion.Learning2);
+            var preserved = new AdaptiveOpponentBrain(new Random(17), AiBrainVersion.Legacy);
+            if (upgraded.Version != AiBrainVersion.Learning2 ||
+                preserved.Version != AiBrainVersion.Legacy)
+                throw new Exception("Policy version selection failed");
+            Console.WriteLine("PASS: deterministic batch comparisons, v1/v2 policy isolation, three scenarios, paired seeds, bootstrap intervals and consistent accounting");
         }
 
         private static void Save(string path, string contents)
