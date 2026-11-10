@@ -44,7 +44,7 @@ namespace Reborn.Presentation
             public string type_label;
             public string description;
             public int atk;
-            public int def;
+            public int @def;
             public string effect_text;
             public string effect_source;
             public string effect_status;
@@ -105,7 +105,7 @@ namespace Reborn.Presentation
                         "especifico com IMPORTAR_DO_DUELTRACE.ps1.");
                 var selected = candidates[0];
                 var profile = JsonUtility.FromJson<Profile>(
-                    File.ReadAllText(selected.profile_path));
+                    File.ReadAllText(Path.GetFullPath(selected.profile_path)));
                 if (profile == null || profile.verified == null ||
                     profile.verified.cartas != "verificado" ||
                     profile.cards == null || profile.cards.Length != 722)
@@ -122,7 +122,7 @@ namespace Reborn.Presentation
                         cards[c.id - 1] != null || string.IsNullOrWhiteSpace(c.name) ||
                         c.type_id < 0 || c.type_id > 23 ||
                         string.IsNullOrWhiteSpace(c.type_label) ||
-                        c.atk < 0 || c.def < 0)
+                        c.atk < 0 || c.@def < 0)
                         throw new InvalidDataException("ID, nome ou tipo de carta invalido");
                     CardKind kind = c.type_id == 20 ? CardKind.Spell :
                         c.type_id == 21 ? CardKind.Trap :
@@ -139,7 +139,7 @@ namespace Reborn.Presentation
                     // DUELTRACE profile lacks Guardian Stars: deliberately None,
                     // so no made-up bonus or visually invented attribute appears.
                     cards[c.id - 1] = new CardDefinition(
-                        c.id.ToString("000"), c.name, kind, c.atk, c.def,
+                        c.id.ToString("000"), c.name, kind, c.atk, c.@def,
                         c.description ?? "", GuardianStar.None, GuardianStar.None,
                         effect, effectSource, effectStatus, c.type_label);
                 }
