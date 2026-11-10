@@ -75,7 +75,7 @@ with tempfile.TemporaryDirectory() as sandbox:
     game = SimpleNamespace(
         read_game=lambda slus,wa: fake_data,
         TYPE_MAGIC=20, TYPE_TRAP=21, TYPE_RITUAL=22, TYPE_EQUIP=23,
-        STAR_NAMES=[""])
+        STAR_NAMES=[""], STARTER_BASE=0)
     old_load_game = module.load_game
     try:
         module.load_game = lambda disc_path,pc: (
