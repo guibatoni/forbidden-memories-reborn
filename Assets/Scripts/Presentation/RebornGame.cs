@@ -38,6 +38,32 @@ namespace Reborn.Presentation
                     Debug.Log("REBORN: " + info);
                 else Debug.LogWarning("REBORN: " + info);
             }
+            // A true PS1 starter requires seven local weighted rows from
+            // the same disc. Four options are a Reborn choice UI, not four
+            // fixed retail decks.
+            StarterDeckCatalog starterCatalog = null;
+            string starterStatus = "";
+            IReadOnlyList<IReadOnlyList<CardDefinition>> starterOffers = null;
+            IReadOnlyList<CardDefinition> chosenStarter = null;
+            if (loaded)
+            {
+                if (StarterDeckLoader.TryLoad(imported, out starterCatalog,
+                    out starterStatus))
+                {
+                    try
+                    {
+                        starterOffers = starterCatalog.FourChoices(
+                            new System.Random(Guid.NewGuid().GetHashCode()));
+                        Debug.Log("REBORN: " + starterStatus);
+                    }
+                    catch (Exception ex)
+                    {
+                        starterStatus = "Falha ao sortear 4 decks: " + ex.Message;
+                        Debug.LogWarning("REBORN: " + starterStatus);
+                    }
+                }
+                else Debug.LogWarning("REBORN: " + starterStatus);
+            }
             var storage = new AdaptiveAiStorage();
             var brain = new AdaptiveOpponentBrain(
                 new System.Random(Guid.NewGuid().GetHashCode()));
@@ -56,9 +82,11 @@ namespace Reborn.Presentation
 
             DuelMatch CreateExperimentalMatch()
             {
-                var playerSource = loaded
-                    ? DemoDeck.RandomPracticeDeck(imported.Cards, new System.Random(Guid.NewGuid().GetHashCode()))
-                    : DemoDeck.Create();
+                var playerSource = chosenStarter ??
+                    (loaded
+                        ? DemoDeck.RandomPracticeDeck(imported.Cards,
+                            new System.Random(Guid.NewGuid().GetHashCode()))
+                        : DemoDeck.Create());
                 var playerDeck = DeckRandomizer.ShuffleNewMatch(playerSource);
                 IReadOnlyList<CardDefinition> opponentDeck;
                 string identity;
@@ -138,6 +166,18 @@ namespace Reborn.Presentation
             // Launch straight into the playable duel; Sandbox stays available
             // through the optional HUD button rather than interrupting gameplay.
             hud.SetDuelMode(true);
+            if (loaded)
+            {
+                hud.ConfigureStarterDeckChoices(starterOffers, choice =>
+                {
+                    if (starterOffers == null || choice < 0 ||
+                        choice >= starterOffers.Count) return;
+                    chosenStarter = starterOffers[choice];
+                    Debug.Log("REBORN: starter sorteado escolhido (opcao " +
+                        (choice + 1) + "). Nao muda ao reiniciar duelo.");
+                    ResetDuel();
+                }, starterStatus);
+            }
             hud.NewMatchRequested += ResetDuel;
             hud.NextOpponentRequested += () =>
             {
