@@ -55,6 +55,7 @@ namespace Reborn.Core
         private DuelMatch recordedDuel;
         public AiLearningState State { get; private set; }
         public AiTactic Tactic { get; private set; }
+        public PlannedAttackSequence LastAttackPlan { get; private set; }
         public string TacticLabel
         {
             get
@@ -80,6 +81,7 @@ namespace Reborn.Core
             State = state ?? throw new ArgumentNullException(nameof(state));
             State.Sanitize();
             recordedDuel = null;
+            LastAttackPlan = null;
             // Softmax balances exploitation and experimentation, with a minimum
             // exploration floor so opponents do not converge to one fixed script.
             double sum = 0;
@@ -187,86 +189,23 @@ namespace Reborn.Core
         }
 
         /// <summary>
-        /// Chooses only legal attacks using the authoritative duel forecast,
-        /// rather than reimplementing Guardian Star math. Does not alter state.
-        /// Tactics affect preference and tie-breaking, not legality.
+        /// Evaluates the entire current battle phase. The director executes
+        /// only the first legal step, then replans after its real resolution.
+        /// This keeps animation timing and duel rules authoritative.
         /// </summary>
         public bool TryChooseAttack(DuelMatch match, out int fromSlot, out int targetSlot)
         {
             fromSlot = -1;
             targetSlot = -1;
-            if (State == null || match == null ||
-                match.CurrentSide != DuelSide.Opponent || match.Phase != MatchPhase.Battle)
-                return false;
-
-            int bestScore = int.MinValue;
-            for (int attackerSlot = 0; attackerSlot < DuelMatch.ZoneCount; attackerSlot++)
-            {
-                var attacker = match.Opponent.Monster(attackerSlot);
-                if (attacker == null || attacker.AttackedThisTurn ||
-                    attacker.Position != BattlePosition.Attack) continue;
-
-                if (match.Player.MonsterCount == 0)
-                {
-                    if (!match.TryPreviewAttack(DuelSide.Opponent, attackerSlot, -1,
-                        out var direct, out _)) continue;
-                    int directScore = 1100 + direct.DamageToDefender * 3;
-                    if (direct.DamageToDefender >= match.Player.Life) directScore += 100000;
-                    directScore += random.Next(0, 61);
-                    if (directScore > bestScore)
-                    {
-                        bestScore = directScore;
-                        fromSlot = attackerSlot;
-                        targetSlot = -1;
-                    }
-                    continue;
-                }
-
-                for (int target = 0; target < DuelMatch.ZoneCount; target++)
-                {
-                    if (!match.TryPreviewAttack(DuelSide.Opponent, attackerSlot, target,
-                        out var forecast, out _)) continue;
-
-                    // Defending targets can cause LP backlash even when the
-                    // attacking monster survives. Don't attack a losing defense
-                    // or a tie that cannot destroy any monster.
-                    if (forecast.DamageToAttacker > 0) continue;
-                    if (!forecast.DefenderDestroyed) continue;
-
-                    int score;
-                    if (forecast.AttackerDestroyed)
-                    {
-                        // Equal ATK trade: only worth it when the opponent's
-                        // monster is sufficiently valuable.
-                        if (forecast.DefenderCard.Attack <= attacker.Card.Attack + 200)
-                            continue;
-                        score = 120 + forecast.DefenderCard.Attack / 3;
-                        if (Tactic == AiTactic.Defensive) score -= 125;
-                        if (Tactic == AiTactic.Aggressive) score += 65;
-                    }
-                    else
-                    {
-                        score = 950 + forecast.DefenderCard.Attack / 3 +
-                            forecast.DamageToDefender * 2;
-                        if (Tactic == AiTactic.Aggressive)
-                            score += forecast.DamageToDefender * 2;
-                        if (Tactic == AiTactic.Counterplay)
-                            score += forecast.DefenderCard.Attack / 2;
-                        if (Tactic == AiTactic.Defensive)
-                            score += (attacker.Card.Defense / 8);
-                    }
-                    if (forecast.DamageToDefender >= match.Player.Life)
-                        score += 100000;
-                    score += random.Next(0, 91);
-                    if (score > bestScore)
-                    {
-                        bestScore = score;
-                        fromSlot = attackerSlot;
-                        targetSlot = target;
-                    }
-                }
-            }
-            return fromSlot >= 0;
+            LastAttackPlan = null;
+            if (State == null || match == null) return false;
+            if (!MultiAttackPlanner.TryPlan(match, Tactic, random,
+                out var sequence)) return false;
+            LastAttackPlan = sequence;
+            var first = sequence.Steps[0];
+            fromSlot = first.AttackerSlot;
+            targetSlot = first.TargetSlot;
+            return true;
         }
 
         public bool RecordCompletedDuel(DuelMatch match)

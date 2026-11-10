@@ -88,9 +88,18 @@ namespace Reborn.Presentation
                 yield return Pause(0.50f);
             }
 
+            bool announcedPlan = false;
             while (game.Phase == MatchPhase.Battle &&
                    brain != null && brain.TryChooseAttack(game, out int attackerSlot, out int targetSlot))
             {
+                if (!announcedPlan && brain.LastAttackPlan != null &&
+                    brain.LastAttackPlan.Steps.Count > 1)
+                {
+                    hud.Announce("IA avaliou uma sequencia de " +
+                        brain.LastAttackPlan.Steps.Count + " ataques.");
+                    announcedPlan = true;
+                    yield return Pause(0.65f);
+                }
                 var monster = game.Opponent.Monster(attackerSlot);
                 if (monster == null || !game.CanAttack(DuelSide.Opponent,attackerSlot,targetSlot,out _))
                     break;
