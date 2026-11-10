@@ -40,6 +40,20 @@ checks = {
     "hand geometry C# assertions": "responsive fan preserves left-to-right original card order" in smoke and
         "outer hand cards curve toward player" in smoke,
     "HUD remains compatible": "DuelModeActive" in hud,
+    "new hover gap is modeled in core": "public static HandFanPose WithHoveredCard(" in geometry,
+    "focused card does not shift": "index == hoveredIndex" in geometry and
+        "return pose;" in geometry,
+    "left and right neighbors move apart": "index < hoveredIndex ? -1f : 1f" in geometry,
+    "compact arena view has no hover gap": "!expanded || hoveredIndex < 0" in geometry,
+    "arena recomputes targets instead of rebuilding": "public void SetHandHover(" in factory and
+        "private void RefreshHandTargets()" in factory,
+    "mouse input pins card while pressed": interaction.count("arena.SetHandHover(") == 3 and
+        interaction.count("mouse.leftButton.isPressed") >= 3,
+    "larger hover lift preserves subtle selections": "hovered ? 0.80f : (selected ? 0.22f : 0f)" in view and
+        "selected ? 1.065f" in view,
+    "expanded projected hit area covers lifted card": "0.95f" in factory and
+        "const float marginX = 30f" in factory,
+    "smoke covers 1-5 focus indices": "for (int handCount = 1; handCount <= 5; handCount++)" in smoke,
 }
 for name, passed in checks.items():
     print(("OK " if passed else "FAIL ") + name)
