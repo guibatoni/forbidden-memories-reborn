@@ -453,12 +453,13 @@ namespace Reborn.Presentation
         }
 
         /// <summary>Pure presentation: impact does not change duel state.</summary>
-        public void PlayMatchDestruction(DuelSide side, int slot)
+        public void PlayMatchDestruction(DuelSide side, int slot,
+            FieldLane lane = FieldLane.Monster)
         {
             foreach (var zone in Zones)
             {
                 if (zone.Opponent != (side == DuelSide.Opponent) ||
-                    zone.Lane != FieldLane.Monster || zone.Index != slot) continue;
+                    zone.Lane != lane || zone.Index != slot) continue;
                 var fx = new GameObject("Combat_Destruction_Particles");
                 fx.transform.SetParent(root,false);
                 fx.transform.position = zone.transform.position + Vector3.up * 0.5f;
@@ -478,6 +479,45 @@ namespace Reborn.Presentation
                 particles.Play();
                 Object.Destroy(fx,2f);
                 break;
+            }
+        }
+
+        /// <summary>
+        /// Small original procedural magic burst. It does not animate or
+        /// execute a card effect, which is committed by DuelMatch before this.
+        /// </summary>
+        public void PlaySpellActivation(DuelSide side, int slot)
+        {
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent != (side == DuelSide.Opponent) ||
+                    zone.Lane != FieldLane.Support || zone.Index != slot) continue;
+                var fx = new GameObject("Spell_Activation_Burst");
+                fx.transform.SetParent(root, false);
+                fx.transform.position = zone.transform.position + Vector3.up * 0.46f;
+                var particles = fx.AddComponent<ParticleSystem>();
+                particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = particles.main;
+                main.loop = false;
+                main.playOnAwake = false;
+                main.duration = 0.52f;
+                main.startLifetime = 0.64f;
+                main.startSpeed = 1.4f;
+                main.startSize = 0.12f;
+                main.maxParticles = 64;
+                main.startColor = side == DuelSide.Player ?
+                    ArenaVisuals.Cyan : ArenaVisuals.Gold;
+                var emission = particles.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new[] {new ParticleSystem.Burst(0f, 35)});
+                var shape = particles.shape;
+                shape.shapeType = ParticleSystemShapeType.Circle;
+                shape.radius = 0.33f;
+                particles.GetComponent<ParticleSystemRenderer>().sharedMaterial =
+                    side == DuelSide.Player ? cyan : gold;
+                particles.Play();
+                Object.Destroy(fx, 1.7f);
+                return;
             }
         }
 
