@@ -399,6 +399,61 @@ internal static class Program
         Check(!sequenceBrain.TryChooseAttack(sequenceMatch,out _,out _) &&
             sequenceBrain.LastAttackPlan == null,
             "used attackers cannot be planned a second time this turn");
+
+        var positional = new DuelMatch(
+            Deck(M("player-threat", 2100, 1100)),
+            Deck(M("winning-attacker", 2200, 600), M("passive-wall", 1900, 2900)));
+        Play(positional, DuelSide.Player);
+        End(positional, DuelSide.Player);
+        var freshLearning = new AiLearningState("learning2:smoke");
+        freshLearning.tacticValues = new float[] { 2, -2, -2, -2, -2 };
+        freshLearning.tacticGames = null;
+        freshLearning.tacticWins = null;
+        var improvedBrain = new AdaptiveOpponentBrain(new Random(17),
+            AiBrainVersion.Learning2);
+        improvedBrain.StartDuel(freshLearning);
+        int beforePositionalEvents = positional.Events.Count;
+        Check(improvedBrain.Tactic == AiTactic.Balanced &&
+            improvedBrain.TryChoosePlacement(positional, out var winningPlacement) &&
+            winningPlacement.Result.Id == "winning-attacker" &&
+            winningPlacement.Position == BattlePosition.Attack &&
+            positional.CanPlay(DuelSide.Opponent, winningPlacement.HandIndices,
+                FieldLane.Monster, winningPlacement.Slot, winningPlacement.Star, out _),
+            "Learning 2.0 chooses winning attacker instead of a passive wall");
+        Check(positional.Events.Count == beforePositionalEvents &&
+            !positional.PlayedThisTurn &&
+            positional.Opponent.Monster(winningPlacement.Slot) == null,
+            "Learning 2.0 placement evaluation never mutates the match");
+        Check(freshLearning.tacticGames.Length == 5 &&
+            freshLearning.tacticWins.Length == 5,
+            "Learning 2.0 safely migrates old saved profiles without tactic counters");
+        var legacyBrain = new AdaptiveOpponentBrain(new Random(17),
+            AiBrainVersion.Legacy);
+        legacyBrain.StartDuel(new AiLearningState("learning1:smoke"));
+        Check(legacyBrain.Version == AiBrainVersion.Legacy &&
+            improvedBrain.Version == AiBrainVersion.Learning2 &&
+            legacyBrain.TryChoosePlacement(positional, out var oldPlacement) &&
+            positional.CanPlay(DuelSide.Opponent, oldPlacement.HandIndices,
+                FieldLane.Monster, oldPlacement.Slot, oldPlacement.Star, out _),
+            "legacy and Learning 2.0 policies both remain available for A/B evaluation");
+
+        var learningDuel = Match(M("huge", 9500, 1000), M("weak", 800, 700));
+        var counting = new AiLearningState("learning2:counters");
+        var updatedBrain = new AdaptiveOpponentBrain(new Random(24),
+            AiBrainVersion.Learning2);
+        updatedBrain.StartDuel(counting);
+        Play(learningDuel, DuelSide.Player);
+        Battle(learningDuel, DuelSide.Player);
+        Check(learningDuel.TryAttack(DuelSide.Player, 0, -1, out _) &&
+            learningDuel.Phase == MatchPhase.Finished &&
+            updatedBrain.RecordCompletedDuel(learningDuel),
+            "Learning 2.0 accepts only the completed duel outcome");
+        int chosenTacticIndex = (int)updatedBrain.Tactic;
+        Check(counting.duels == 1 && counting.tacticGames[chosenTacticIndex] == 1 &&
+            counting.tacticWins[chosenTacticIndex] == 0 &&
+            !updatedBrain.RecordCompletedDuel(learningDuel) &&
+            counting.tacticGames.Sum() == 1,
+            "Learning 2.0 records one loss, updates only the active tactic and never trains twice");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }
