@@ -52,8 +52,9 @@ namespace Reborn.Core
         }
         internal void SetPosition(BattlePosition position)
         {
+            // Changing ATK/DEF rotates the set card, but does NOT expose it.
+            // FaceDown changes only in Reveal(), called by actual combat.
             Position = position;
-            FaceDown = false;
             // The player may change positions repeatedly until this monster attacks.
             PositionChangedThisTurn = true;
         }
@@ -349,7 +350,7 @@ namespace Reborn.Core
             if (monster == null) return Reject(out reason, "Nao ha monstro nesta zona");
             if (monster.AttackedThisTurn)
                 return Reject(out reason, "Monstro que ja atacou nao pode mudar de posicao");
-             if (monster.Position == newPosition && !monster.FaceDown)
+            if (monster.Position == newPosition)
                 return Reject(out reason, "Posicao ja selecionada");
             reason = "";
             return true;
