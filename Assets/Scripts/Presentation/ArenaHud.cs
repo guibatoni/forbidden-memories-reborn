@@ -271,7 +271,7 @@ namespace Reborn.Presentation
             {
                 Panel(new Rect(12,Screen.height-153,263,130),new Color(0.015f,0.027f,0.06f,0.87f));
                 GUI.Label(new Rect(23,Screen.height-146,240,116),
-                    "Clique em carta > clique em zona\nArraste carta ate a zona\nBotao direito: girar camera\nRoda do mouse: zoom\nTecla R: camera inicial\nESC: cancelar selecao",small);
+                    "Clique em carta > clique em zona\nArraste carta ate a zona\nBotao direito: inspecionar carta\nRoda do mouse: zoom\nTecla R: camera inicial\nESC: cancelar selecao",small);
             }
             DrawCardInspection();
             if (showStory && story != null) DrawStory();
