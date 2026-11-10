@@ -198,6 +198,57 @@ internal static class Program
             failedField.Player.Graveyard[0].Id == "old",
             "failed field combination preserves surviving hand card as on-field material");
 
+        // A failed first field pair must continue with the next hand card,
+        // allowing a later successful recipe (rather than pre-fusing hand).
+        var restarted = new FusionCatalog();
+        restarted.Add("handA","handB",M("afterFailure",2100,1800));
+        var restartMatch = new DuelMatch(
+            Deck(M("fieldOld",1600,1200),M("handA",600,500),M("handB",700,600)),
+            Deck(M("op",900,800)), restarted);
+        Play(restartMatch,DuelSide.Player);
+        End(restartMatch,DuelSide.Player);
+        Play(restartMatch,DuelSide.Opponent);
+        End(restartMatch,DuelSide.Opponent);
+        Check(restartMatch.PreviewFieldResult(DuelSide.Player,
+            new[]{0,1},0)?.Id=="afterFailure",
+            "failed field-first pair can later fuse with the next ordered material");
+        Check(restartMatch.TryPlayOnField(DuelSide.Player,new[]{0,1},0,
+            BattlePosition.Attack,GuardianStar.None,false,out var restartedResult,
+            out bool restartedFusion,out _) && restartedFusion &&
+            restartedResult.Id=="afterFailure" &&
+            restartMatch.Player.Graveyard.Count==3,
+            "field-first failure then success keeps all physical originals accounted for");
+
+        // Five occupied monster slots must NOT block the required hand play:
+        // replacement is a legal alternative to a sixth zone.
+        var fullBoard = Match(M("own",1400,1300),M("enemy",1100,950));
+        for (int slot=0;slot<DuelMatch.ZoneCount;slot++)
+        {
+            Check(fullBoard.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,slot,BattlePosition.Defense,GuardianStar.None,out _),
+                "player fills one legal monster slot");
+            End(fullBoard,DuelSide.Player);
+            Check(fullBoard.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Monster,slot,BattlePosition.Defense,GuardianStar.None,out _),
+                "opponent fills one legal monster slot");
+            End(fullBoard,DuelSide.Opponent);
+        }
+        Check(fullBoard.Player.MonsterCount==5 &&
+            !fullBoard.CanPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,0,GuardianStar.None,out _) &&
+            !fullBoard.TryEndTurn(DuelSide.Player,out _),
+            "full board still requires exactly one legal hand placement");
+        Check(fullBoard.TryChooseFieldCombination(DuelSide.Player,false,
+            out int fullHand,out int fullSlot,out var fullResult) &&
+            fullBoard.TryPlayOnField(DuelSide.Player,new[]{fullHand},fullSlot,
+                BattlePosition.Attack,fullResult.StarA,false,
+                out _,out _,out _) &&
+            fullBoard.Player.MonsterCount==5,
+            "full field can replace an own monster without adding a sixth slot");
+        End(fullBoard,DuelSide.Player);
+        Check(fullBoard.CurrentSide==DuelSide.Opponent,
+            "full-board replacement satisfies mandatory turn action");
+
         var m3=Match(M("big",8500,500),M("small",500,500));
         Play(m3,DuelSide.Player);Battle(m3,DuelSide.Player);
         m3.TryAttack(DuelSide.Player,0,-1,out _);
