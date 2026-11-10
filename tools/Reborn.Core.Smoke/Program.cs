@@ -341,6 +341,64 @@ internal static class Program
             out var allowedDirect,out _) && allowedDirect.IsDirect,
             "explicit direct attack is legal only on an empty opposing board");
 
+
+        // The low attacker must destroy the DEF wall first so the stronger
+        // attacker can go direct. Greedy attack scoring could waste the
+        // stronger attacker on a defender without inflicting LP damage.
+        var sequenceMatch = new DuelMatch(
+            Deck(M("wall", 200, 1800)),
+            Deck(M("small", 2100, 900), M("strong", 3200, 1500)));
+        Check(sequenceMatch.TryPlay(DuelSide.Player, new[] {0},
+            FieldLane.Monster, 0, BattlePosition.Defense,
+            GuardianStar.None, out _), "sequence wall is summoned in defense");
+        End(sequenceMatch, DuelSide.Player);
+        Check(sequenceMatch.TryPlay(DuelSide.Opponent, new[] {0},
+            FieldLane.Monster, 0, BattlePosition.Attack,
+            GuardianStar.None, out _), "first AI attacker is summoned");
+        End(sequenceMatch, DuelSide.Opponent);
+        End(sequenceMatch, DuelSide.Player);
+        Check(sequenceMatch.TryPlay(DuelSide.Opponent, new[] {0},
+            FieldLane.Monster, 1, BattlePosition.Attack,
+            GuardianStar.None, out _), "second AI attacker is summoned");
+        Check(!MultiAttackPlanner.TryPlan(sequenceMatch,
+            AiTactic.Balanced, new Random(90), out _),
+            "multistep planner refuses to attack outside Battle");
+        Battle(sequenceMatch, DuelSide.Opponent);
+        int beforePlanEvents = sequenceMatch.Events.Count;
+        int beforePlanLife = sequenceMatch.Player.Life;
+        Check(MultiAttackPlanner.TryPlan(sequenceMatch, AiTactic.Balanced,
+            new Random(90), out var sequence) &&
+            sequence.Steps.Count == 2 && sequence.Steps[0].AttackerSlot == 0 &&
+            sequence.Steps[0].TargetSlot == 0 &&
+            sequence.Steps[1].AttackerSlot == 1 &&
+            sequence.Steps[1].TargetSlot == -1 &&
+            sequence.ExpectedDamage == 3200 &&
+            sequence.ExpectedDestroyedDefenders == 1,
+            "planner clears 1800 DEF with 2100 ATK, preserves 3200 direct attack");
+        Check(sequenceMatch.Events.Count == beforePlanEvents &&
+            sequenceMatch.Player.Life == beforePlanLife &&
+            !sequenceMatch.Opponent.Monster(0).AttackedThisTurn &&
+            !sequenceMatch.Opponent.Monster(1).AttackedThisTurn,
+            "planning multiple attacks never changes duel state");
+        var sequenceBrain = new AdaptiveOpponentBrain(new Random(92));
+        sequenceBrain.StartDuel(new AiLearningState("multi-sequence"));
+        Check(sequenceBrain.TryChooseAttack(sequenceMatch, out var firstSlot,
+            out var firstTarget) && firstSlot == 0 && firstTarget == 0 &&
+            sequenceBrain.LastAttackPlan.Steps.Count == 2,
+            "adaptive AI applies the multistep plan rather than single greedy attack");
+        Check(sequenceMatch.TryAttack(DuelSide.Opponent,firstSlot,firstTarget,out _) &&
+            sequenceMatch.Player.Monster(0) == null &&
+            sequenceMatch.Player.Life == 8000,
+            "first planned strike removes defense without LP damage");
+        Check(sequenceBrain.TryChooseAttack(sequenceMatch, out var secondSlot,
+            out var secondTarget) && secondSlot == 1 && secondTarget == -1,
+            "AI replans direct attack after defender was actually destroyed");
+        Check(sequenceMatch.TryAttack(DuelSide.Opponent,secondSlot,secondTarget,out _) &&
+            sequenceMatch.Player.Life == 4800,
+            "replanned direct attack inflicts the expected 3200 LP");
+        Check(!sequenceBrain.TryChooseAttack(sequenceMatch,out _,out _) &&
+            sequenceBrain.LastAttackPlan == null,
+            "used attackers cannot be planned a second time this turn");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }

@@ -51,6 +51,37 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void MultistepSearchClearsWallWithWeakerMonsterBeforeDirectAttack()
+        {
+            var match = new DuelMatch(
+                Deck(M("defender", 200)),
+                Deck(M("low", 2100), M("high", 3200)));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0 },
+                FieldLane.Monster, 0, BattlePosition.Defense,
+                GuardianStar.None, out _));
+            Assert.IsTrue(match.TryEndTurn(DuelSide.Player, out _));
+            Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] { 0 },
+                FieldLane.Monster, 0, BattlePosition.Attack,
+                GuardianStar.None, out _));
+            Assert.IsTrue(match.TryEndTurn(DuelSide.Opponent, out _));
+            Assert.IsTrue(match.TryEndTurn(DuelSide.Player, out _));
+            Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] { 0 },
+                FieldLane.Monster, 1, BattlePosition.Attack,
+                GuardianStar.None, out _));
+            Assert.IsTrue(match.TryBeginBattle(DuelSide.Opponent, out _));
+            long previousEvents = match.Events.Count;
+            Assert.IsTrue(MultiAttackPlanner.TryPlan(match, AiTactic.Balanced,
+                new Random(9), out var plan));
+            Assert.AreEqual(2, plan.Steps.Count);
+            Assert.AreEqual(0, plan.Steps[0].AttackerSlot);
+            Assert.AreEqual(0, plan.Steps[0].TargetSlot);
+            Assert.AreEqual(1, plan.Steps[1].AttackerSlot);
+            Assert.AreEqual(-1, plan.Steps[1].TargetSlot);
+            Assert.AreEqual(previousEvents, match.Events.Count);
+            Assert.AreEqual(8000, match.Player.Life);
+        }
+
+        [Test]
         public void CorruptScoresAreSanitizedAndRandomStylesRemainAvailable()
         {
             var state = new AiLearningState("demo");
