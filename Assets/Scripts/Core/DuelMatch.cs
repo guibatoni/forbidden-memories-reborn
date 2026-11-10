@@ -292,7 +292,8 @@ namespace Reborn.Core
         {
             if (!CanPlay(side, indices, lane, slot, star, out reason)) return false;
             var preview = PreviewResult(side, indices);
-            if (verifiedSpells.Count > 0 && lane == FieldLane.Support &&
+            if ((verifiedSpells.Count > 0 || verifiedEquips.Count > 0) &&
+                lane == FieldLane.Support &&
                 !faceDown && preview != null && preview.Kind != CardKind.Spell)
                 return Reject(out reason,
                     "Carta sem ativacao face-up validada: use face-down ou uma acao especial");
