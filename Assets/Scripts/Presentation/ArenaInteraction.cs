@@ -542,9 +542,18 @@ namespace Reborn.Presentation
             else
             {
                 arena.StagePlacement(zone.Lane, zone.Index, origin, hud.AnimationsEnabled);
+                int eventOffset = match.Events.Count;
                 if (match.TryPlay(DuelSide.Player, selected, zone.Lane, zone.Index,
                     position, star, hud.PlaceFaceDown, out var reason))
                 {
+                    bool actuallyFused = false;
+                    for (int evt = eventOffset; evt < match.Events.Count; evt++)
+                        if (match.Events[evt].Kind == MatchEventKind.Fusion &&
+                            match.Events[evt].Side == DuelSide.Player)
+                            actuallyFused = true;
+                    if (actuallyFused && zone.Lane == FieldLane.Monster)
+                        arena.PlayFieldCombinationEffect(DuelSide.Player,
+                            zone.Index, true, hud.AnimationsEnabled);
                     hud.Announce("Carta colocada: " + result.Name +
                         (hud.PlaceFaceDown ? " virada para baixo." : " virada para cima."));
                     hud.AfterHandPlacement();
