@@ -54,6 +54,7 @@ namespace Reborn.Core
         {
             Position = position;
             FaceDown = false;
+            // The player may change positions repeatedly until this monster attacks.
             PositionChangedThisTurn = true;
         }
         internal void Reveal() { FaceDown = false; }
@@ -318,11 +319,7 @@ namespace Reborn.Core
             if (monster == null) return Reject(out reason, "Nao ha monstro nesta zona");
             if (monster.AttackedThisTurn)
                 return Reject(out reason, "Monstro que ja atacou nao pode mudar de posicao");
-            if (monster.PositionChangedThisTurn)
-                return Reject(out reason, "Posicao ja alterada neste turno");
-            if (monster.TurnPlaced == Turn)
-                return Reject(out reason, "Monstro invocado neste turno nao pode mudar de posicao");
-            if (monster.Position == newPosition && !monster.FaceDown)
+             if (monster.Position == newPosition && !monster.FaceDown)
                 return Reject(out reason, "Posicao ja selecionada");
             reason = "";
             return true;
@@ -361,6 +358,8 @@ namespace Reborn.Core
         public bool TryBeginBattle(DuelSide side, out string reason)
         {
             if (!Active(side, MatchPhase.Main, out reason)) return false;
+            if (!hasPlayed)
+                return Reject(out reason, "Baixe uma carta antes de entrar em batalha");
             Phase = MatchPhase.Battle;
             Emit(MatchEventKind.BattleStarted, side);
             SignalChanged();
@@ -469,6 +468,8 @@ namespace Reborn.Core
         {
             if (Phase == MatchPhase.Finished) return Reject(out reason, "Duelo terminado");
             if (CurrentSide != side) return Reject(out reason, "Nao e o turno deste jogador");
+            if (!hasPlayed)
+                return Reject(out reason, "Baixe ao menos uma carta antes de passar o turno");
             CurrentSide = Other(side);
             Turn++;
             hasPlayed = false;
