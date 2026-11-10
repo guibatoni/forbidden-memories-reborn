@@ -87,3 +87,12 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - GitHub Actions clean-source artifact: Reborn-0.13.1-Clean-Source
 - ChatGPT Library folder: Forbidden Memories Reborn/Backups/Prototype 0.13.1
 - Fixes public Core to Presentation MonsterCount access; no changes to AI Learning 2.0 behavior.
+
+
+## Prototype 0.14 — Fluent Duel
+- GitHub recovery branch: backup/prototype-0.14
+- CI source artifact: Reborn-0.14-Clean-Source
+- ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.14
+- MTGA-like fan hand, numbered Shift fusions, face choice, automatic battle,
+  direct attacker-to-target clicks and legal monster position changes.
+- Unverified spell, equip, ritual and trap effects remain disabled.

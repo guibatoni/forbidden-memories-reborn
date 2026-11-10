@@ -1,3 +1,14 @@
+# Forbidden Memories Reborn — Prototype 0.14
+
+**Fluent PS1-inspired duel controls:** larger overlapping MTGA-style
+fanned hand, numbered Shift-fusion selections, chosen face up/down before
+Guardian Star, battle entered automatically on placement, attacker-to-target
+clicks, direct attacks to the opposing side and legal ATK/DEF switching.
+
+[Read gameplay and limitations](Docs/PROTOTYPE_0_14.md).
+
+---
+
 # Prototype 0.13.1 — Unity cross-assembly hotfix
 
 Fixes the `MatchSide.MonsterCount` CS1061 error in `ArenaHud.cs`.
