@@ -51,4 +51,52 @@ with tempfile.TemporaryDirectory() as base:
     assert any("source.edition" in issue for issue in errors)
     print("PASS: original-ps1-* editions validate without accepting unrelated discs")
     print("PASS: local parser discovery and SHA-256 helpers")
-print("NOTE: no disc extraction attempted by CI.")
+# A fully synthetic 722-card disc tests the export format without copying
+# retail names/text or including any PS1 ISO in the test runner.
+from types import SimpleNamespace
+
+with tempfile.TemporaryDirectory() as sandbox:
+    root = Path(sandbox)
+    (root / "Assets").mkdir()
+    disc = root / "synthetic.bin"
+    disc.write_bytes(b"not-a-real-disc")
+    cards = {}
+    for index in range(1, 723):
+        kind = 22 if index == 666 else (20 if index == 710 else
+                21 if index == 711 else 23 if index == 712 else 0)
+        cards[index] = SimpleNamespace(id=index, name=f"Synthetic {index:03d}",
+            description=f"Synthetic-only description {index}", attack=500,
+            defense=700, type=kind, star1=0, star2=0)
+    fake_data = SimpleNamespace(cards=cards,
+        fusions={(1,2):3, (2,3):4},
+        glitch_fusions={(2,3)},
+        rituals={666:(1,2,3,4)},
+        pools=[], equips={}, notes=[])
+    game = SimpleNamespace(
+        read_game=lambda slus,wa: fake_data,
+        TYPE_MAGIC=20, TYPE_TRAP=21, TYPE_RITUAL=22, TYPE_EQUIP=23,
+        STAR_NAMES=[""])
+    old_load_game = module.load_game
+    try:
+        module.load_game = lambda disc_path,pc: (
+            SimpleNamespace(slus=b"",wa=b""),game)
+        report = module.export(disc, root, root, "original-ps1-test",
+                               upscale=1, extract_art=False)
+    finally:
+        module.load_game = old_load_game
+    generated = (root/"Assets"/"StreamingAssets"/"RebornContent"/"original_export.json")
+    data = check_module.validate(
+        __import__("json").loads(generated.read_text(encoding="utf-8")))
+    errors, details = data
+    assert errors == [], errors
+    assert details["cards"] == 722 and details["rituals"] == 1
+    assert details["missingDescriptions"] == 0
+    assert report["ps1ReaderQuirkFusionsIncluded"] == 1
+    assert report["fusions"] == 2 and report["descriptionCount"] == 722
+    assert report["descriptionCoverageByKind"]["Ritual"]["withDescription"] == 1
+    assert report["descriptionCoverageByKind"]["Spell"]["withDescription"] == 1
+    assert report["descriptionCoverageByKind"]["Trap"]["withDescription"] == 1
+    assert report["descriptionCoverageByKind"]["Equip"]["withDescription"] == 1
+    print("PASS: synthetic 722-card export, PS1 reader quirks, all types and rituals")
+print("NOTE: CI does not possess the user's original disc and cannot validate retail hashes.")
+
