@@ -31,6 +31,29 @@ internal static class Program
     }
     private static void Battle(DuelMatch m, DuelSide side)
     {
+        // Tests that jump to a later turn still have to supply the required
+        // placement. Put a harmless card in a free rear slot for fixture setup.
+        if (!m.PlayedThisTurn)
+        {
+            bool placed = false;
+            var hand = m.Side(side).Hand;
+            for (int h = 0; h < hand.Count && !placed; h++)
+            {
+                var card = hand[h];
+                var lane = card.Kind == CardKind.Monster ?
+                    FieldLane.Monster : FieldLane.Support;
+                for (int slot = 4; slot >= 0; slot--)
+                {
+                    if (!m.CanPlay(side,new[]{h},lane,slot,card.StarA,out _)) continue;
+                    if (!m.TryPlay(side,new[]{h},lane,slot,
+                        BattlePosition.Defense,card.StarA,out var placementReason))
+                        throw new Exception(placementReason);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) throw new Exception("Smoke fixture has no valid mandatory play");
+        }
         if (!m.TryBeginBattle(side,out var reason)) throw new Exception(reason);
     }
     private static void End(DuelMatch m, DuelSide side)
