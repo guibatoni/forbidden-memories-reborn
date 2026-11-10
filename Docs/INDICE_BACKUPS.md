@@ -120,3 +120,13 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.14.3
 - Legal placement/attack feedback, hover highlights, gold attacker source,
   and eased arcing summon animation. No rules or camera changes.
+
+
+## Prototype 0.15 — Classic Turn (draft)
+- Recovery branch: backup/prototype-0.15-draft
+- Feature branch: feature/prototype-0.15-classic-turn-inspection
+- Pull request: #2 (stacked on #1)
+- Mandatory card placement before passing, Q/E freely toggle until an attack,
+  explicit SPACE end-turn, safe right-click card inspection, animated draw.
+- Static/.NET CI checks apply; Unity scene compilation and visual validation
+  are still pending. No ROM, card art or user save data included.
