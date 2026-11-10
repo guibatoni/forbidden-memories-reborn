@@ -104,8 +104,11 @@ namespace Reborn.Presentation
             try
             {
                 var parsed = JsonUtility.FromJson<ExportFile>(File.ReadAllText(ExpectedPath));
-                if (parsed == null || parsed.schema != 1 || parsed.cards == null || parsed.cards.Length == 0)
-                    throw new InvalidDataException("Schema 1 e lista de cartas sao obrigatorios");
+                if (parsed == null || parsed.schema != 1 || parsed.cards == null ||
+                    parsed.cards.Length != 722)
+                    throw new InvalidDataException(
+                        "O catalogo Original precisa conter exatamente 722 cartas; " +
+                        "importacoes parciais nao podem ativar baralhos de demonstração");
                 if (parsed.source == null || string.IsNullOrWhiteSpace(parsed.source.edition) ||
                     !(parsed.source.edition == "original-ps1" ||
                       parsed.source.edition.StartsWith("original-ps1-",StringComparison.Ordinal)))
@@ -115,10 +118,13 @@ namespace Reborn.Presentation
                     throw new InvalidDataException("discSha256 deve ser SHA-256 de 64 caracteres hexadecimais");
 
                 var cards = new List<CardDefinition>(parsed.cards.Length);
+                var seenCardIds = new HashSet<int>();
                 foreach (var entry in parsed.cards)
                 {
-                    if (entry.id < 1 || entry.id > 722)
-                        throw new InvalidDataException("ID fora do conjunto original de 1 a 722: " + entry.id);
+                    if (entry == null || entry.id < 1 || entry.id > 722 ||
+                        !seenCardIds.Add(entry.id) || string.IsNullOrWhiteSpace(entry.name))
+                        throw new InvalidDataException(
+                            "Carta com ID duplicado, invalido ou sem nome no export Original");
                     if (!Enum.TryParse(entry.kind, true, out CardKind kind))
                         throw new InvalidDataException($"Tipo de carta desconhecido: {entry.kind} / #{entry.id}");
                     GuardianStar a = ParseStar(entry.guardianStarA);
