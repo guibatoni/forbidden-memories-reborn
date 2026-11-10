@@ -607,6 +607,53 @@ internal static class Program
         catch (ArgumentOutOfRangeException) { invalidHandRejected = true; }
         Check(invalidHandRejected,
             "fan refuses nonexistent hand card indices");
+
+        // 0.14.2 - make the hovered hand card readable without changing
+        // its index, blocking a neighbor or corrupting the fusion order.
+        for (int handCount = 1; handCount <= 5; handCount++)
+        {
+            for (int focus = 0; focus < handCount; focus++)
+            {
+                var focused = HandFanGeometry.WithHoveredCard(
+                    focus, handCount, true, focus);
+                var baseline = HandFanGeometry.At(focus, handCount, true);
+                Check(Math.Abs(focused.X - baseline.X) < 0.0001f &&
+                    Math.Abs(focused.Y - baseline.Y) < 0.0001f &&
+                    Math.Abs(focused.Z - baseline.Z) < 0.0001f,
+                    "hovered hand card stays at the same target location");
+                for (int neighbor = 0; neighbor < handCount; neighbor++)
+                {
+                    var adjusted = HandFanGeometry.WithHoveredCard(
+                        neighbor, handCount, true, focus);
+                    var original = HandFanGeometry.At(neighbor, handCount, true);
+                    if (neighbor < focus)
+                        Check(adjusted.X < original.X,
+                            "left hand neighbor shifts away from hovered card");
+                    else if (neighbor > focus)
+                        Check(adjusted.X > original.X,
+                            "right hand neighbor shifts away from hovered card");
+                    else
+                        Check(Math.Abs(adjusted.X - original.X) < 0.0001f,
+                            "focused card does not jump sideways on hover");
+                    Check(adjusted.Yaw == original.Yaw &&
+                        adjusted.Y == original.Y && adjusted.Z == original.Z,
+                        "hover gaps never rotate or reorder cards");
+                    var compact = HandFanGeometry.WithHoveredCard(
+                        neighbor, handCount, false, focus);
+                    var compactOriginal = HandFanGeometry.At(
+                        neighbor, handCount, false);
+                    Check(Math.Abs(compact.X - compactOriginal.X) < 0.0001f,
+                        "arena focus never opens neighbor spacing");
+                }
+            }
+        }
+        bool invalidFocusedCard = false;
+        try { HandFanGeometry.WithHoveredCard(0, 5, true, 5); }
+        catch (ArgumentOutOfRangeException) { invalidFocusedCard = true; }
+        Check(invalidFocusedCard, "invalid focused card index cannot corrupt hand layout");
+        Check(HandFanGeometry.WithHoveredCard(1, 5, true, -1).X ==
+            HandFanGeometry.At(1, 5, true).X,
+            "no hover selection restores original fanned layout");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }
