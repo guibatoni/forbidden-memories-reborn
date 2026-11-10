@@ -224,7 +224,7 @@ namespace Reborn.Presentation
                         for (int raised = 0; raised < 2; raised++)
                         {
                             var point = basePoint +
-                                Vector3.up * (raised == 0 ? 0f : 0.70f);
+                                Vector3.up * (raised == 0 ? 0f : 0.95f);
                             Vector3 screen = Camera.WorldToScreenPoint(
                                 dynamicRoot.TransformPoint(point));
                             if (screen.z <= 0f) continue;
@@ -237,7 +237,8 @@ namespace Reborn.Presentation
                 }
             }
             if (float.IsInfinity(minX)) return false;
-            const float marginX = 16f, marginY = 12f;
+            // Allow for additional neighbor displacement during focused hover.
+            const float marginX = 30f, marginY = 16f;
             return pointer.x >= minX - marginX && pointer.x <= maxX + marginX &&
                 pointer.y >= minY - marginY && pointer.y <= maxY + marginY;
         }
