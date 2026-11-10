@@ -74,7 +74,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.13-AiLab-Learning2
+          name: Reborn-0.16-AiLab-MultiSeed
           retention-days: 90
           if-no-files-found: error
           path: |
@@ -85,7 +85,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.14.3-Clean-Source
+          name: Reborn-0.16-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |
