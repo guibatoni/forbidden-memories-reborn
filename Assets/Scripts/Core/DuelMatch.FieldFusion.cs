@@ -88,6 +88,47 @@ namespace Reborn.Core
         }
 
         /// <summary>
+        /// Read-only one-card fallback for AI. Prefer a verified field recipe;
+        /// a replacement is allowed only as a last legal mandatory play.
+        /// </summary>
+        public bool TryChooseFieldCombination(DuelSide side, bool requireRecipe,
+            out int handIndex, out int monsterSlot, out CardDefinition result)
+        {
+            handIndex = -1;
+            monsterSlot = -1;
+            result = null;
+            if (Phase != MatchPhase.Main || CurrentSide != side || hasPlayed)
+                return false;
+            var owner = Side(side);
+            int bestScore = int.MinValue;
+            for (int slot = 0; slot < ZoneCount; slot++)
+            {
+                var existing = owner.Monster(slot);
+                if (existing == null) continue;
+                for (int hand = 0; hand < owner.Hand.Count; hand++)
+                {
+                    var material = owner.Hand[hand];
+                    bool recipe = fusions.TryFuse(existing.Card, material, out _);
+                    if (requireRecipe && !recipe) continue;
+                    var preview = PreviewFieldResult(side, new[] { hand }, slot);
+                    if (preview == null || preview.Kind != CardKind.Monster) continue;
+                    if (!CanPlayOnField(side, new[] { hand }, slot, preview.StarA,
+                        out _, out _)) continue;
+                    // Only facts from our own cards are considered.
+                    int score = (recipe ? 100000 : 0) +
+                        (preview.Attack - existing.Card.Attack) * 3 +
+                        (preview.Defense - existing.Card.Defense);
+                    if (score <= bestScore) continue;
+                    bestScore = score;
+                    handIndex = hand;
+                    monsterSlot = slot;
+                    result = preview;
+                }
+            }
+            return handIndex >= 0;
+        }
+
+        /// <summary>
         /// Executes a validated on-field combination. All original physical
         /// losers enter the graveyard; virtual intermediate fusion products do
         /// not. No mutation occurs when the preview rejects a command.
