@@ -406,7 +406,10 @@ namespace Reborn.Presentation
                     hud.SelectedSupportSlot = zone.Index;
                     hud.SelectedFieldMonster = -1;
                     hud.SelectedAttacker = -1;
-                    hud.Message = "Suporte selecionado. Efeitos aguardam validacao.";
+                    hud.Message = match.CanActivateSupport(DuelSide.Player,
+                        zone.Index, out var supportReason)
+                        ? "Magia pronta: use Ativar suporte setado no painel."
+                        : supportReason;
                 }
                 else if (zone != null && !zone.Opponent &&
                     match.Phase == MatchPhase.Main && hud.SelectedHandIndex >= 0)
@@ -611,7 +614,12 @@ namespace Reborn.Presentation
                     if (actuallyFused && zone.Lane == FieldLane.Monster)
                         arena.PlayFieldCombinationEffect(DuelSide.Player,
                             zone.Index, true, hud.AnimationsEnabled);
-                    hud.Announce("Carta colocada: " + result.Name +
+                    bool activatedInstant = zone.Lane == FieldLane.Support &&
+                        !hud.PlaceFaceDown && result.Kind == CardKind.Spell &&
+                        match.HasVerifiedSpell(result);
+                    hud.Announce(activatedInstant ?
+                        "Magia ativada imediatamente: " + result.Name + "." :
+                        "Carta colocada: " + result.Name +
                         (hud.PlaceFaceDown ? " virada para baixo." : " virada para cima."));
                     hud.AfterHandPlacement();
                     hud.SelectedFieldMonster = zone.Lane == FieldLane.Monster ?
