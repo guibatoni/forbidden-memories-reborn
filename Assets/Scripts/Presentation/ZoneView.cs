@@ -57,7 +57,6 @@ namespace Reborn.Presentation
         public void SetCombatTarget(bool active)
         {
             legalTarget = active;
-            selectedAttacker = false;
             UpdateHighlight();
         }
 
