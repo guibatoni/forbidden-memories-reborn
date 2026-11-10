@@ -20,6 +20,7 @@ namespace Reborn.Presentation
         private bool selected;
         private bool hovered;
         private bool dragging;
+        private float arrivalRemaining;
 
         public void Initialize(CardDefinition card, int handIndex, Renderer border,
             Material normal, Material highlighted, bool facedown)
@@ -109,10 +110,24 @@ namespace Reborn.Presentation
             fusionBadge.SetActive(false);
         }
 
+        /// <summary>
+        /// A new draw slides in from the deck and settles into the existing
+        /// fan target. The approved spacing/order/hover geometry is untouched.
+        /// </summary>
+        public void AnimateDrawFrom(Vector3 localDeckPosition)
+        {
+            if (HandIndex < 0) return;
+            transform.localPosition = localDeckPosition;
+            transform.localScale = homeScale * 0.84f;
+            transform.localRotation = Quaternion.Euler(-9f, -16f, 0f);
+            arrivalRemaining = 0.44f;
+        }
+
         public void SetDragWorldPosition(Vector3 worldPosition)
         {
             if (HandIndex < 0) return;
             dragging = true;
+            arrivalRemaining = 0f;
             transform.position = worldPosition;
         }
 
@@ -124,6 +139,8 @@ namespace Reborn.Presentation
             // smoothly while keeping its collider attached to the card root.
             if (HandIndex < 0) return;
             float factor = 1f - Mathf.Exp(-14f * Time.deltaTime);
+            if (arrivalRemaining > 0f)
+                arrivalRemaining = Mathf.Max(0f, arrivalRemaining - Time.deltaTime);
             // Hover takes priority and lifts the focused card above its
             // neighbors; an off-hover fusion selection stays more subtle.
             float raise = hovered ? 0.80f : (selected ? 0.22f : 0f);
@@ -133,8 +150,13 @@ namespace Reborn.Presentation
                 transform.localPosition = Vector3.Lerp(transform.localPosition,
                     homeLocalPosition + Vector3.up * raise, factor);
             if (!dragging)
+            {
+                // Distinctive soft tilt on hover, with no change to the fan yaw.
+                var targetRotation = homeLocalRotation *
+                    Quaternion.Euler(hovered ? -5.5f : 0f, 0f, 0f);
                 transform.localRotation = Quaternion.Slerp(transform.localRotation,
-                    homeLocalRotation, factor);
+                    targetRotation, factor);
+            }
             transform.localScale = Vector3.Lerp(transform.localScale, homeScale * scale, factor);
         }
     }
