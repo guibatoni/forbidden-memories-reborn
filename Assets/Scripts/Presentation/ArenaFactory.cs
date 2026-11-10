@@ -14,6 +14,7 @@ namespace Reborn.Presentation
         private readonly Transform root;
         private Transform dynamicRoot;
         private bool handExpanded;
+        private int highlightedHandIndex = -1;
         private bool hasPendingPlace;
         private FieldLane pendingLane;
         private DuelSide pendingSide = DuelSide.Player;
@@ -148,7 +149,8 @@ namespace Reborn.Presentation
         /// <summary>Inverted fan with 0.90 table unit extra spacing when expanded.</summary>
         private CardView MakeHandCard(string name, CardDefinition card, int index, int count)
         {
-            var pose = HandFanGeometry.At(index, count, handExpanded);
+            var pose = HandFanGeometry.WithHoveredCard(index, count,
+                handExpanded, highlightedHandIndex);
             var position = new Vector3(pose.X, pose.Y, pose.Z);
             var view = MakeCard(name, card, index, position,
                 new Vector3(HandFanGeometry.CardWidth, 0.12f, HandFanGeometry.CardLength));
@@ -156,17 +158,36 @@ namespace Reborn.Presentation
             return view;
         }
 
-        /// <summary>Animate fan pose without recreating cards or losing selection.</summary>
+        /// <summary>Animate between arena and hand focus without rebuilding objects.</summary>
         public void SetHandFocus(bool expanded)
         {
             if (handExpanded == expanded) return;
             handExpanded = expanded;
+            RefreshHandTargets();
+        }
+
+        /// <summary>
+        /// Neighbor gaps update only when the hovered card changes.
+        /// Dragging and numbered fusion selections are not cleared.
+        /// </summary>
+        public void SetHandHover(int handIndex)
+        {
+            if (handIndex < -1 || handIndex >= HandViews.Count)
+                handIndex = -1;
+            if (highlightedHandIndex == handIndex) return;
+            highlightedHandIndex = handIndex;
+            RefreshHandTargets();
+        }
+
+        private void RefreshHandTargets()
+        {
             int count = HandViews.Count;
             for (int i = 0; i < count; i++)
             {
                 var card = HandViews[i];
                 if (card == null) continue;
-                var pose = HandFanGeometry.At(card.HandIndex, count, expanded);
+                var pose = HandFanGeometry.WithHoveredCard(card.HandIndex,
+                    count, handExpanded, highlightedHandIndex);
                 card.SetHandLayoutTarget(new Vector3(pose.X, pose.Y, pose.Z),
                     Quaternion.Euler(0f, pose.Yaw, 0f));
             }
@@ -304,6 +325,7 @@ namespace Reborn.Presentation
             if (dynamicRoot == null || match == null) return;
             HandViews.Clear();
             handExpanded = false;
+            highlightedHandIndex = -1;
             foreach (Transform child in dynamicRoot)
             {
                 child.gameObject.SetActive(false);
@@ -383,6 +405,7 @@ namespace Reborn.Presentation
             if (dynamicRoot == null) return;
             HandViews.Clear();
             handExpanded = false;
+            highlightedHandIndex = -1;
             foreach (Transform child in dynamicRoot)
             {
                 // Inativa colliders imediatamente; Destroy() e postergado ate o fim do frame.
