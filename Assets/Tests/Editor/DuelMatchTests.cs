@@ -205,7 +205,7 @@ namespace Reborn.Tests
         }
 
         [Test]
-        public void SetMonsterFlipsOnLaterTurnAndCannotMoveAfterAttack()
+        public void SetMonsterRemainsHiddenOnPositionChangesUntilItAttacks()
         {
             var match = new DuelMatch(
                 Deck(Monster("mine", 2100, 1400), Support("turn2Spell")),
@@ -216,20 +216,31 @@ namespace Reborn.Tests
             Assert.IsTrue(match.Player.Monster(0).FaceDown);
             Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Attack, out _));
+            Assert.IsTrue(match.Player.Monster(0).FaceDown,
+                "ATK stance must not expose a facedown monster");
+            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _),
+                "Choosing an identical stance is not a reveal action");
             Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Defense, out _));
+            Assert.IsTrue(match.Player.Monster(0).FaceDown);
             End(match, DuelSide.Player);
             Play(match, DuelSide.Opponent);
             End(match, DuelSide.Opponent);
             Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Attack, out _));
-            Assert.IsFalse(match.Player.Monster(0).FaceDown);
+            Assert.IsTrue(match.Player.Monster(0).FaceDown,
+                "FaceDown persists across turns and DEF -> ATK");
             Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Defense, out _));
             Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Attack, out _));
             Begin(match, DuelSide.Player);
+            Assert.IsTrue(match.Player.Monster(0).FaceDown,
+                "Beginning Battle is not a reveal event");
             Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, 0, out _));
+            Assert.IsFalse(match.Player.Monster(0).FaceDown,
+                "A facedown attacker is revealed by a resolved attack");
             Assert.IsTrue(match.Player.Monster(0).AttackedThisTurn);
             Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Defense, out _));
@@ -253,6 +264,38 @@ namespace Reborn.Tests
             Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, 0, out _));
             Assert.IsFalse(match.Opponent.Monster(0).FaceDown);
             Assert.AreEqual(7500, match.Player.Life);
+        }
+
+        [Test]
+        public void FacedownTargetCanSwitchToAttackWithoutRevealingUntilHit()
+        {
+            var match = Match(Monster("attacker", 1700, 800),
+                Monster("concealed", 900, 700));
+            Play(match, DuelSide.Player);
+            End(match, DuelSide.Player);
+            Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] { 0 },
+                FieldLane.Monster, 0, BattlePosition.Defense,
+                GuardianStar.None, true, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Opponent, 0,
+                BattlePosition.Attack, out _));
+            Assert.IsTrue(match.Opponent.Monster(0).FaceDown);
+            Assert.IsFalse(match.CanChangePosition(DuelSide.Opponent, 0,
+                BattlePosition.Attack, out _),
+                "Selecting an already active stance must be a no-op");
+            End(match, DuelSide.Opponent);
+            Begin(match, DuelSide.Player);
+            int before = match.Events.Count;
+            Assert.IsTrue(match.TryPreviewAttack(DuelSide.Player, 0, 0,
+                out _, out _));
+            Assert.AreEqual(before, match.Events.Count);
+            Assert.IsTrue(match.Opponent.Monster(0).FaceDown,
+                "Attack prediction must not reveal the target");
+            Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, 0, out _));
+            // The target may be destroyed in battle. Preserve evidence
+            // through the event instead of querying an emptied field slot.
+            Assert.IsTrue(match.Events.Count > before);
+            Assert.IsFalse(match.Opponent.Monster(0)?.FaceDown ?? false,
+                "If it survives, the target must be face-up");
         }
 
         [Test]
