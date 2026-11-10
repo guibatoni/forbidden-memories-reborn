@@ -1,3 +1,17 @@
+# Prototype 0.20 — Equips do Forbidden Memories (PS1)
+
+Equipamentos agora aumentam ATK/DEF de monstros compativeis, somam bonus,
+afetam combate e desaparecem do campo apos a ativacao, como no PS1.
+Megamorph (#657) e Bright Castle (#668) funcionam com compatibilidade
+universal documentada. Os demais podem ser acrescentados via tabela
+local verificada com SHA da ISO; efeitos sem comprovacao permanecem
+desabilitados. Equip pode ser aplicado da mao ou preparado Face Down
+para ativacao posterior, mediante confirmacao visual.
+
+[Guia, limites, IDs suportados e testes da 0.20](Docs/PROTOTYPE_0_20.md).
+
+---
+
 # Prototype 0.19 — Efeitos de magias do PS1
 
 O Reborn agora consegue executar 12 efeitos previamente documentados

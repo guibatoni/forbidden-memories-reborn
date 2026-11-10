@@ -23,7 +23,7 @@ namespace Reborn.Presentation
         private bool missingOriginalContent;
         private bool demoAcknowledged;
         public bool ContentImportRequired => missingOriginalContent && !demoAcknowledged;
-        public bool InputLocked => OpponentBusy || PlayerAttackBusy || ContentImportRequired || PlacementWizardOpen || StarterSelectionRequired;
+        public bool InputLocked => OpponentBusy || PlayerAttackBusy || ContentImportRequired || PlacementWizardOpen || EquipChoiceOpen || StarterSelectionRequired;
 
         /// <summary>No arbitrary placeholder gameplay before explicit demo opt-in.</summary>
         public void ConfigureContentAvailability(bool originalLoaded)
@@ -104,6 +104,7 @@ namespace Reborn.Presentation
         {
             if (match == null) return;
             CancelPlacementChoices();
+            CancelEquipChoice();
             DuelModeActive = active;
             OpponentBusy = false;
             PlayerAttackBusy = false;
@@ -126,6 +127,7 @@ namespace Reborn.Presentation
         public void ResetMatch(DuelMatch model)
         {
             CancelPlacementChoices();
+            CancelEquipChoice();
             match = model;
             OpponentBusy = false;
             PlayerAttackBusy = false;
@@ -167,7 +169,7 @@ namespace Reborn.Presentation
         {
             float x = pointer.x;
             float y = Screen.height - pointer.y;
-            return ContentImportRequired || StarterSelectionRequired || PlacementWizardOpen || CardInspectionOpen || showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
+            return ContentImportRequired || StarterSelectionRequired || PlacementWizardOpen || EquipChoiceOpen || CardInspectionOpen || showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
                 (x > Screen.width - 220f && y < 638f);
         }
 
@@ -217,6 +219,11 @@ namespace Reborn.Presentation
             if (StarterSelectionRequired)
             {
                 DrawStarterDeckChoice();
+                return;
+            }
+            if (EquipChoiceOpen)
+            {
+                DrawEquipChoice();
                 return;
             }
             if (PlacementWizardOpen)
@@ -347,7 +354,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.18",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.20",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -500,6 +507,11 @@ namespace Reborn.Presentation
                     var monster = match.Player.Monster(SelectedFieldMonster);
                     var next = monster.Position == BattlePosition.Attack ?
                         BattlePosition.Defense : BattlePosition.Attack;
+                    if (!monster.FaceDown && monster.EquipCount > 0)
+                        GUI.Label(new Rect(right+12,211,177,39),
+                            "ATK " + monster.EffectiveAttack +
+                            " / DEF " + monster.EffectiveDefense +
+                            "  (+" + monster.EquipAttackBonus + " Equip)",small);
                     GUI.enabled = player && !InputLocked &&
                         match.CanChangePosition(DuelSide.Player,SelectedFieldMonster,next,out _);
                     if (GUI.Button(new Rect(right+12,250,170,36),
@@ -509,11 +521,23 @@ namespace Reborn.Presentation
                 }
                 else if (SelectedSupportSlot >= 0)
                 {
-                    if (GUI.Button(new Rect(right+12,250,170,36),
-                        match.CanActivateSupport(DuelSide.Player,
-                            SelectedSupportSlot, out _) ?
-                        "Ativar magia setada" : "Efeito indisponivel",button))
-                        TryActivateSelectedSupport();
+                    var chosenSupport = match.Player.Support(SelectedSupportSlot);
+                    if (chosenSupport != null &&
+                        chosenSupport.Kind == CardKind.Equip)
+                    {
+                        GUI.Label(new Rect(right+12,244,176,59),
+                            "EQUIP setado: clique no seu monstro revelado para escolher o alvo.",small);
+                    }
+                    else
+                    {
+                        GUI.enabled = player && !InputLocked &&
+                            match.CanActivateSupport(DuelSide.Player,
+                                SelectedSupportSlot, out _);
+                        if (GUI.Button(new Rect(right+12,250,170,36),
+                            GUI.enabled ? "Ativar magia setada" : "Efeito indisponivel",button))
+                            TryActivateSelectedSupport();
+                        GUI.enabled = player && !InputLocked;
+                    }
                 }
                 else GUI.Label(new Rect(right+13,247,174,37),
                     "Selecione um monstro no campo para mudar ATK/DEF",small);

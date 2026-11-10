@@ -207,6 +207,13 @@ namespace Reborn.Presentation
                     hud.CancelPlacementChoices();
                 return;
             }
+            if (hud.EquipChoiceOpen)
+            {
+                if (Keyboard.current != null &&
+                    Keyboard.current.escapeKey.wasPressedThisFrame)
+                    hud.CancelEquipChoice();
+                return;
+            }
             if (match.Phase == MatchPhase.Finished || hud.InputLocked ||
                 match.CurrentSide != DuelSide.Player)
             {
@@ -368,6 +375,24 @@ namespace Reborn.Presentation
                 else if (zone != null && !zone.Opponent &&
                     zone.Lane == FieldLane.Monster &&
                     match.Player.Monster(zone.Index) != null &&
+                    hud.SelectedSupportSlot >= 0 &&
+                    match.Player.Support(hud.SelectedSupportSlot) != null &&
+                    match.Player.Support(hud.SelectedSupportSlot).Kind == CardKind.Equip)
+                {
+                    int supportSlot = hud.SelectedSupportSlot;
+                    int monsterSlot = zone.Index;
+                    if (match.CanEquipFromSupport(DuelSide.Player,
+                        supportSlot, monsterSlot, out var rule, out var reason))
+                    {
+                        hud.BeginEquipChoice(match.Player.Support(supportSlot),
+                            match.Player.Monster(monsterSlot), rule,
+                            () => CommitSetEquip(supportSlot, monsterSlot));
+                    }
+                    else hud.Message = reason;
+                }
+                else if (zone != null && !zone.Opponent &&
+                    zone.Lane == FieldLane.Monster &&
+                    match.Player.Monster(zone.Index) != null &&
                     match.Phase == MatchPhase.Main &&
                     hud.SelectedHandIndex >= 0 && fusionSelection.Count > 0)
                 {
@@ -406,10 +431,14 @@ namespace Reborn.Presentation
                     hud.SelectedSupportSlot = zone.Index;
                     hud.SelectedFieldMonster = -1;
                     hud.SelectedAttacker = -1;
-                    hud.Message = match.CanActivateSupport(DuelSide.Player,
-                        zone.Index, out var supportReason)
-                        ? "Magia pronta: use Ativar suporte setado no painel."
-                        : supportReason;
+                    var supportCard = match.Player.Support(zone.Index);
+                    if (supportCard != null && supportCard.Kind == CardKind.Equip)
+                        hud.Message = "Equip preparado: clique no seu monstro revelado.";
+                    else
+                        hud.Message = match.CanActivateSupport(DuelSide.Player,
+                            zone.Index, out var supportReason)
+                            ? "Magia pronta: use Ativar suporte setado no painel."
+                            : supportReason;
                 }
                 else if (zone != null && !zone.Opponent &&
                     match.Phase == MatchPhase.Main && hud.SelectedHandIndex >= 0)
@@ -476,6 +505,25 @@ namespace Reborn.Presentation
                 (IReadOnlyList<int>)fusionSelection : new[] { hud.SelectedHandIndex };
             bool onField = zone.Lane == FieldLane.Monster &&
                 match.Player.Monster(zone.Index) != null;
+            bool equipSelected = onField && selected.Count == 1 &&
+                selected[0] >= 0 && selected[0] < match.Player.Hand.Count &&
+                match.Player.Hand[selected[0]].Kind == CardKind.Equip;
+            if (equipSelected)
+            {
+                int selectedIndex = selected[0];
+                if (!match.CanEquipFromHand(DuelSide.Player, selectedIndex,
+                    zone.Index, out var equipRule, out var equipReason))
+                {
+                    hud.Message = equipReason;
+                    return;
+                }
+                var equip = match.Player.Hand[selectedIndex];
+                var target = match.Player.Monster(zone.Index);
+                int targetSlot = zone.Index;
+                hud.BeginEquipChoice(equip, target, equipRule,
+                    () => CommitEquipFromHand(selectedIndex, targetSlot));
+                return;
+            }
             bool ritual = onField && selected.Count == 1 &&
                 selected[0] >= 0 && selected[0] < match.Player.Hand.Count &&
                 match.Player.Hand[selected[0]].Kind == CardKind.Ritual;
@@ -505,6 +553,52 @@ namespace Reborn.Presentation
             // The wizard is presentation only; no card has been consumed yet.
             hud.BeginPlacementChoices(outcome, ritual,
                 () => CommitMatchCard(zone));
+        }
+
+        private bool CommitSetEquip(int supportSlot, int monsterSlot)
+        {
+            if (match == null) return false;
+            var card = match.Player.Support(supportSlot);
+            if (card == null) return false;
+            if (!match.TryEquipFromSupport(DuelSide.Player, supportSlot,
+                monsterSlot, out var reason))
+            {
+                hud.Message = reason;
+                return false;
+            }
+            hud.Announce("Equip preparado ativado: " + card.Name + ".");
+            hud.SelectedSupportSlot = -1;
+            hud.SelectedFieldMonster = monsterSlot;
+            UpdateLegalHighlights();
+            return true;
+        }
+
+        private bool CommitEquipFromHand(int handIndex, int monsterSlot)
+        {
+            if (match == null || match.Phase != MatchPhase.Main ||
+                handIndex < 0 || handIndex >= match.Player.Hand.Count)
+                return false;
+            var equip = match.Player.Hand[handIndex];
+            if (!match.CanEquipFromHand(DuelSide.Player, handIndex, monsterSlot,
+                out var rule, out var reason))
+            {
+                hud.Message = reason;
+                return false;
+            }
+            if (!match.TryEquipFromHand(DuelSide.Player, handIndex, monsterSlot,
+                out reason))
+            {
+                hud.Message = reason;
+                return false;
+            }
+            // The monster stays where it was. Its position and FaceDown are
+            // not changed, nor does its own artwork move from the hand.
+            hud.Announce("EQUIP: " + equip.Name +
+                "  ATK +" + rule.AttackGain + " / DEF +" + rule.DefenseGain);
+            hud.AfterHandPlacement();
+            hud.SelectedFieldMonster = monsterSlot;
+            UpdateLegalHighlights();
+            return true;
         }
 
         private bool CommitMatchCard(ZoneView zone)
@@ -760,11 +854,16 @@ namespace Reborn.Presentation
                     bool occupiedMonster = !zone.Opponent &&
                         zone.Lane == FieldLane.Monster &&
                         match.Player.Monster(zone.Index) != null;
+                    bool equipSelected = occupiedMonster &&
+                        selection.Count == 1 && selection[0] >= 0 &&
+                        selection[0] < match.Player.Hand.Count &&
+                        match.Player.Hand[selection[0]].Kind == CardKind.Equip;
                     bool ritualSelected = selection.Count == 1 &&
                         selection[0] >= 0 &&
                         selection[0] < match.Player.Hand.Count &&
                         match.Player.Hand[selection[0]].Kind == CardKind.Ritual;
-                    var card = ritualSelected && occupiedMonster ?
+                    var card = equipSelected ? match.Player.Hand[selection[0]] :
+                        ritualSelected && occupiedMonster ?
                         match.PreviewRitual(DuelSide.Player, selection[0]) :
                         occupiedMonster ?
                         match.PreviewFieldResult(DuelSide.Player, selection, zone.Index) :
@@ -772,7 +871,10 @@ namespace Reborn.Presentation
                     var star = card == null ? GuardianStar.None :
                         (hud.UseSecondaryStar ? card.StarB : card.StarA);
                     bool legal = !zone.Opponent && card != null &&
-                        (ritualSelected && occupiedMonster ?
+                        (equipSelected ?
+                            match.CanEquipFromHand(DuelSide.Player, selection[0],
+                                zone.Index, out _, out _) :
+                         ritualSelected && occupiedMonster ?
                             match.CanSummonRitual(DuelSide.Player, selection[0],
                                 zone.Index, star, out _, out _) :
                         occupiedMonster ?

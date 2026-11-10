@@ -202,6 +202,94 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void EquipApplicationStacksBonusesAndCombatUsesModifiedAttack()
+        {
+            var equip = new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+            var second = new CardDefinition("668","Bright Castle",CardKind.Equip,0,0,"");
+            var duel = new DuelMatch(
+                Deck(Monster("own",1700,1200),equip,second),
+                Deck(Monster("enemy",900,900)),
+                null,null,null,VerifiedEquipCatalog.OriginalPs1Foundation());
+            Play(duel,DuelSide.Player);
+            End(duel,DuelSide.Player);
+            Play(duel,DuelSide.Opponent);
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryEquipFromHand(DuelSide.Player,0,0,out var why),why);
+            var monster=duel.Player.Monster(0);
+            Assert.AreEqual(2700,monster.EffectiveAttack);
+            Assert.AreEqual(2200,monster.EffectiveDefense);
+            Assert.AreEqual(1,monster.EquipCount);
+            Assert.IsTrue(duel.TryPreviewAttack(DuelSide.Player,0,0,
+                out _, out _) == false, "Battle must be entered explicitly");
+            Begin(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPreviewAttack(DuelSide.Player,0,0,
+                out var forecast,out why),why);
+            Assert.AreEqual(2700,forecast.EffectiveAttack);
+            Assert.AreEqual(1000,forecast.AttackerEquipBonus);
+            Assert.AreEqual(1800,forecast.DamageToDefender);
+            End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Monster,1,BattlePosition.Attack,GuardianStar.None,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryEquipFromHand(DuelSide.Player,0,0,out why),why);
+            Assert.AreEqual(3200,duel.Player.Monster(0).EffectiveAttack);
+            Assert.AreEqual(2700,duel.Player.Monster(0).EffectiveDefense);
+            Assert.AreEqual(2,duel.Player.Monster(0).EquipCount);
+            Assert.IsNull(duel.Player.Support(0));
+            Assert.AreEqual(2,duel.Player.Graveyard.Count);
+        }
+
+        [Test]
+        public void IncompatibleAndHiddenEquipTargetsAreRejectedWithoutMutation()
+        {
+            var rules = new VerifiedEquipCatalog();
+            rules.AddTargets("315",500,500,new[]{"001"});
+            var equip = new CardDefinition("315","Dragon Treasure",CardKind.Equip,0,0,"");
+            var duel = new DuelMatch(
+                Deck(Monster("hidden",900,800),equip),
+                Deck(Monster("enemy",900,800)),null,null,null,rules);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,0,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            End(duel,DuelSide.Player);
+            Play(duel,DuelSide.Opponent);
+            End(duel,DuelSide.Opponent);
+            var events=duel.Events.Count;
+            Assert.IsFalse(duel.TryEquipFromHand(DuelSide.Player,0,0,out _));
+            Assert.AreEqual(events,duel.Events.Count);
+            Assert.IsTrue(duel.Player.Monster(0).FaceDown);
+            Assert.AreEqual(0,duel.Player.Monster(0).EquipCount);
+            Assert.IsFalse(duel.PlayedThisTurn);
+        }
+
+        [Test]
+        public void PreparedEquipCanTargetFaceupMonsterOnLaterTurn()
+        {
+            var magic = new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+            var duel = new DuelMatch(
+                Deck(Monster("own",1600,1400),magic),
+                Deck(Monster("enemy",1000,1000)),
+                null,null,null,VerifiedEquipCatalog.OriginalPs1Foundation());
+            Play(duel,DuelSide.Player);
+            End(duel,DuelSide.Player);
+            Play(duel,DuelSide.Opponent);
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,true,out _));
+            Assert.IsFalse(duel.CanEquipFromSupport(DuelSide.Player,0,0,out _,out _));
+            End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Monster,1,BattlePosition.Attack,GuardianStar.None,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryEquipFromSupport(DuelSide.Player,0,0,out _));
+            Assert.AreEqual(2600,duel.Player.Monster(0).EffectiveAttack);
+            Assert.IsNull(duel.Player.Support(0));
+            Assert.IsFalse(duel.PlayedThisTurn);
+            Assert.IsFalse(duel.TryEquipFromSupport(DuelSide.Player,0,0,out _));
+        }
+
+        [Test]
         public void FieldFusionStartsWithTableCardThenConsumesHandInSelectionOrder()
         {
             var recipes = new FusionCatalog();
