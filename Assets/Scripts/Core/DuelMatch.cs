@@ -67,6 +67,7 @@ namespace Reborn.Core
         private readonly MonsterOnField[] monsters = new MonsterOnField[5];
         private readonly CardDefinition[] supports = new CardDefinition[5];
         private readonly bool[] supportFaceDown = new bool[5];
+        private readonly int[] supportSetTurn = new int[5];
 
         internal MatchSide(IReadOnlyList<CardDefinition> original)
         {
@@ -80,6 +81,8 @@ namespace Reborn.Core
         public CardDefinition Support(int slot) => slot >= 0 && slot < 5 ? supports[slot] : null;
         public bool SupportIsFaceDown(int slot) =>
             slot >= 0 && slot < 5 && supports[slot] != null && supportFaceDown[slot];
+        public int SupportSetTurn(int slot) =>
+            slot >= 0 && slot < 5 && supports[slot] != null ? supportSetTurn[slot] : -1;
         internal CardDefinition Draw() => deck.Count == 0 ? null : deck.Dequeue();
         internal void Give(CardDefinition card) => hand.Add(card);
         internal CardDefinition Take(int handIndex)
@@ -87,10 +90,12 @@ namespace Reborn.Core
             var card = hand[handIndex]; hand.RemoveAt(handIndex); return card;
         }
         internal void SetMonster(int index, MonsterOnField monster) => monsters[index] = monster;
-        internal void SetSupport(int index, CardDefinition card, bool faceDown = false)
+        internal void SetSupport(int index, CardDefinition card,
+            bool faceDown = false, int placedTurn = -1)
         {
             supports[index] = card;
             supportFaceDown[index] = card != null && faceDown;
+            supportSetTurn[index] = card != null ? placedTurn : -1;
         }
         internal void Bury(CardDefinition card) { if (card != null) graveyard.Add(card); }
         internal void ReadyMonsters()
@@ -293,7 +298,7 @@ namespace Reborn.Core
             }
             if (lane == FieldLane.Monster)
                 state.SetMonster(slot, new MonsterOnField(result, position, star, faceDown, Turn));
-            else state.SetSupport(slot, result, faceDown);
+            else state.SetSupport(slot, result, faceDown, Turn);
             hasPlayed = true;
             Emit(MatchEventKind.Play, side, result.Id, lane, slot);
             SignalChanged();
@@ -346,6 +351,10 @@ namespace Reborn.Core
                 return Reject(out reason, "Fora do turno");
             if (slot < 0 || slot >= ZoneCount || Side(side).Support(slot) == null)
                 return Reject(out reason, "Nao ha suporte nesta zona");
+            if (!Side(side).SupportIsFaceDown(slot))
+                return Reject(out reason, "Somente suporte setado virado para baixo pode ser ativado");
+            if (Side(side).SupportSetTurn(slot) == Turn)
+                return Reject(out reason, "Suporte recem-setado: aguarde seu proximo turno");
             return Reject(out reason, "Efeito nao validado: ativacao indisponivel nesta versao");
         }
 
