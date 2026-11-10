@@ -42,6 +42,7 @@ namespace Reborn.Presentation
             public string effectText;
             public string effectSource;
             public string effectStatus;
+            public string typeLabel;
             public string guardianStarA;
             public string guardianStarB;
         }
@@ -126,7 +127,8 @@ namespace Reborn.Presentation
                         throw new InvalidDataException("Guardian Stars devem vir em par: #" + entry.id);
                     cards.Add(new CardDefinition(entry.id.ToString("000"),entry.name,kind,
                         entry.attack,entry.defense,entry.description,a,b,
-                        entry.effectText,entry.effectSource,entry.effectStatus));
+                        entry.effectText,entry.effectSource,entry.effectStatus,
+                        entry.typeLabel));
                 }
                 // Only fusions explicitly flagged as verified are accepted.
                 // The flag is source metadata, not proof of binary equivalence.
