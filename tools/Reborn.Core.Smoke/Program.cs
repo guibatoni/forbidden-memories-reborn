@@ -126,9 +126,128 @@ internal static class Program
         }
     }
 
+    private static void CheckVerifiedMagicEngine()
+    {
+        var spells = VerifiedSpellCatalog.OriginalPs1Core();
+        Check(spells.Count == 12 &&
+            spells.TryGet(S("338"), out var recovery) &&
+            recovery.Amount == 200 &&
+            recovery.Operation == VerifiedSpellOperation.RestoreLife &&
+            !spells.TryGet(S("701"), out _),
+            "0.19 PS1 rule catalog has explicit audited IDs, not arbitrary effect text");
+
+        var healing = new DuelMatch(Deck(S("338")), Deck(M("enemy",1000,900)),
+            null, null, spells);
+        Check(healing.TryPlay(DuelSide.Player, new[]{0}, FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out var why) &&
+            healing.Player.Life == 8200 &&
+            healing.Player.Support(0) == null &&
+            healing.Player.Graveyard.Count == 1 &&
+            healing.Player.Graveyard[0].Id == "338" &&
+            healing.Events.Any(e=>e.Kind==MatchEventKind.SupportActivated &&
+                e.CardId=="338") &&
+            healing.Events.Any(e=>e.Kind==MatchEventKind.LifeChanged &&
+                e.Value==200), "0.19 face-up Mooyan Curry heals 200 and goes to graveyard");
+        Check(!healing.TryPlay(DuelSide.Player,new[]{0},FieldLane.Monster,1,
+            BattlePosition.Attack,GuardianStar.None,out _),
+            "0.19 instant spell still consumes exactly one mandatory play");
+
+        var fakeEffect = new CardDefinition("701","Synthetic unverified",
+            CardKind.Spell,0,0,"",GuardianStar.None,GuardianStar.None,
+            "Destroy all cards and win","untrusted-text","not-a-verified-rule");
+        var unknown = new DuelMatch(Deck(fakeEffect), Deck(M("enemy",1500,1200)),
+            null,null,spells);
+        int beforeEvents=unknown.Events.Count;
+        int beforeHand=unknown.Player.Hand.Count;
+        Check(!unknown.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            unknown.Events.Count==beforeEvents &&
+            unknown.Player.Hand.Count==beforeHand &&
+            !unknown.PlayedThisTurn &&
+            unknown.Player.Support(0)==null,
+            "0.19 unknown face-up spell is rejected atomically; text cannot execute");
+        Check(unknown.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _) &&
+            unknown.Player.Support(0)?.Id=="701" &&
+            !unknown.CanActivateSupport(DuelSide.Player,0,out _),
+            "0.19 unknown spell can be prepared facedown without fabricating an effect");
+
+        var prepared = new DuelMatch(Deck(S("343")),
+            Deck(M("rival",1000,1000)),null,null,spells);
+        Check(prepared.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _) &&
+            !prepared.CanActivateSupport(DuelSide.Player,0,out _),
+            "0.19 facedown Sparks remains hidden and cannot activate in placement turn");
+        End(prepared,DuelSide.Player);
+        Play(prepared,DuelSide.Opponent);
+        End(prepared,DuelSide.Opponent);
+        int supportEvents = prepared.Events.Count;
+        Check(prepared.CanActivateSupport(DuelSide.Player,0,out _) &&
+            prepared.Events.Count==supportEvents &&
+            prepared.TryActivateSupport(DuelSide.Player,0,out _) &&
+            prepared.Opponent.Life==7950 &&
+            prepared.Player.Support(0)==null &&
+            prepared.Player.Graveyard.Count==1 &&
+            !prepared.PlayedThisTurn &&
+            prepared.Events.Any(e=>e.Kind==MatchEventKind.SupportActivated &&
+                e.CardId=="343"),
+            "0.19 previously set Sparks activates later without spending a second placement");
+        Check(!prepared.TryActivateSupport(DuelSide.Player,0,out _),
+            "0.19 spent spell cannot be activated twice");
+
+        var lightning = new DuelMatch(
+            Deck(M("mine",1900,1600),S("337")),
+            Deck(M("enemy",2000,1400)),null,null,spells);
+        Play(lightning,DuelSide.Player);
+        End(lightning,DuelSide.Player);
+        Play(lightning,DuelSide.Opponent);
+        End(lightning,DuelSide.Opponent);
+        Check(lightning.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            lightning.Player.Monster(0)!=null &&
+            lightning.Opponent.Monster(0)==null &&
+            lightning.Opponent.Graveyard.Any(c=>c.Id=="enemy") &&
+            lightning.Events.Any(e=>e.Kind==MatchEventKind.Destroy &&
+                e.Side==DuelSide.Opponent && e.Lane==FieldLane.Monster),
+            "0.19 Raigeki destroys opponent monsters but not allied monsters");
+
+        var dark = new DuelMatch(
+            Deck(M("own",900,1200),S("336")),
+            Deck(M("foe",1000,1000)),null,null,spells);
+        Play(dark,DuelSide.Player);
+        End(dark,DuelSide.Player);
+        Play(dark,DuelSide.Opponent);
+        End(dark,DuelSide.Opponent);
+        Check(dark.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            dark.Player.MonsterCount==0 &&
+            dark.Opponent.MonsterCount==0 &&
+            dark.Player.Graveyard.Any(c=>c.Id=="own") &&
+            dark.Opponent.Graveyard.Any(c=>c.Id=="foe"),
+            "0.19 Dark Hole wipes both monster rows and buries physical cards");
+
+        var lethal = new DuelMatch(Deck(S("343")),Deck(M("other",800,800)),
+            null,null,spells);
+        lethal.Opponent.Life=40;
+        Check(lethal.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            lethal.Opponent.Life==0 &&
+            lethal.Phase==MatchPhase.Finished &&
+            lethal.Winner==DuelSide.Player,
+            "0.19 magical damage can finish a duel without an attack");
+
+        var noRules = new DuelMatch(Deck(S("343")),Deck(M("other",800,800)));
+        Check(noRules.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            noRules.Opponent.Life==8000 &&
+            noRules.Player.Support(0)!=null,
+            "0.19 synthetic training mode never executes Original PS1 spells");
+    }
+
     private static void Main()
     {
         CheckOriginalStarterChoices();
+        CheckVerifiedMagicEngine();
         var m = Match(M("mine",2000,1500),M("theirs",1200,800));
         Check(!m.TryEndTurn(DuelSide.Player,out _),
             "START cannot pass before one card has been played");

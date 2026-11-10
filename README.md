@@ -1,3 +1,15 @@
+# Prototype 0.19 — Efeitos de magias do PS1
+
+O Reborn agora consegue executar 12 efeitos previamente documentados
+de magias da edicao Original: cura de LP, dano direto, Raigeki e Dark Hole.
+Magias Face Up ativam imediatamente; Face Down podem ser ativadas
+posteriormente. Efeitos sem validacao nao executam dados textuais
+arbitrarios extraidos do DUELTRACE.
+
+[Controles, lista de IDs e roteiro de testes da 0.19](Docs/PROTOTYPE_0_19.md).
+
+---
+
 # Prototype 0.18.1 — Face Down preservada em ATK/DEF
 
 Corrigido: um monstro colocado virado para baixo permanece oculto

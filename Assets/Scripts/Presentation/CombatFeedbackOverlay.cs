@@ -42,7 +42,10 @@ namespace Reborn.Presentation
             if (hud == null || !hud.DuelModeActive || !hud.AnimationsEnabled) return;
             if (evt.Kind == MatchEventKind.LifeChanged && evt.Value != 0)
             {
-                Add(evt.Side,"-" + Mathf.Abs(evt.Value) + " LP",new Color(1f,0.46f,0.31f));
+                Add(evt.Side,(evt.Value > 0 ? "+" : "-") +
+                    Mathf.Abs(evt.Value) + " LP",
+                    evt.Value > 0 ? new Color(0.42f,1f,0.65f) :
+                        new Color(1f,0.46f,0.31f));
             }
             else if (evt.Kind == MatchEventKind.Destroy)
             {

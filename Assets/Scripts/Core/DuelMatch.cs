@@ -132,6 +132,7 @@ namespace Reborn.Core
         private readonly MatchSide opponent;
         private readonly FusionCatalog fusions;
         private readonly RitualCatalog rituals;
+        private readonly VerifiedSpellCatalog verifiedSpells;
         private readonly List<MatchEvent> history = new List<MatchEvent>();
         private long sequence;
         private bool hasPlayed;
@@ -149,7 +150,8 @@ namespace Reborn.Core
 
         public DuelMatch(IReadOnlyList<CardDefinition> playerDeck,
             IReadOnlyList<CardDefinition> opponentDeck, FusionCatalog catalog = null,
-            RitualCatalog ritualCatalog = null)
+            RitualCatalog ritualCatalog = null,
+            VerifiedSpellCatalog spellCatalog = null)
         {
             CheckDeck(playerDeck, nameof(playerDeck));
             CheckDeck(opponentDeck, nameof(opponentDeck));
@@ -157,6 +159,7 @@ namespace Reborn.Core
             opponent = new MatchSide(opponentDeck);
             fusions = catalog ?? new FusionCatalog();
             rituals = ritualCatalog ?? new RitualCatalog();
+            verifiedSpells = spellCatalog ?? new VerifiedSpellCatalog();
             Emit(MatchEventKind.Reset, DuelSide.Player);
             DrawToHand(player, DuelSide.Player, false);
             DrawToHand(opponent, DuelSide.Opponent, false);
@@ -263,6 +266,18 @@ namespace Reborn.Core
             BattlePosition position, GuardianStar star, bool faceDown, out string reason)
         {
             if (!CanPlay(side, indices, lane, slot, star, out reason)) return false;
+            var preview = PreviewResult(side, indices);
+            if (verifiedSpells.Count > 0 && lane == FieldLane.Support &&
+                !faceDown && preview != null && preview.Kind != CardKind.Spell)
+                return Reject(out reason,
+                    "Carta sem ativacao face-up validada: use face-down ou uma acao especial");
+            bool resolveInstantSpell = verifiedSpells.Count > 0 &&
+                lane == FieldLane.Support && !faceDown &&
+                preview != null && preview.Kind == CardKind.Spell;
+            VerifiedSpellRule spellRule = null;
+            if (resolveInstantSpell && !verifiedSpells.TryGet(preview, out spellRule))
+                return Reject(out reason,
+                    "Magia sem efeito verificado: sete-a virada para baixo ou importe a regra original");
             var state = Side(side);
             // Only physical hand cards can go to the graveyard. Intermediate
             // fusion results are virtual and must never be buried as materials.
@@ -303,9 +318,24 @@ namespace Reborn.Core
             }
             if (lane == FieldLane.Monster)
                 state.SetMonster(slot, new MonsterOnField(result, position, star, faceDown, Turn));
-            else state.SetSupport(slot, result, faceDown, Turn);
+            else if (!resolveInstantSpell)
+                state.SetSupport(slot, result, faceDown, Turn);
             hasPlayed = true;
             Emit(MatchEventKind.Play, side, result.Id, lane, slot);
+            if (resolveInstantSpell)
+            {
+                // The face-up PS1 spell resolves immediately and never remains
+                // on the support board. A virtual fusion result is not buried;
+                // only a surviving physical hand card enters the graveyard.
+                if (survivingOriginalIndex >= 0)
+                {
+                    state.Bury(result);
+                    Emit(MatchEventKind.Graveyard, side, result.Id, FieldLane.Support, slot);
+                }
+                Emit(MatchEventKind.SupportActivated, side, result.Id,
+                    FieldLane.Support, slot);
+                ApplyVerifiedSpell(side, spellRule);
+            }
             SignalChanged();
             return true;
         }
@@ -370,8 +400,8 @@ namespace Reborn.Core
         }
 
         /// <summary>
-        /// Support cards can be prepared face-down. We do not simulate magic/
-        /// trap/equip effects without a validated resolver from the game data.
+        /// Read-only activation check. Face-down magic may be activated on a
+        /// subsequent turn; equip and trap behavior requires audited rules.
         /// </summary>
         public bool CanActivateSupport(DuelSide side, int slot, out string reason)
         {
@@ -379,11 +409,16 @@ namespace Reborn.Core
                 return Reject(out reason, "Fora do turno");
             if (slot < 0 || slot >= ZoneCount || Side(side).Support(slot) == null)
                 return Reject(out reason, "Nao ha suporte nesta zona");
-            if (!Side(side).SupportIsFaceDown(slot))
+            var owner = Side(side);
+            var card = owner.Support(slot);
+            if (!owner.SupportIsFaceDown(slot))
                 return Reject(out reason, "Somente suporte setado virado para baixo pode ser ativado");
-            if (Side(side).SupportSetTurn(slot) == Turn)
+            if (owner.SupportSetTurn(slot) == Turn)
                 return Reject(out reason, "Suporte recem-setado: aguarde seu proximo turno");
-            return Reject(out reason, "Efeito nao validado: ativacao indisponivel nesta versao");
+            if (!verifiedSpells.TryGet(card, out _))
+                return Reject(out reason, "Efeito nao verificado para esta magia, equip ou trap");
+            reason = "";
+            return true;
         }
 
         public bool TryBeginBattle(DuelSide side, out string reason)

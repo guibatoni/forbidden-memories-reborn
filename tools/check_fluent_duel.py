@@ -28,7 +28,7 @@ checks = {
         "new MonsterOnField(result, position, star, faceDown, Turn)" in core,
     "support face-down status and set turn tracked": "SupportIsFaceDown" in core and
         "SupportSetTurn" in core,
-    "previously set support cannot fake unverified effects": "Efeito nao validado" in core and
+    "previously set support cannot fake unverified effects": "Efeito nao verificado" in core and
         "Suporte recem-setado" in core,
     "monsters can change positions through duel engine": "public bool TryChangePosition(" in core,
     "no position change after attacking": "if (monster.AttackedThisTurn)" in core,

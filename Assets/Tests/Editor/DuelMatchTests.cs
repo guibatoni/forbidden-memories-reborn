@@ -89,6 +89,119 @@ namespace Reborn.Tests
 
 
         [Test]
+        public void VerifiedOriginalMagicHealsAndAutomaticallyLeavesSupportZone()
+        {
+            var duel = new DuelMatch(
+                Deck(Support("339")), Deck(Monster("enemy", 1000, 1000)),
+                null, null, VerifiedSpellCatalog.OriginalPs1Core());
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player, new[]{0},
+                FieldLane.Support, 1, BattlePosition.Attack,
+                GuardianStar.None, false, out var reason), reason);
+            Assert.AreEqual(8500, duel.Player.Life);
+            Assert.IsNull(duel.Player.Support(1));
+            Assert.AreEqual("339", duel.Player.Graveyard.Last().Id);
+            Assert.IsTrue(duel.Events.Any(e => e.Kind ==
+                MatchEventKind.LifeChanged && e.Value == 500));
+            Assert.IsTrue(duel.PlayedThisTurn);
+        }
+
+        [Test]
+        public void UnverifiedEffectTextCannotActivateOrConsumeCards()
+        {
+            var raw = new CardDefinition("700","Untrusted",CardKind.Spell,
+                0,0,"",GuardianStar.None,GuardianStar.None,
+                "Wipe every card", "external-note", "unverified");
+            var duel = new DuelMatch(Deck(raw),Deck(Monster("enemy",1000,1000)),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core());
+            int before = duel.Events.Count;
+            Assert.IsFalse(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(before,duel.Events.Count);
+            Assert.AreEqual(5,duel.Player.Hand.Count);
+            Assert.IsFalse(duel.PlayedThisTurn);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,true,out _));
+            Assert.IsFalse(duel.CanActivateSupport(DuelSide.Player,0,out _));
+        }
+
+        [Test]
+        public void PreviouslySetMagicActivatesOnlyAfterItsPlacementTurn()
+        {
+            var duel = new DuelMatch(
+                Deck(Support("343")), Deck(Monster("enemy",1000,1000)),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core());
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,2,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            Assert.IsFalse(duel.CanActivateSupport(DuelSide.Player,2,out _));
+            End(duel,DuelSide.Player);
+            Play(duel,DuelSide.Opponent);
+            End(duel,DuelSide.Opponent);
+            int events = duel.Events.Count;
+            Assert.IsTrue(duel.CanActivateSupport(DuelSide.Player,2,out _));
+            Assert.AreEqual(events,duel.Events.Count);
+            Assert.IsTrue(duel.TryActivateSupport(DuelSide.Player,2,out _));
+            Assert.AreEqual(7950,duel.Opponent.Life);
+            Assert.IsNull(duel.Player.Support(2));
+            Assert.IsFalse(duel.PlayedThisTurn);
+            Assert.IsFalse(duel.TryActivateSupport(DuelSide.Player,2,out _));
+        }
+
+        [Test]
+        public void RaigekiAndDarkHoleOnlyDestroyTheExpectedFields()
+        {
+            var catalogue = VerifiedSpellCatalog.OriginalPs1Core();
+            var lightning = new DuelMatch(
+                Deck(Monster("own",1800,1800),Support("337")),
+                Deck(Monster("foe",1800,1600)),null,null,catalogue);
+            Play(lightning,DuelSide.Player);
+            End(lightning,DuelSide.Player);
+            Play(lightning,DuelSide.Opponent);
+            End(lightning,DuelSide.Opponent);
+            Assert.IsTrue(lightning.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.IsNotNull(lightning.Player.Monster(0));
+            Assert.IsNull(lightning.Opponent.Monster(0));
+            var dark = new DuelMatch(
+                Deck(Monster("my",700,700),Support("336")),
+                Deck(Monster("foe",800,800)),null,null,catalogue);
+            Play(dark,DuelSide.Player);
+            End(dark,DuelSide.Player);
+            Play(dark,DuelSide.Opponent);
+            End(dark,DuelSide.Opponent);
+            Assert.IsTrue(dark.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,1,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(0,dark.Player.MonsterCount);
+            Assert.AreEqual(0,dark.Opponent.MonsterCount);
+            Assert.IsTrue(dark.Player.Graveyard.Any(c=>c.Id=="my"));
+            Assert.IsTrue(dark.Opponent.Graveyard.Any(c=>c.Id=="foe"));
+        }
+
+        [Test]
+        public void VerifiedSpellCannotTurnInertTrapOrEquipFaceUp()
+        {
+            var catalogue = VerifiedSpellCatalog.OriginalPs1Core();
+            foreach(var kind in new[]{CardKind.Trap,CardKind.Equip,
+                CardKind.Ritual})
+            {
+                var duel = new DuelMatch(
+                    Deck(Support("special",kind)),
+                    Deck(Monster("enemy",1000,1000)),null,null,catalogue);
+                Assert.IsFalse(duel.TryPlay(DuelSide.Player,new[]{0},
+                    FieldLane.Support,0,BattlePosition.Attack,
+                    GuardianStar.None,false,out _));
+                Assert.IsFalse(duel.PlayedThisTurn);
+                Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                    FieldLane.Support,0,BattlePosition.Attack,
+                    GuardianStar.None,true,out _));
+            }
+        }
+
+        [Test]
         public void FieldFusionStartsWithTableCardThenConsumesHandInSelectionOrder()
         {
             var recipes = new FusionCatalog();

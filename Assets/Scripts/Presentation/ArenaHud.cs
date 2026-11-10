@@ -510,7 +510,9 @@ namespace Reborn.Presentation
                 else if (SelectedSupportSlot >= 0)
                 {
                     if (GUI.Button(new Rect(right+12,250,170,36),
-                        "Ativar suporte setado",button))
+                        match.CanActivateSupport(DuelSide.Player,
+                            SelectedSupportSlot, out _) ?
+                        "Ativar magia setada" : "Efeito indisponivel",button))
                         TryActivateSelectedSupport();
                 }
                 else GUI.Label(new Rect(right+13,247,174,37),
