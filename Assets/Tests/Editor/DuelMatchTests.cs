@@ -64,6 +64,70 @@ namespace Reborn.Tests
             return match;
         }
 
+
+        [Test]
+        public void SetMonsterFlipsOnLaterTurnAndCannotMoveAfterAttack()
+        {
+            var match = Match(Monster("mine", 2100, 1400), Monster("enemy", 1200, 900));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0 },
+                FieldLane.Monster, 0, BattlePosition.Defense,
+                GuardianStar.None, true, out _));
+            Assert.IsTrue(match.Player.Monster(0).FaceDown);
+            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _));
+            End(match, DuelSide.Player);
+            Play(match, DuelSide.Opponent);
+            End(match, DuelSide.Opponent);
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _));
+            Assert.IsFalse(match.Player.Monster(0).FaceDown);
+            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
+            Begin(match, DuelSide.Player);
+            Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, 0, out _));
+            Assert.IsTrue(match.Player.Monster(0).AttackedThisTurn);
+            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
+        }
+
+        [Test]
+        public void FaceDownDefenderStaysHiddenDuringPreviewAndRevealsOnAttack()
+        {
+            var match = Match(Monster("mine", 1300, 900), Monster("wall", 500, 1800));
+            Play(match, DuelSide.Player);
+            End(match, DuelSide.Player);
+            Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] { 0 },
+                FieldLane.Monster, 0, BattlePosition.Defense,
+                GuardianStar.None, true, out _));
+            End(match, DuelSide.Opponent);
+            Begin(match, DuelSide.Player);
+            int before = match.Events.Count;
+            Assert.IsTrue(match.TryPreviewAttack(DuelSide.Player, 0, 0, out _, out _));
+            Assert.AreEqual(before, match.Events.Count);
+            Assert.IsTrue(match.Opponent.Monster(0).FaceDown);
+            Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, 0, out _));
+            Assert.IsFalse(match.Opponent.Monster(0).FaceDown);
+            Assert.AreEqual(7500, match.Player.Life);
+        }
+
+        [Test]
+        public void SupportsRequirePriorFacedownSetAndVerifiedEffect()
+        {
+            var match = new DuelMatch(Deck(Support("spell")), Deck(Monster("enemy", 1000, 1000)));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0 },
+                FieldLane.Support, 2, BattlePosition.Attack,
+                GuardianStar.None, true, out _));
+            Assert.IsTrue(match.Player.SupportIsFaceDown(2));
+            Assert.AreEqual(1, match.Player.SupportSetTurn(2));
+            Assert.IsFalse(match.CanActivateSupport(DuelSide.Player, 2, out _));
+            End(match, DuelSide.Player);
+            Play(match, DuelSide.Opponent);
+            End(match, DuelSide.Opponent);
+            Assert.IsFalse(match.CanActivateSupport(DuelSide.Player, 2, out var reason));
+            StringAssert.Contains("nao validado", reason);
+            Assert.IsTrue(match.Player.SupportIsFaceDown(2));
+        }
+
         [Test]
         public void CanAttackPreviewDoesNotChangeStateOrEmitEvents()
         {
