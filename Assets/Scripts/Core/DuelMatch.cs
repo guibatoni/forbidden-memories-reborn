@@ -271,8 +271,9 @@ namespace Reborn.Core
                 !faceDown && preview != null && preview.Kind != CardKind.Spell)
                 return Reject(out reason,
                     "Carta sem ativacao face-up validada: use face-down ou uma acao especial");
-            bool resolveInstantSpell = lane == FieldLane.Support &&
-                !faceDown && preview != null && preview.Kind == CardKind.Spell;
+            bool resolveInstantSpell = verifiedSpells.Count > 0 &&
+                lane == FieldLane.Support && !faceDown &&
+                preview != null && preview.Kind == CardKind.Spell;
             VerifiedSpellRule spellRule = null;
             if (resolveInstantSpell && !verifiedSpells.TryGet(preview, out spellRule))
                 return Reject(out reason,
