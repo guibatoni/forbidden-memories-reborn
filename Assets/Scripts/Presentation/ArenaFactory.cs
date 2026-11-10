@@ -144,6 +144,23 @@ namespace Reborn.Presentation
             return CardFaceBuilder.Create(name, dynamicRoot, card, handIndex, pos, size, hidden);
         }
 
+        /// <summary>
+        /// Visible full-size cards overlap naturally in a five-card tabletop fan.
+        /// The highest hover/selected card lifts above neighboring colliders.
+        /// All hand positions remain in front of the fixed arena camera.
+        /// </summary>
+        private CardView MakeHandCard(string name, CardDefinition card, int index, int count)
+        {
+            float spread = index - (count - 1) * 0.5f;
+            float x = spread * 1.05f;
+            float z = -7.38f + Mathf.Abs(spread) * 0.22f;
+            var view = MakeCard(name, card, index,
+                new Vector3(x, 0.57f + Mathf.Abs(spread) * 0.012f, z),
+                new Vector3(1.90f, 0.12f, 2.55f));
+            view.SetFanRotation(spread * -9.5f);
+            return view;
+        }
+
         public void StagePlacement(FieldLane lane, int slot, Vector3 fromWorld, bool animate)
         {
             StageMatchPlacement(DuelSide.Player, lane, slot, fromWorld, animate);
@@ -234,10 +251,7 @@ namespace Reborn.Presentation
             var hand = match.Player.Hand;
             for (int i = 0; i < hand.Count; i++)
             {
-                float x = (i - (hand.Count-1)*0.5f)*1.63f;
-                float z = -7.22f + Mathf.Abs(i - (hand.Count-1)*0.5f)*0.10f;
-                var view = MakeCard("Match_Hand_" + (i+1),hand[i],i,
-                    new Vector3(x,0.45f,z),new Vector3(1.32f,0.12f,1.64f));
+                var view = MakeHandCard("Match_Hand_" + (i+1), hand[i], i, hand.Count);
                 HandViews.Add(view);
             }
             foreach (var side in new [] { DuelSide.Player, DuelSide.Opponent })
@@ -251,7 +265,7 @@ namespace Reborn.Presentation
                     {
                         var placed = MakeCard(side+"_Monster_"+i,monster.Card,-1,
                             new Vector3((i-2)*2.4f,0.39f,sign*2.0f),
-                            new Vector3(1.51f,0.12f,1.71f));
+                            new Vector3(1.51f,0.12f,1.71f), monster.FaceDown);
                         if (monster.Position == BattlePosition.Defense)
                             placed.transform.rotation = Quaternion.Euler(0f,90f,0f);
                         if (side == pendingSide && hasPendingPlace && pendingAnimate &&
@@ -263,7 +277,8 @@ namespace Reborn.Presentation
                     {
                         var placed = MakeCard(side+"_Support_"+i,support,-1,
                             new Vector3((i-2)*2.4f,0.39f,sign*4.35f),
-                            new Vector3(1.51f,0.12f,1.71f),side == DuelSide.Opponent);
+                            new Vector3(1.51f,0.12f,1.71f),
+                            side == DuelSide.Opponent || state.SupportIsFaceDown(i));
                         if (side == pendingSide && hasPendingPlace && pendingAnimate &&
                             pendingLane == FieldLane.Support && pendingSlot == i)
                             placed.gameObject.AddComponent<CardMotion>().Play(pendingOrigin,placed.transform.position);
@@ -314,10 +329,7 @@ namespace Reborn.Presentation
             }
             for (int i = 0; i < session.Hand.Count; i++)
             {
-                float x = (i - (session.Hand.Count-1)*0.5f)*1.63f;
-                float z = -7.22f + Mathf.Abs(i - (session.Hand.Count-1)*0.5f)*0.10f;
-                var view = MakeCard("Hand_"+(i+1),session.Hand[i],i,new Vector3(x,0.45f,z),
-                    new Vector3(1.32f,0.12f,1.64f));
+                var view = MakeHandCard("Hand_" + (i+1), session.Hand[i], i, session.Hand.Count);
                 HandViews.Add(view);
             }
             for (int i = 0; i < 5; i++)
