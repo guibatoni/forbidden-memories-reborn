@@ -23,7 +23,7 @@ namespace Reborn.Presentation
         private bool missingOriginalContent;
         private bool demoAcknowledged;
         public bool ContentImportRequired => missingOriginalContent && !demoAcknowledged;
-        public bool InputLocked => OpponentBusy || PlayerAttackBusy || ContentImportRequired || PlacementWizardOpen;
+        public bool InputLocked => OpponentBusy || PlayerAttackBusy || ContentImportRequired || PlacementWizardOpen || StarterSelectionRequired;
 
         /// <summary>No arbitrary placeholder gameplay before explicit demo opt-in.</summary>
         public void ConfigureContentAvailability(bool originalLoaded)
@@ -167,7 +167,7 @@ namespace Reborn.Presentation
         {
             float x = pointer.x;
             float y = Screen.height - pointer.y;
-            return ContentImportRequired || PlacementWizardOpen || CardInspectionOpen || showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
+            return ContentImportRequired || StarterSelectionRequired || PlacementWizardOpen || CardInspectionOpen || showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
                 (x > Screen.width - 220f && y < 638f);
         }
 
@@ -212,6 +212,11 @@ namespace Reborn.Presentation
             if (ContentImportRequired)
             {
                 DrawMissingOriginalContent();
+                return;
+            }
+            if (StarterSelectionRequired)
+            {
+                DrawStarterDeckChoice();
                 return;
             }
             if (PlacementWizardOpen)
