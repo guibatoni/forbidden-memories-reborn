@@ -278,7 +278,7 @@ namespace Reborn.Presentation
                         var placed = MakeCard(side+"_Support_"+i,support,-1,
                             new Vector3((i-2)*2.4f,0.39f,sign*4.35f),
                             new Vector3(1.51f,0.12f,1.71f),
-                            side == DuelSide.Opponent || state.SupportIsFaceDown(i));
+                            state.SupportIsFaceDown(i));
                         if (side == pendingSide && hasPendingPlace && pendingAnimate &&
                             pendingLane == FieldLane.Support && pendingSlot == i)
                             placed.gameObject.AddComponent<CardMotion>().Play(pendingOrigin,placed.transform.position);
