@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.14.2
+
+Improved MTGA-inspired hand focus: the hovered card rises more clearly,
+neighboring cards separate smoothly, the arena-focus hand remains compact,
+and Shift-fusion selection plus drag targeting stay stable.
+
+[0.14.2 hand hover notes](Docs/PROTOTYPE_0_14_2.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.14.1
 
 **Responsive inverted card fan:** corrected tilt/curvature, more spacing
