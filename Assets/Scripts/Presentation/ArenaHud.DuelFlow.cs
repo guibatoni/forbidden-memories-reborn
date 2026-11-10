@@ -53,6 +53,26 @@ namespace Reborn.Presentation
             else Announce("Batalha liberada: clique no seu monstro e depois no alvo.");
         }
 
+        public void AfterPlayerAttack()
+        {
+            if (match == null || InputLocked ||
+                match.CurrentSide != DuelSide.Player ||
+                match.Phase != MatchPhase.Battle) return;
+            for (int i = 0; i < DuelMatch.ZoneCount; i++)
+            {
+                var monster = match.Player.Monster(i);
+                if (monster == null) continue;
+                if (monster.Position == BattlePosition.Attack && !monster.AttackedThisTurn)
+                    return;
+                var next = monster.Position == BattlePosition.Attack
+                    ? BattlePosition.Defense : BattlePosition.Attack;
+                if (match.CanChangePosition(DuelSide.Player, i, next, out _))
+                    return;
+            }
+            Announce("Todos os ataques utilizados. Passando turno.");
+            TryPassPlayerTurn();
+        }
+
         public void TryPassPlayerTurn()
         {
             if (match == null || !DuelModeActive || InputLocked ||
