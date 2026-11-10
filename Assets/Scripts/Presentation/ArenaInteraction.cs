@@ -257,8 +257,14 @@ namespace Reborn.Presentation
                 match.Player.Monster(zone.Index) != null)
             {
                 // Pure preview. No material or turn is consumed while hovering.
-                var prediction = match.PreviewFieldResult(
-                    DuelSide.Player, fusionSelection, zone.Index);
+                var selectedCard = hud.SelectedHandIndex >= 0 &&
+                    hud.SelectedHandIndex < match.Player.Hand.Count
+                    ? match.Player.Hand[hud.SelectedHandIndex] : null;
+                bool ritualPreview = fusionSelection.Count == 1 &&
+                    selectedCard != null && selectedCard.Kind == CardKind.Ritual;
+                var prediction = ritualPreview ?
+                    match.PreviewRitual(DuelSide.Player, hud.SelectedHandIndex) :
+                    match.PreviewFieldResult(DuelSide.Player, fusionSelection, zone.Index);
                 if (prediction != null && prediction.Kind == CardKind.Monster)
                     hud.FieldFusionPreview = prediction;
             }
@@ -336,7 +342,13 @@ namespace Reborn.Presentation
                         pressedHand = index;
                         pressStart = pointer;
                         var outcome = match.PreviewResult(DuelSide.Player,fusionSelection);
-                        hud.Message = outcome == null ? "Selecao invalida." :
+                        var ritual = match.PreviewRitual(DuelSide.Player, index);
+                        hud.Message = card.Card.Kind == CardKind.Ritual ?
+                            (ritual == null ?
+                                "Ritual: exige 3 monstros especificos revelados no campo." :
+                                "Ritual pronto: escolha uma zona de tributo para invocar " +
+                                ritual.Name + ".") :
+                            outcome == null ? "Selecao invalida." :
                             "Materiais: " + fusionSelection.Count + "/5. " + outcome.Name +
                             " | clique uma zona vazia ou coloque sobre seu monstro para fundir.";
                     }
@@ -448,6 +460,48 @@ namespace Reborn.Presentation
                 (IReadOnlyList<int>)fusionSelection : new [] { hud.SelectedHandIndex };
             bool onField = zone.Lane == FieldLane.Monster &&
                 match.Player.Monster(zone.Index) != null;
+            bool ritualPlay = onField && selected.Count == 1 &&
+                selected[0] >= 0 && selected[0] < match.Player.Hand.Count &&
+                match.Player.Hand[selected[0]].Kind == CardKind.Ritual;
+            if (ritualPlay)
+            {
+                var expected = match.PreviewRitual(DuelSide.Player, selected[0]);
+                if (expected == null)
+                {
+                    hud.Message = "Ritual requer tres tributos especificos virados para cima.";
+                    return;
+                }
+                var ritualStar = hud.UseSecondaryStar ?
+                    expected.StarB : expected.StarA;
+                if (!match.CanSummonRitual(DuelSide.Player, selected[0],
+                    zone.Index, ritualStar, out _, out var previewReason))
+                {
+                    hud.Message = previewReason;
+                    return;
+                }
+                var sourceView = FindHandView(selected[0]);
+                var from = sourceView != null ?
+                    sourceView.transform.position : zone.transform.position;
+                arena.StagePlacement(FieldLane.Monster, zone.Index, from,
+                    hud.AnimationsEnabled);
+                if (match.TrySummonRitual(DuelSide.Player, selected[0], zone.Index,
+                    hud.UseDefense ? BattlePosition.Defense : BattlePosition.Attack,
+                    ritualStar, out var summoned, out var ritualReason))
+                {
+                    arena.PlayRitualCeremony(DuelSide.Player, zone.Index,
+                        hud.AnimationsEnabled);
+                    hud.Announce("Ritual invocado: " + summoned.Name + "!");
+                    hud.AfterHandPlacement();
+                    hud.SelectedFieldMonster = zone.Index;
+                }
+                else
+                {
+                    arena.ClearStagedPlacement();
+                    hud.Message = ritualReason;
+                }
+                UpdateLegalHighlights();
+                return;
+            }
             // Unlike a hand-only combination, field material is FIRST.
             var result = onField ?
                 match.PreviewFieldResult(DuelSide.Player, selected, zone.Index) :
@@ -628,13 +682,22 @@ namespace Reborn.Presentation
                     bool occupiedMonster = !zone.Opponent &&
                         zone.Lane == FieldLane.Monster &&
                         match.Player.Monster(zone.Index) != null;
-                    var card = occupiedMonster ?
+                    bool ritualSelected = selection.Count == 1 &&
+                        selection[0] >= 0 &&
+                        selection[0] < match.Player.Hand.Count &&
+                        match.Player.Hand[selection[0]].Kind == CardKind.Ritual;
+                    var card = ritualSelected && occupiedMonster ?
+                        match.PreviewRitual(DuelSide.Player, selection[0]) :
+                        occupiedMonster ?
                         match.PreviewFieldResult(DuelSide.Player, selection, zone.Index) :
                         match.PreviewResult(DuelSide.Player, selection);
                     var star = card == null ? GuardianStar.None :
                         (hud.UseSecondaryStar ? card.StarB : card.StarA);
                     bool legal = !zone.Opponent && card != null &&
-                        (occupiedMonster ?
+                        (ritualSelected && occupiedMonster ?
+                            match.CanSummonRitual(DuelSide.Player, selection[0],
+                                zone.Index, star, out _, out _) :
+                        occupiedMonster ?
                             match.CanPlayOnField(DuelSide.Player, selection,
                                 zone.Index, star, out _, out _) :
                             match.CanPlay(DuelSide.Player, selection,
