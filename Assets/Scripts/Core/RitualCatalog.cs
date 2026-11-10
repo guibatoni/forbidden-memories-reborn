@@ -21,11 +21,12 @@ namespace Reborn.Core
                 tributeIds == null || tributeIds.Length != 3 ||
                 result == null || result.Kind != CardKind.Monster)
                 throw new ArgumentException("Original ritual data must have 3 monsters and one result");
-            var seen = new HashSet<string>(StringComparer.Ordinal);
+            // Some retail recipes request three COPIES of the same card ID.
+            // The duel engine requires distinct field slots, not distinct IDs.
             foreach (var tribute in tributeIds)
             {
-                if (string.IsNullOrWhiteSpace(tribute) || !seen.Add(tribute))
-                    throw new ArgumentException("Ritual materials cannot be empty or duplicated");
+                if (string.IsNullOrWhiteSpace(tribute))
+                    throw new ArgumentException("Ritual material ID cannot be empty");
             }
             RitualCardId = ritualId;
             TributeIds = (string[])tributeIds.Clone();
