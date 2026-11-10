@@ -82,15 +82,47 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void ThreeCopiesOfSameCardInDifferentSlotsSatisfyRitual()
+        {
+            var book = new RitualCatalog();
+            book.Add("ritual",new[] {"blue","blue","blue"},M("ultimate"));
+            var game = new DuelMatch(
+                Deck(M("blue"),M("blue"),M("blue"),
+                    new CardDefinition("ritual","Ritual",CardKind.Ritual,0,0,"")),
+                Deck(M("enemy")),new FusionCatalog(),book);
+            for (int slot=0;slot<3;slot++)
+            {
+                Assert.IsTrue(game.TryPlay(DuelSide.Player,new[] {0},
+                    FieldLane.Monster,slot,BattlePosition.Attack,GuardianStar.None,out _));
+                Assert.IsTrue(game.TryEndTurn(DuelSide.Player,out _));
+                Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[] {0},
+                    FieldLane.Monster,slot,BattlePosition.Defense,GuardianStar.None,out _));
+                Assert.IsTrue(game.TryEndTurn(DuelSide.Opponent,out _));
+            }
+            Assert.IsTrue(game.TrySummonRitual(DuelSide.Player,0,2,
+                BattlePosition.Attack,GuardianStar.None,out var result,out _));
+            Assert.AreEqual("ultimate",result.Id);
+            Assert.AreEqual(4,game.Player.Graveyard.Count);
+            Assert.IsNull(game.Player.Monster(0));
+            Assert.IsNull(game.Player.Monster(1));
+            Assert.AreEqual("ultimate",game.Player.Monster(2).Card.Id);
+        }
+
+        [Test]
         public void RitualCatalogRejectsNonOriginalTributeDefinitions()
         {
             var book = new RitualCatalog();
-            Assert.Throws<ArgumentException>(() => book.Add("r",
-                new[] {"a","b","a"},M("monster")));
-            Assert.Throws<ArgumentException>(() => book.Add("r",
+            Assert.Throws<ArgumentException>(() => book.Add("invalid",
+                new[] {"a","", "a"},M("monster")));
+            Assert.Throws<ArgumentException>(() => book.Add("short",
                 new[] {"a","b"},M("monster")));
             book.Add("r",new[] {"a","b","c"},M("monster"));
-            Assert.AreEqual(1,book.Count);
+            book.Add("three-copies",new[] {"blue","blue","blue"},M("ultimate"));
+            Assert.AreEqual(2,book.Count);
+            Assert.IsTrue(book.TryGet("three-copies",out var threeCopies));
+            Assert.AreEqual("blue",threeCopies.TributeIds[0]);
+            Assert.AreEqual("blue",threeCopies.TributeIds[1]);
+            Assert.AreEqual("blue",threeCopies.TributeIds[2]);
             Assert.Throws<ArgumentException>(() => book.Add("r",
                 new[] {"a","b","d"},M("other")));
         }
