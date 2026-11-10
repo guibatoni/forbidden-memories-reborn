@@ -36,6 +36,8 @@ for scenario in report["Scenarios"]:
     assert scenario["UnresolvedBefore"] >= 0
     assert scenario["UnresolvedAfter"] >= 0
     assert -1 <= scenario["WinRateConfidenceLower"] <= scenario["WinRateConfidenceUpper"] <= 1
+    assert scenario["PolicyInterpretation"] in {
+        "positive-signal-not-proof", "negative-signal", "inconclusive"}
     assert scenario["Interpretation"] in {
         "positive-signal-not-proof", "negative-signal", "inconclusive"}
     legacy = sum(r["LegacyWins"] for r in cases) / 250
