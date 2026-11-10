@@ -129,7 +129,7 @@ def validate(data):
                                'withText': sum(str(c.get('kind','')).lower() == kind and
                                                bool(str(c.get('description') or '').strip())
                                                for c in cards)
-                           } for kind in sorted(VALID_KIN)
+                           } for kind in sorted(VALID_KINDS)
                        })
 
 
