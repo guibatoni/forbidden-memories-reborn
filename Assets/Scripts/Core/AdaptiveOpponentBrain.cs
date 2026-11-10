@@ -175,7 +175,8 @@ namespace Reborn.Core
             for (int j = 0; j < DuelMatch.ZoneCount; j++)
             {
                 var enemy = match.Player.Monster(j);
-                if (enemy != null) maxEnemy = Math.Max(maxEnemy, enemy.Card.Attack);
+                if (enemy != null && !enemy.FaceDown)
+                    maxEnemy = Math.Max(maxEnemy, enemy.Card.Attack);
             }
             foreach (var star in stars)
             {
@@ -187,7 +188,7 @@ namespace Reborn.Core
                     for (int j = 0; j < DuelMatch.ZoneCount; j++)
                     {
                         var enemy = match.Player.Monster(j);
-                        if (enemy == null) continue;
+                        if (enemy == null || enemy.FaceDown) continue;
                         int attack = card.Attack + GuardianStarRules.Bonus(star, enemy.Star);
                         int defense = (enemy.Position == BattlePosition.Attack
                             ? enemy.Card.Attack : enemy.Card.Defense)
@@ -261,7 +262,7 @@ namespace Reborn.Core
                         for (int i = 0; i < DuelMatch.ZoneCount; i++)
                         {
                             var enemy = match.Player.Monster(i);
-                            if (enemy == null) continue;
+                            if (enemy == null || enemy.FaceDown) continue;
                             if (position == BattlePosition.Attack)
                             {
                                 var outgoing = new CombatForecast(candidate, enemy);
@@ -350,6 +351,37 @@ namespace Reborn.Core
             targetSlot = -1;
             LastAttackPlan = null;
             if (State == null || match == null) return false;
+            if (match.CurrentSide != DuelSide.Opponent ||
+                match.Phase != MatchPhase.Battle) return false;
+
+            // Never score the strength of face-down player monsters.
+            // Select a blind challenge based only on visible card placement
+            // and OUR available attackers, then let DuelMatch resolve it.
+            var hidden = new List<int>();
+            for (int j = 0; j < DuelMatch.ZoneCount; j++)
+            {
+                var defending = match.Player.Monster(j);
+                if (defending != null && defending.FaceDown) hidden.Add(j);
+            }
+            if (hidden.Count > 0)
+            {
+                int chosen = -1;
+                int bestScore = int.MinValue;
+                foreach (int attackerSlot in new[] { 0, 1, 2, 3, 4 })
+                {
+                    var ours = match.Opponent.Monster(attackerSlot);
+                    if (ours == null || !match.CanAttack(DuelSide.Opponent,
+                        attackerSlot, hidden[0], out _)) continue;
+                    int score = ours.Card.Attack + random.Next(0, 160);
+                    if (score <= bestScore) continue;
+                    bestScore = score;
+                    chosen = attackerSlot;
+                }
+                if (chosen < 0) return false;
+                fromSlot = chosen;
+                targetSlot = hidden[random.Next(hidden.Count)];
+                return true;
+            }
             if (!MultiAttackPlanner.TryPlan(match, Tactic, random,
                 out var sequence)) return false;
             LastAttackPlan = sequence;
