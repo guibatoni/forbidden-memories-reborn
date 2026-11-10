@@ -570,6 +570,43 @@ internal static class Program
         Check(!opponentFlip.TryChangePosition(DuelSide.Opponent,0,
             BattlePosition.Defense,out _),
             "AI cannot switch the same monster twice in one turn");
+
+        // Prototype 0.14.1 inverted and responsive 3D hand fan geometry.
+        // These checks are pure C# and can run in CI without a Unity Editor.
+        var cLeft = HandFanGeometry.At(0, 5, false);
+        var cMiddle = HandFanGeometry.At(2, 5, false);
+        var cRight = HandFanGeometry.At(4, 5, false);
+        var eLeft = HandFanGeometry.At(0, 5, true);
+        var eMiddle = HandFanGeometry.At(2, 5, true);
+        var eRight = HandFanGeometry.At(4, 5, true);
+        Check(cLeft.X < cMiddle.X && cMiddle.X < cRight.X &&
+            eLeft.X < eMiddle.X && eMiddle.X < eRight.X,
+            "responsive fan preserves left-to-right original card order");
+        Check(cLeft.Yaw < 0f && cRight.Yaw > 0f &&
+            eLeft.Yaw < 0f && eRight.Yaw > 0f &&
+            cMiddle.Yaw == 0f && eMiddle.Yaw == 0f,
+            "fan tilts reversed compared with former negative yaw");
+        Check(cLeft.Z < cMiddle.Z && cRight.Z < cMiddle.Z &&
+            eLeft.Z < eMiddle.Z && eRight.Z < eMiddle.Z,
+            "outer hand cards curve toward player rather than the battlefield");
+        Check(Math.Abs(HandFanGeometry.ExpandedSpacing - 1.05f - 0.90f) < 0.0001f &&
+            Math.Abs(eRight.X - eMiddle.X -
+                2f * HandFanGeometry.ExpandedSpacing) < 0.0001f,
+            "expanded fan adds exactly 0.90 table units to old 1.05 spacing");
+        Check(Math.Abs(cRight.X - cMiddle.X -
+                2f * HandFanGeometry.CompactSpacing) < 0.0001f &&
+            eRight.X - eLeft.X > cRight.X - cLeft.X,
+            "compact fan gathers cards, expanded fan spreads them wider");
+        Check(eMiddle.Y > cMiddle.Y && eMiddle.Z > cMiddle.Z,
+            "arena-focus hand sits lower and further toward player");
+        Check(Math.Abs(eMiddle.X) < 0.0001f &&
+            Math.Abs(cMiddle.X) < 0.0001f,
+            "five-card fan remains centered without camera movement");
+        bool invalidHandRejected = false;
+        try { HandFanGeometry.At(5, 5, true); }
+        catch (ArgumentOutOfRangeException) { invalidHandRejected = true; }
+        Check(invalidHandRejected,
+            "fan refuses nonexistent hand card indices");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }
