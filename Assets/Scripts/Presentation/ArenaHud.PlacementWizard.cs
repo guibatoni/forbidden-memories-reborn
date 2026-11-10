@@ -17,6 +17,7 @@ namespace Reborn.Presentation
         private Func<bool> placementCommit;
         private int placedMonsterSlot = -1;
         private bool placementIsRitual;
+        private float positionChoiceReadyAt;
 
         public bool PlacementWizardOpen => placementStep != PlacementChoiceStep.None;
 
@@ -82,6 +83,9 @@ namespace Reborn.Presentation
                 match.CurrentSide == DuelSide.Player)
             {
                 placementStep = PlacementChoiceStep.Position;
+                // Let the original card glide play before showing ATK/DEF.
+                positionChoiceReadyAt = Time.unscaledTime +
+                    (AnimationsEnabled ? 0.64f : 0f);
             }
             else
             {
@@ -120,6 +124,9 @@ namespace Reborn.Presentation
         private void DrawPlacementChoices()
         {
             if (!PlacementWizardOpen || placementPreview == null) return;
+            if (placementStep == PlacementChoiceStep.Position &&
+                Time.unscaledTime < positionChoiceReadyAt)
+                return; // The summon stays visible without dark overlay.
             Panel(new Rect(0, 0, Screen.width, Screen.height),
                 new Color(0.007f, 0.011f, 0.025f, 0.94f));
             float w = Mathf.Min(690f, Screen.width - 32f);
