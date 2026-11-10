@@ -206,42 +206,72 @@ namespace Reborn.Presentation
             }
             if (mouse.leftButton.wasPressedThisFrame && !overHud)
             {
-                if (card != null && card.HandIndex >= 0 && !hud.AttackMode)
+                if (card != null && card.HandIndex >= 0)
                 {
-                    int index = card.HandIndex;
-                    bool shift = Keyboard.current != null &&
-                        (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
-                    if (!shift) fusionSelection.Clear();
-                    if (!fusionSelection.Contains(index)) fusionSelection.Add(index);
-                    hud.FusionCount = fusionSelection.Count;
-                    hud.SelectedHandIndex = index;
-                    pressedHand = index;
-                    pressStart = pointer;
-                    var outcome = match.PreviewResult(DuelSide.Player,fusionSelection);
-                    hud.Message = outcome == null ? "Selecao invalida." :
-                        "Selecionadas " + fusionSelection.Count + " carta(s). Resultado previsto: " + outcome.Name;
-                    UpdateLegalHighlights();
-                }
-                else if (zone != null && zone.Lane == FieldLane.Monster && hud.AttackMode)
-                {
-                    if (!zone.Opponent)
+                    if (match.Phase != MatchPhase.Main || match.PlayedThisTurn)
+                        hud.Message = "Sua jogada ja foi usada. Ataque ou passe o turno.";
+                    else
                     {
-                        var monster = match.Player.Monster(zone.Index);
-                        if (monster == null) hud.Message = "Escolha um monstro seu.";
-                        else
-                        {
-                            hud.SelectedAttacker = zone.Index;
-                            hud.Message = "Atacante selecionado: " + monster.Card.Name + ". Clique no alvo.";
-                            UpdateLegalHighlights();
-                        }
-                    }
-                    else if (hud.SelectedAttacker >= 0)
-                    {
-                        hud.RequestPlayerAttack(hud.SelectedAttacker,zone.Index);
+                        int index = card.HandIndex;
+                        bool shift = Keyboard.current != null &&
+                            (Keyboard.current.leftShiftKey.isPressed ||
+                             Keyboard.current.rightShiftKey.isPressed);
+                        if (!shift) fusionSelection.Clear();
+                        if (fusionSelection.Count == 0) hud.ConfigurePlacement(card.Card);
+                        if (!fusionSelection.Contains(index) &&
+                            fusionSelection.Count < DuelMatch.HandLimit)
+                            fusionSelection.Add(index);
+                        hud.FusionCount = fusionSelection.Count;
+                        hud.SelectedHandIndex = index;
+                        pressedHand = index;
+                        pressStart = pointer;
+                        var outcome = match.PreviewResult(DuelSide.Player,fusionSelection);
+                        hud.Message = outcome == null ? "Selecao invalida." :
+                            "Fusao: " + fusionSelection.Count + "/5. " + outcome.Name +
+                            " | escolha face, posicao e Guardian, depois a zona.";
                     }
                 }
-                else if (zone != null && !zone.Opponent && hud.SelectedHandIndex >= 0)
+                else if (zone != null && !zone.Opponent &&
+                    zone.Lane == FieldLane.Monster &&
+                    match.Player.Monster(zone.Index) != null)
+                {
+                    var monster = match.Player.Monster(zone.Index);
+                    hud.SelectedFieldMonster = zone.Index;
+                    hud.SelectedSupportSlot = -1;
+                    hud.SelectedAttacker = match.Phase == MatchPhase.Battle &&
+                        monster.Position == BattlePosition.Attack &&
+                        !monster.AttackedThisTurn ? zone.Index : -1;
+                    hud.Message = hud.SelectedAttacker >= 0
+                        ? "Atacante " + monster.Card.Name + ": clique no alvo adversario."
+                        : "Monstro selecionado. Alterar ATK/DEF no painel, se permitido.";
+                }
+                else if (zone != null && zone.Opponent &&
+                    match.Phase == MatchPhase.Battle && hud.SelectedAttacker >= 0)
+                {
+                    // Any enemy zone works for direct attack only when the
+                    // opponent's monster row is actually empty.
+                    int target = match.Opponent.MonsterCount == 0 ? -1 :
+                        zone.Lane == FieldLane.Monster ? zone.Index : -2;
+                    if (target == -2) hud.Message = "Ataque o monstro adversario primeiro.";
+                    else hud.RequestPlayerAttack(hud.SelectedAttacker, target);
+                }
+                else if (zone != null && !zone.Opponent &&
+                    zone.Lane == FieldLane.Support &&
+                    match.Player.Support(zone.Index) != null)
+                {
+                    hud.SelectedSupportSlot = zone.Index;
+                    hud.SelectedFieldMonster = -1;
+                    hud.SelectedAttacker = -1;
+                    hud.Message = "Suporte selecionado. Efeitos aguardam validacao.";
+                }
+                else if (zone != null && !zone.Opponent &&
+                    match.Phase == MatchPhase.Main && hud.SelectedHandIndex >= 0)
                     PlaceMatchCard(zone);
+                else if (hud.SelectedAttacker >= 0 &&
+                    match.Phase == MatchPhase.Battle &&
+                    match.Opponent.MonsterCount == 0 &&
+                    PointerOverOpponentField(pointer))
+                    hud.RequestPlayerAttack(hud.SelectedAttacker, -1);
             }
             if (pressedHand >= 0 && mouse.leftButton.isPressed &&
                 (dragging || (pointer-pressStart).sqrMagnitude >= 144f))
@@ -268,7 +298,10 @@ namespace Reborn.Presentation
             }
             UpdateLegalHighlights();
             foreach (var view in arena.HandViews)
+            {
                 view.SetSelected(fusionSelection.Contains(view.HandIndex));
+                view.SetFusionOrder(fusionSelection.IndexOf(view.HandIndex) + 1);
+            }
         }
 
         private void PlaceMatchCard(ZoneView zone)
@@ -282,14 +315,32 @@ namespace Reborn.Presentation
             var source = FindHandView(hud.SelectedHandIndex);
             var origin = source != null ? source.transform.position : zone.transform.position;
             arena.StagePlacement(zone.Lane,zone.Index,origin,hud.AnimationsEnabled);
-            if (match.TryPlay(DuelSide.Player,selected,zone.Lane,zone.Index,position,star,out var reason))
-                hud.Message = "Carta colocada: " + result.Name + ".";
+            if (match.TryPlay(DuelSide.Player,selected,zone.Lane,zone.Index,
+                position,star,hud.PlaceFaceDown,out var reason))
+            {
+                hud.Announce("Carta colocada: " + result.Name +
+                    (hud.PlaceFaceDown ? " virada para baixo." : " virada para cima."));
+                hud.AfterHandPlacement();
+            }
             else
             {
                 arena.ClearStagedPlacement();
                 hud.Message = reason;
             }
             UpdateLegalHighlights();
+        }
+
+        /// <summary>
+        /// World-space direct attack region, based on a horizontal plane.
+        /// Never allows direct combat while an enemy monster is present.
+        /// </summary>
+        private bool PointerOverOpponentField(Vector2 pointer)
+        {
+            var plane = new Plane(Vector3.up, new Vector3(0f, 0.52f, 0f));
+            var ray = arena.Camera.ScreenPointToRay(pointer);
+            if (!plane.Raycast(ray, out float distance)) return false;
+            Vector3 point = ray.GetPoint(distance);
+            return point.z > 0.45f && point.z < 6.7f && Mathf.Abs(point.x) < 6.7f;
         }
 
         private CardView FindHandView(int handIndex)
@@ -354,14 +405,15 @@ namespace Reborn.Presentation
             {
                 if (hud.DuelModeActive && match != null)
                 {
-                    if (hud.AttackMode && match.Phase == MatchPhase.Battle)
+                    if (match.Phase == MatchPhase.Battle)
                     {
-                        bool eligible = zone.Lane == FieldLane.Monster &&
-                            (zone.Opponent
-                                ? hud.SelectedAttacker >= 0 && match.Opponent.Monster(zone.Index) != null
-                                : match.Player.Monster(zone.Index) != null &&
-                                  !match.Player.Monster(zone.Index).AttackedThisTurn &&
-                                  match.Player.Monster(zone.Index).Position == BattlePosition.Attack);
+                        bool eligible = zone.Opponent ?
+                            hud.SelectedAttacker >= 0 &&
+                                (match.Opponent.MonsterCount == 0 ||
+                                 (zone.Lane == FieldLane.Monster &&
+                                  match.Opponent.Monster(zone.Index) != null)) :
+                            zone.Lane == FieldLane.Monster &&
+                                match.Player.Monster(zone.Index) != null;
                         zone.SetCombatTarget(eligible);
                         continue;
                     }
