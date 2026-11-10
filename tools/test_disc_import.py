@@ -34,6 +34,17 @@ with tempfile.TemporaryDirectory() as base:
             pass
         else:
             raise AssertionError("Malformed pool accepted")
+    # Starter field/magic pools have fewer than fourteen cards.
+    starter = module.normalize_starter_weights({"101": 1024, "102": 1024})
+    assert len(starter) == 722 and sum(starter) == 2048
+    assert starter[100] == 1024 and starter[101] == 1024
+    try:
+        module.normalize_starter_weights({"101": 100})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Broken starter weight total accepted")
+    print("PASS: sparse two-card starter magic pool and corrupt weights")
     print("PASS: normalized opponent weights and malformed pool rejection")
 
     validator_file = Path(__file__).with_name("validate_import.py")
