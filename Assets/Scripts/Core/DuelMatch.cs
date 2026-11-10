@@ -5,7 +5,7 @@ namespace Reborn.Core
 {
     public enum MatchEventKind
     {
-        Reset, Draw, Play, Fusion, FusionFailed, BattleStarted, Attack,
+        Reset, Draw, Play, Fusion, FusionFailed, BattleStarted, PositionChanged, SupportActivated, Attack,
         Destroy, LifeChanged, TurnStarted, Graveyard, Finished
     }
 
@@ -40,12 +40,23 @@ namespace Reborn.Core
         public BattlePosition Position { get; private set; }
         public GuardianStar Star { get; }
         public bool AttackedThisTurn { get; internal set; }
+        public bool PositionChangedThisTurn { get; internal set; }
+        public bool FaceDown { get; private set; }
+        public int TurnPlaced { get; }
 
-        internal MonsterOnField(CardDefinition card, BattlePosition position, GuardianStar star)
+        internal MonsterOnField(CardDefinition card, BattlePosition position, GuardianStar star,
+            bool faceDown = false, int turnPlaced = -1)
         {
             Card = card; Position = position; Star = star;
+            FaceDown = faceDown; TurnPlaced = turnPlaced;
         }
-        public void SetPosition(BattlePosition position) { Position = position; }
+        internal void SetPosition(BattlePosition position)
+        {
+            Position = position;
+            FaceDown = false;
+            PositionChangedThisTurn = true;
+        }
+        internal void Reveal() { FaceDown = false; }
     }
 
     public sealed class MatchSide
@@ -55,6 +66,7 @@ namespace Reborn.Core
         private readonly List<CardDefinition> graveyard = new List<CardDefinition>();
         private readonly MonsterOnField[] monsters = new MonsterOnField[5];
         private readonly CardDefinition[] supports = new CardDefinition[5];
+        private readonly bool[] supportFaceDown = new bool[5];
 
         internal MatchSide(IReadOnlyList<CardDefinition> original)
         {
@@ -66,6 +78,8 @@ namespace Reborn.Core
         public IReadOnlyList<CardDefinition> Graveyard => graveyard.AsReadOnly();
         public MonsterOnField Monster(int slot) => slot >= 0 && slot < 5 ? monsters[slot] : null;
         public CardDefinition Support(int slot) => slot >= 0 && slot < 5 ? supports[slot] : null;
+        public bool SupportIsFaceDown(int slot) =>
+            slot >= 0 && slot < 5 && supports[slot] != null && supportFaceDown[slot];
         internal CardDefinition Draw() => deck.Count == 0 ? null : deck.Dequeue();
         internal void Give(CardDefinition card) => hand.Add(card);
         internal CardDefinition Take(int handIndex)
@@ -73,11 +87,20 @@ namespace Reborn.Core
             var card = hand[handIndex]; hand.RemoveAt(handIndex); return card;
         }
         internal void SetMonster(int index, MonsterOnField monster) => monsters[index] = monster;
-        internal void SetSupport(int index, CardDefinition card) => supports[index] = card;
+        internal void SetSupport(int index, CardDefinition card, bool faceDown = false)
+        {
+            supports[index] = card;
+            supportFaceDown[index] = card != null && faceDown;
+        }
         internal void Bury(CardDefinition card) { if (card != null) graveyard.Add(card); }
         internal void ReadyMonsters()
         {
-            foreach (var m in monsters) if (m != null) m.AttackedThisTurn = false;
+            foreach (var m in monsters)
+            {
+                if (m == null) continue;
+                m.AttackedThisTurn = false;
+                m.PositionChangedThisTurn = false;
+            }
         }
         /// <summary>Read-only count exposed to the separate Unity presentation assembly.</summary>
         public int MonsterCount
@@ -222,6 +245,13 @@ namespace Reborn.Core
         public bool TryPlay(DuelSide side, IReadOnlyList<int> indices, FieldLane lane, int slot,
             BattlePosition position, GuardianStar star, out string reason)
         {
+            return TryPlay(side, indices, lane, slot, position, star, false, out reason);
+        }
+
+        /// <summary>One hand placement, with chosen face orientation.</summary>
+        public bool TryPlay(DuelSide side, IReadOnlyList<int> indices, FieldLane lane, int slot,
+            BattlePosition position, GuardianStar star, bool faceDown, out string reason)
+        {
             if (!CanPlay(side, indices, lane, slot, star, out reason)) return false;
             var state = Side(side);
             // Only physical hand cards can go to the graveyard. Intermediate
@@ -262,12 +292,61 @@ namespace Reborn.Core
                 Emit(MatchEventKind.Graveyard, side, material.Id);
             }
             if (lane == FieldLane.Monster)
-                state.SetMonster(slot, new MonsterOnField(result, position, star));
-            else state.SetSupport(slot, result);
+                state.SetMonster(slot, new MonsterOnField(result, position, star, faceDown, Turn));
+            else state.SetSupport(slot, result, faceDown);
             hasPlayed = true;
             Emit(MatchEventKind.Play, side, result.Id, lane, slot);
             SignalChanged();
             return true;
+        }
+
+        public bool CanChangePosition(DuelSide side, int slot,
+            BattlePosition newPosition, out string reason)
+        {
+            if (Phase == MatchPhase.Finished)
+                return Reject(out reason, "Duelo encerrado");
+            if (CurrentSide != side)
+                return Reject(out reason, "Nao e o seu turno");
+            if (slot < 0 || slot >= ZoneCount)
+                return Reject(out reason, "Zona invalida");
+            var monster = Side(side).Monster(slot);
+            if (monster == null) return Reject(out reason, "Nao ha monstro nesta zona");
+            if (monster.AttackedThisTurn)
+                return Reject(out reason, "Monstro que ja atacou nao pode mudar de posicao");
+            if (monster.PositionChangedThisTurn)
+                return Reject(out reason, "Posicao ja alterada neste turno");
+            if (monster.TurnPlaced == Turn)
+                return Reject(out reason, "Monstro invocado neste turno nao pode mudar de posicao");
+            if (monster.Position == newPosition && !monster.FaceDown)
+                return Reject(out reason, "Posicao ja selecionada");
+            reason = "";
+            return true;
+        }
+
+        public bool TryChangePosition(DuelSide side, int slot,
+            BattlePosition newPosition, out string reason)
+        {
+            if (!CanChangePosition(side, slot, newPosition, out reason))
+                return false;
+            var monster = Side(side).Monster(slot);
+            monster.SetPosition(newPosition);
+            Emit(MatchEventKind.PositionChanged, side, monster.Card.Id,
+                FieldLane.Monster, slot, (int)newPosition);
+            SignalChanged();
+            return true;
+        }
+
+        /// <summary>
+        /// Support cards can be prepared face-down. We do not simulate magic/
+        /// trap/equip effects without a validated resolver from the game data.
+        /// </summary>
+        public bool CanActivateSupport(DuelSide side, int slot, out string reason)
+        {
+            if (Phase == MatchPhase.Finished || CurrentSide != side)
+                return Reject(out reason, "Fora do turno");
+            if (slot < 0 || slot >= ZoneCount || Side(side).Support(slot) == null)
+                return Reject(out reason, "Nao ha suporte nesta zona");
+            return Reject(out reason, "Efeito nao validado: ativacao indisponivel nesta versao");
         }
 
         public bool TryBeginBattle(DuelSide side, out string reason)
@@ -325,6 +404,9 @@ namespace Reborn.Core
             if (!TryPreviewAttack(side, fromSlot, targetSlot, out var forecast, out reason))
                 return false;
             var attacker = Side(side).Monster(fromSlot);
+            var defender = targetSlot >= 0 ? Side(Other(side)).Monster(targetSlot) : null;
+            // A set defender becomes visible only as the real attack resolves.
+            if (defender != null && defender.FaceDown) defender.Reveal();
             attacker.AttackedThisTurn = true;
             Emit(MatchEventKind.Attack, side, attacker.Card.Id,
                 FieldLane.Monster, fromSlot, targetSlot);
