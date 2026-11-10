@@ -42,6 +42,10 @@ The seven distributions are:
 The weights are extracted from the user's own ISO via
 `tools/IMPORTAR_ORIGINAL.ps1`, now outputting
 `Assets/StreamingAssets/RebornContent/starter_pools.json`.
+If you already ran the old 0.17 import and still have
+`PrivateExtracts/reborn-disc/disc_tables.json`, run
+`tools/EXPORTAR_DECKS_INICIAIS.ps1` to create the Unity starter
+pool file **without rescanning the ISO**.
 Both the 722-card catalog and starter rows must match the same SHA-256.
 No approximate deck is labeled original. When weights are missing (a
 DUELTRACE-only card profile does not carry them), the modal explains how
