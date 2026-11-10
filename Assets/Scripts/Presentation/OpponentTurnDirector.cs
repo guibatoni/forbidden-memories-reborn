@@ -48,6 +48,34 @@ namespace Reborn.Presentation
             yield return new WaitForSeconds(Mathf.Max(0.10f, seconds * hud.OpponentPace));
         }
 
+        private IEnumerator PlayFieldCombination(DuelMatch game,
+            int handIndex, int zone, CardDefinition preview)
+        {
+            if (preview == null) yield break;
+            hud.Announce("Oponente combina uma carta com o monstro da zona " +
+                (zone + 1) + ".");
+            yield return Pause(0.90f);
+            arena.StageMatchPlacement(DuelSide.Opponent, FieldLane.Monster, zone,
+                new Vector3(0f, 0.46f, 6.9f), hud.AnimationsEnabled);
+            var position = preview.Defense > preview.Attack + 500
+                ? BattlePosition.Defense : BattlePosition.Attack;
+            if (game.TryPlayOnField(DuelSide.Opponent, new[] { handIndex }, zone,
+                position, preview.StarA, position == BattlePosition.Defense,
+                out var outcome, out bool fused, out var reason))
+            {
+                arena.PlayFieldCombinationEffect(DuelSide.Opponent, zone, fused,
+                    hud.AnimationsEnabled);
+                hud.Announce(fused ? "Fusao da IA: " + outcome.Name :
+                    "IA substituiu seu monstro por " + outcome.Name + ".");
+            }
+            else
+            {
+                arena.ClearStagedPlacement();
+                hud.Announce("Combinacao recusada: " + reason);
+            }
+            yield return Pause(1.20f);
+        }
+
         private IEnumerator PerformTurn(DuelMatch game)
         {
             hud.Announce("Turno da IA: analisando as cartas...");
@@ -77,6 +105,13 @@ namespace Reborn.Presentation
                 }
                 yield return Pause(1.20f);
             }
+            else if (game.TryChooseFieldCombination(DuelSide.Opponent, true,
+                out int fusionHand, out int fusionSlot, out var fusionPreview))
+            {
+                // The field monster is the first material, hand card the second.
+                yield return StartCoroutine(PlayFieldCombination(game,
+                    fusionHand, fusionSlot, fusionPreview));
+            }
             else if (game.TryChooseSupportSet(DuelSide.Opponent,
                 out int supportHand, out int supportSlot))
             {
@@ -98,6 +133,14 @@ namespace Reborn.Presentation
                     hud.Announce("Suporte recusado: " + supportReason);
                 }
                 yield return Pause(1.00f);
+            }
+            else if (game.TryChooseFieldCombination(DuelSide.Opponent, false,
+                out int replacementHand, out int replacementSlot, out var replacementPreview))
+            {
+                // When no free slot/verified fusion/support set is possible,
+                // replacing one's own monster still counts as the required play.
+                yield return StartCoroutine(PlayFieldCombination(game,
+                    replacementHand, replacementSlot, replacementPreview));
             }
             else
             {
