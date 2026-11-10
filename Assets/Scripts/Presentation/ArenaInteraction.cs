@@ -41,6 +41,7 @@ namespace Reborn.Presentation
                 hud.SelectedHandIndex = -1;
                 hud.SelectedFieldMonster = -1;
                 hud.SelectedSupportSlot = -1;
+                arena.SetAttackAim(-1, -1);
                 if (active && match != null) arena.RefreshMatch(match);
                 else arena.Refresh(session);
                 UpdateLegalHighlights();
@@ -68,6 +69,7 @@ namespace Reborn.Presentation
             hud.PreviewTargetSlot = -1;
             fusionSelection.Clear();
             hud.FusionCount = 0;
+            arena.SetAttackAim(-1, -1);
             arena.RefreshMatch(match);
             UpdateLegalHighlights();
         }
@@ -189,6 +191,7 @@ namespace Reborn.Presentation
                 hoveredZone = null;
                 hud.HoveredCard = null;
                 hud.PreviewTargetSlot = -1;
+                arena.SetAttackAim(-1, -1);
                 arena.SetHandFocus(false);
                 arena.SetHandHover(-1);
                 return;
@@ -220,9 +223,29 @@ namespace Reborn.Presentation
                 ? pressedHand : card != null && card.HandIndex >= 0
                     ? card.HandIndex : -1;
             arena.SetHandHover(!overHud ? handHover : -1);
-            hud.PreviewTargetSlot = hud.AttackMode && hud.SelectedAttacker >= 0 &&
-                zone != null && zone.Opponent && zone.Lane == FieldLane.Monster
-                ? zone.Index : -1;
+            // The same authoritative rule gate controls preview and aim.
+            // A face-down defender never exposes its contents via the arc.
+            int aimTarget = -2;
+            if (!overHud && hud.AttackMode && hud.SelectedAttacker >= 0 &&
+                match.Phase == MatchPhase.Battle)
+            {
+                if (zone != null && zone.Opponent)
+                {
+                    if (match.Opponent.MonsterCount == 0)
+                        aimTarget = -1;
+                    else if (zone.Lane == FieldLane.Monster &&
+                        match.Opponent.Monster(zone.Index) != null)
+                        aimTarget = zone.Index;
+                }
+                else if (zone == null && match.Opponent.MonsterCount == 0 &&
+                    PointerOverOpponentField(pointer))
+                    aimTarget = -1;
+            }
+            bool legalAim = aimTarget >= -1 &&
+                match.CanAttack(DuelSide.Player, hud.SelectedAttacker, aimTarget, out _);
+            arena.SetAttackAim(legalAim ? hud.SelectedAttacker : -1,
+                legalAim ? aimTarget : -1);
+            hud.PreviewTargetSlot = legalAim && aimTarget >= 0 ? aimTarget : -1;
             if (hoveredZone != zone)
             {
                 if (hoveredZone != null) hoveredZone.SetHighlight(false);

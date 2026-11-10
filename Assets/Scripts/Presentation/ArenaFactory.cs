@@ -16,6 +16,7 @@ namespace Reborn.Presentation
         private bool handExpanded;
         private int highlightedHandIndex = -1;
         private bool hasPendingPlace;
+        private AttackAimLine attackAim;
         private FieldLane pendingLane;
         private DuelSide pendingSide = DuelSide.Player;
         private int pendingSlot;
@@ -276,6 +277,31 @@ namespace Reborn.Presentation
                     zone.SetCombatTarget(zone.Index == slot);
         }
 
+        /// <summary>
+        /// Displays a subtle arc only for a rules-approved player attack target.
+        /// A -1 target is the opposing player (direct attack).
+        /// </summary>
+        public void SetAttackAim(int attackerSlot, int targetSlot)
+        {
+            if (attackerSlot < 0 || attackerSlot >= DuelMatch.ZoneCount ||
+                targetSlot < -1 || targetSlot >= DuelMatch.ZoneCount)
+            {
+                if (attackAim != null) attackAim.Hide();
+                return;
+            }
+            if (attackAim == null)
+            {
+                var visual = new GameObject("Player_Legal_Attack_Aim");
+                visual.transform.SetParent(root, false);
+                attackAim = visual.AddComponent<AttackAimLine>();
+            }
+            var start = new Vector3((attackerSlot - 2) * 2.4f, 0.95f, -2f);
+            var end = targetSlot >= 0
+                ? new Vector3((targetSlot - 2) * 2.4f, 0.85f, 2f)
+                : new Vector3(0f, 0.85f, 6.2f);
+            attackAim.Show(root.TransformPoint(start), root.TransformPoint(end));
+        }
+
         /// <summary>Trajetoria de ataque: somente VFX, nunca altera regras nem camera.</summary>
         public void PlayMatchAttack(DuelSide side, int attackerSlot, int targetSlot)
         {
@@ -331,6 +357,7 @@ namespace Reborn.Presentation
         /// <summary>Render experimental duel without changing the approved camera.</summary>
         public void RefreshMatch(DuelMatch match)
         {
+            SetAttackAim(-1, -1);
             if (dynamicRoot == null || match == null) return;
             HandViews.Clear();
             handExpanded = false;
@@ -411,6 +438,7 @@ namespace Reborn.Presentation
 
         public void Refresh(DuelSession session)
         {
+            SetAttackAim(-1, -1);
             if (dynamicRoot == null) return;
             HandViews.Clear();
             handExpanded = false;

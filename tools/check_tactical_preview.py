@@ -19,8 +19,9 @@ checks = {
     "preview is gated by battle and player selection": "AttackMode && SelectedAttacker >= 0" in hud and
         "match.Phase == MatchPhase.Battle" in hud,
     "preview is not an attack": "match.TryAttack(" not in hud,
-    "mouse hover tracks opponent monster slot": "hud.PreviewTargetSlot = hud.AttackMode" in input_script and
-        "zone.Opponent && zone.Lane == FieldLane.Monster" in input_script,
+    "mouse hover tracks authorized opponent monster slot": "hud.PreviewTargetSlot = legalAim && aimTarget >= 0" in input_script and
+        "zone.Lane == FieldLane.Monster" in input_script and
+        "match.CanAttack(DuelSide.Player, hud.SelectedAttacker, aimTarget, out _)" in input_script,
     "preview hides on disabled/locked inputs": "hud.PreviewTargetSlot = -1;" in input_script,
     "combat details use real projected bonuses": "CombatExplanation.Describe(estimate)" in hud and
         "DefenderGuardianBonus" in combat,
