@@ -161,6 +161,17 @@ namespace Reborn.AiLab
                     placement.Star, out var reason))
                     throw new InvalidOperationException("Adaptive placement illegal: " + reason);
             }
+            // Match the Unity AI: set defensive monsters can be flipped
+            // in later turns, subject to the DuelMatch legality checks.
+            for (int i = 0; i < DuelMatch.ZoneCount; i++)
+            {
+                if (!brain.TryChoosePositionChange(duel,
+                    out int monsterSlot, out var position)) break;
+                if (!duel.TryChangePosition(DuelSide.Opponent, monsterSlot,
+                    position, out var switchError))
+                    throw new InvalidOperationException(
+                        "Adaptive position change illegal: " + switchError);
+            }
             if (!duel.TryBeginBattle(DuelSide.Opponent, out var battleError))
                 throw new InvalidOperationException("Adaptive battle illegal: " + battleError);
             for (int i = 0; i < DuelMatch.ZoneCount &&
