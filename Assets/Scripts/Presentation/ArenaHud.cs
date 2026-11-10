@@ -96,6 +96,7 @@ namespace Reborn.Presentation
             OpponentBusy = false;
             PlayerAttackBusy = false;
             recentActions.Clear();
+            CloseCardInspection();
             SelectedHandIndex = -1;
             HoveredCard = null;
             SelectedAttacker = -1;
@@ -104,7 +105,7 @@ namespace Reborn.Presentation
             SelectedSupportSlot = -1;
             FusionCount = 0;
             AttackMode = false;
-            Message = active ? "MODO DUELO 0.14.3: interface de cartas 2.5D, motor experimental." :
+            Message = active ? "MODO DUELO 0.15: controles classicos, motor experimental." :
                 "Sandbox visual 0.3 restaurado.";
             ModeChanged?.Invoke(active);
         }
@@ -115,6 +116,7 @@ namespace Reborn.Presentation
             OpponentBusy = false;
             PlayerAttackBusy = false;
             recentActions.Clear();
+            CloseCardInspection();
             SelectedHandIndex = -1;
             HoveredCard = null;
             SelectedAttacker = -1;
@@ -150,7 +152,7 @@ namespace Reborn.Presentation
         {
             float x = pointer.x;
             float y = Screen.height - pointer.y;
-            return showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
+            return CardInspectionOpen || showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
                 (x > Screen.width - 220f && y < 638f);
         }
 
@@ -192,6 +194,11 @@ namespace Reborn.Presentation
         {
             if (session == null) return;
             InitStyles();
+            if (CardInspectionOpen)
+            {
+                DrawPinnedCardInspection();
+                return;
+            }
             if (DuelModeActive && match != null)
             {
                 DrawMatchHud();
@@ -264,7 +271,7 @@ namespace Reborn.Presentation
             {
                 Panel(new Rect(12,Screen.height-153,263,130),new Color(0.015f,0.027f,0.06f,0.87f));
                 GUI.Label(new Rect(23,Screen.height-146,240,116),
-                    "Clique em carta > clique em zona\nArraste carta ate a zona\nBotao direito: girar camera\nRoda do mouse: zoom\nTecla R: camera inicial\nESC: cancelar selecao",small);
+                    "Clique em carta > clique em zona\nArraste carta ate a zona\nBotao direito: inspecionar carta\nRoda do mouse: zoom\nTecla R: camera inicial\nESC: cancelar selecao",small);
             }
             DrawCardInspection();
             if (showStory && story != null) DrawStory();
@@ -275,7 +282,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.14.3",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.15",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -340,7 +347,7 @@ namespace Reborn.Presentation
                 }
             }
             Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.14.3",heading);
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.15",heading);
             if (finished)
             {
                 GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
@@ -435,12 +442,14 @@ namespace Reborn.Presentation
                 else GUI.Label(new Rect(right+13,247,174,37),
                     "Selecione um monstro no campo para mudar ATK/DEF",small);
 
+                GUI.enabled = player && !InputLocked && match.PlayedThisTurn;
                 if (GUI.Button(new Rect(right+12,296,170,39),
-                    match.Phase == MatchPhase.Main ? "Passar sem baixar" : "Passar turno",button))
+                    match.PlayedThisTurn ? "Passar turno [Espaco]" :
+                    "Baixe uma carta primeiro",button))
                     TryPassPlayerTurn();
                 GUI.enabled = true;
                 GUI.Label(new Rect(right+12,342,177,53),
-                    "ATACAR: seu monstro > alvo\nDIRETO: clique na area rival",small);
+                    "Q/E: ATK/DEF  ESPACO: passar\nATACAR: monstro > alvo",small);
                 if (GUI.Button(new Rect(right+12,404,170,33),"Novo duelo",button))
                     NewMatchRequested?.Invoke();
                 if (GUI.Button(new Rect(right+12,446,170,33),"Voltar ao Sandbox",button))

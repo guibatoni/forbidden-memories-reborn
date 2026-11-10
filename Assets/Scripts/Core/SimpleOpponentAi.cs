@@ -74,6 +74,16 @@ namespace Reborn.Core
                 match.TryPlay(DuelSide.Opponent, plan.HandIndices, FieldLane.Monster,
                     plan.Slot, plan.Position, plan.Star, out _);
             }
+            if (!match.PlayedThisTurn &&
+                match.TryChooseSupportSet(DuelSide.Opponent,
+                    out int supportHand, out int supportSlot))
+            {
+                match.TryPlay(DuelSide.Opponent, new[] {supportHand},
+                    FieldLane.Support, supportSlot, BattlePosition.Defense,
+                    GuardianStar.None, true, out _);
+            }
+            // Never bypass compulsory placement in this headless test AI.
+            if (!match.PlayedThisTurn) return;
             if (match.Phase == MatchPhase.Main)
                 match.TryBeginBattle(DuelSide.Opponent, out _);
             while (StrategicOpponentAi.TryChooseAttack(match, out int from, out int target))

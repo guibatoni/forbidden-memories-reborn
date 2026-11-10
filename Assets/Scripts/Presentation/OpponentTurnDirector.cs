@@ -77,9 +77,31 @@ namespace Reborn.Presentation
                 }
                 yield return Pause(1.20f);
             }
+            else if (game.TryChooseSupportSet(DuelSide.Opponent,
+                out int supportHand, out int supportSlot))
+            {
+                // A facedown support card is a legal compulsory placement.
+                // Its unverified effect is never executed or exposed.
+                hud.Announce("Oponente prepara um suporte virado para baixo.");
+                yield return Pause(0.70f);
+                arena.StageMatchPlacement(DuelSide.Opponent, FieldLane.Support,
+                    supportSlot, new Vector3(0f, 0.46f, 6.9f),
+                    hud.AnimationsEnabled);
+                if (game.TryPlay(DuelSide.Opponent, new[] { supportHand },
+                    FieldLane.Support, supportSlot, BattlePosition.Defense,
+                    GuardianStar.None, true, out var supportReason))
+                    hud.Announce("Oponente setou um suporte na zona " +
+                        (supportSlot + 1) + ".");
+                else
+                {
+                    arena.ClearStagedPlacement();
+                    hud.Announce("Suporte recusado: " + supportReason);
+                }
+                yield return Pause(1.00f);
+            }
             else
             {
-                hud.Announce("Oponente nao possui uma invocacao valida.");
+                hud.Announce("Nenhuma colocacao legal disponivel; turno nao sera pulado.");
                 yield return Pause(0.85f);
             }
 
@@ -101,7 +123,8 @@ namespace Reborn.Presentation
                 yield return Pause(0.50f);
             }
 
-            if (game.Phase != MatchPhase.Finished && game.Phase == MatchPhase.Main)
+            if (game.Phase != MatchPhase.Finished &&
+                game.Phase == MatchPhase.Main && game.PlayedThisTurn)
             {
                 hud.Announce("Oponente prepara a fase de combate.");
                 yield return Pause(0.70f);

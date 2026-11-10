@@ -55,6 +55,9 @@ jobs:
       - name: Verify legal attack aim (static only)
         run: python3 tools/check_attack_aim.py
 
+      - name: Verify mandatory turns and card inspection (static only)
+        run: python3 tools/check_classic_turn_inspection.py
+
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 

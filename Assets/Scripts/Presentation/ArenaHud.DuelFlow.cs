@@ -33,24 +33,9 @@ namespace Reborn.Presentation
             AttackMode = true;
             SelectedAttacker = -1;
             SelectedFieldMonster = -1;
-            bool actionable = false;
-            for (int i = 0; i < DuelMatch.ZoneCount; i++)
-            {
-                var monster = match.Player.Monster(i);
-                if (monster == null) continue;
-                if (monster.Position == BattlePosition.Attack && !monster.AttackedThisTurn)
-                    actionable = true;
-                var opposite = monster.Position == BattlePosition.Attack
-                    ? BattlePosition.Defense : BattlePosition.Attack;
-                if (match.CanChangePosition(DuelSide.Player, i, opposite, out _))
-                    actionable = true;
-            }
-            if (!actionable)
-            {
-                Announce("Sem ataque disponivel. Passando turno automaticamente.");
-                TryPassPlayerTurn();
-            }
-            else Announce("Batalha liberada: clique no seu monstro e depois no alvo.");
+            // Unlike the older prototype, never pass automatically.
+            // SPACE is the explicit START equivalent, even in empty battle.
+            Announce("Carta baixada. Q/E alterna ATK/DEF; Espaco passa o turno.");
         }
 
         public void AfterPlayerAttack()
@@ -58,19 +43,7 @@ namespace Reborn.Presentation
             if (match == null || InputLocked ||
                 match.CurrentSide != DuelSide.Player ||
                 match.Phase != MatchPhase.Battle) return;
-            for (int i = 0; i < DuelMatch.ZoneCount; i++)
-            {
-                var monster = match.Player.Monster(i);
-                if (monster == null) continue;
-                if (monster.Position == BattlePosition.Attack && !monster.AttackedThisTurn)
-                    return;
-                var next = monster.Position == BattlePosition.Attack
-                    ? BattlePosition.Defense : BattlePosition.Attack;
-                if (match.CanChangePosition(DuelSide.Player, i, next, out _))
-                    return;
-            }
-            Announce("Todos os ataques utilizados. Passando turno.");
-            TryPassPlayerTurn();
+            Announce("Ataque concluido. Escolha outra acao ou pressione Espaco.");
         }
 
         public void TryPassPlayerTurn()
@@ -101,13 +74,21 @@ namespace Reborn.Presentation
         {
             if (match == null || SelectedFieldMonster < 0 || InputLocked ||
                 match.CurrentSide != DuelSide.Player) return;
-            var monster = match.Player.Monster(SelectedFieldMonster);
+            int slot = SelectedFieldMonster;
+            var monster = match.Player.Monster(slot);
             if (monster == null) return;
             var next = monster.Position == BattlePosition.Attack
                 ? BattlePosition.Defense : BattlePosition.Attack;
-            if (match.TryChangePosition(DuelSide.Player, SelectedFieldMonster,
-                next, out var reason))
-                Announce("Monstro alterado para " + next + ".");
+            if (match.TryChangePosition(DuelSide.Player, slot, next, out var reason))
+            {
+                // Match.Changed clears transient selections; keep the same card
+                // focused so consecutive Q/E presses work without re-clicking it.
+                SelectedFieldMonster = slot;
+                SelectedAttacker = -1;
+                Announce(next == BattlePosition.Attack ?
+                    "Monstro em ATK. Escolha um alvo ou use Q/E para DEF." :
+                    "Monstro em DEF. Use Q/E para ATK ou Espaco para encerrar.");
+            }
             else Announce(reason);
         }
 

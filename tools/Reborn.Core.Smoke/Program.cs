@@ -31,6 +31,29 @@ internal static class Program
     }
     private static void Battle(DuelMatch m, DuelSide side)
     {
+        // Tests that jump to a later turn still have to supply the required
+        // placement. Put a harmless card in a free rear slot for fixture setup.
+        if (!m.PlayedThisTurn)
+        {
+            bool placed = false;
+            var hand = m.Side(side).Hand;
+            for (int h = 0; h < hand.Count && !placed; h++)
+            {
+                var card = hand[h];
+                var lane = card.Kind == CardKind.Monster ?
+                    FieldLane.Monster : FieldLane.Support;
+                for (int slot = 4; slot >= 0; slot--)
+                {
+                    if (!m.CanPlay(side,new[]{h},lane,slot,card.StarA,out _)) continue;
+                    if (!m.TryPlay(side,new[]{h},lane,slot,
+                        BattlePosition.Defense,card.StarA,out var placementReason))
+                        throw new Exception(placementReason);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) throw new Exception("Smoke fixture has no valid mandatory play");
+        }
         if (!m.TryBeginBattle(side,out var reason)) throw new Exception(reason);
     }
     private static void End(DuelMatch m, DuelSide side)
@@ -40,6 +63,10 @@ internal static class Program
     private static void Main()
     {
         var m = Match(M("mine",2000,1500),M("theirs",1200,800));
+        Check(!m.TryEndTurn(DuelSide.Player,out _),
+            "START cannot pass before one card has been played");
+        Check(!m.TryBeginBattle(DuelSide.Player,out _),
+            "battle cannot begin before mandatory placement");
         Check(m.Player.Hand.Count==5 && m.Opponent.Hand.Count==5 && m.Player.DeckCount==35,
             "two hands and deck counts");
         Check(!m.TryPlay(DuelSide.Player, new [] {0},FieldLane.Support,0,
@@ -85,7 +112,10 @@ internal static class Program
         m3.TryAttack(DuelSide.Player,0,-1,out _);
         Check(m3.Phase==MatchPhase.Finished && m3.Winner==DuelSide.Player,
             "win by zero life");
-        var aiMatch = Match(M("player",1200,1000),M("opponent",1800,1000));
+        var aiMatch = Match(S("opening"),M("opponent",1800,1000));
+        Check(aiMatch.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _),
+            "player may spend the mandatory play on support");
         End(aiMatch,DuelSide.Player);
         Check(SimpleOpponentAi.TryChoosePlay(aiMatch,out int aiHand,out int aiZone),
             "AI can expose one playable monster without moving it");
@@ -101,6 +131,25 @@ internal static class Program
             aiMatch.TryAttack(DuelSide.Opponent,fromSlot,toSlot,out _) &&
             aiMatch.Player.Life == 6200,
             "AI attack applies damage only when the engine is invoked");
+
+        // Any supported card kind counts as the one compulsory placement:
+        // the opponent must set a support when the hand has no monsters.
+        var supportOnlyAi = new DuelMatch(
+            Deck(S("myOpening")),
+            Deck(S("spellA"),S("trapB"),S("equipC"),S("ritualD"),S("spellE")));
+        Check(supportOnlyAi.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _),
+            "opening support counts as one player turn action");
+        End(supportOnlyAi,DuelSide.Player);
+        Check(supportOnlyAi.TryChooseSupportSet(DuelSide.Opponent,
+            out int fallbackHand, out int fallbackSlot) &&
+            fallbackHand >= 0 && fallbackSlot >= 0,
+            "opponent can find a legal support-only mandatory play");
+        SimpleOpponentAi.TakeTurn(supportOnlyAi);
+        Check(supportOnlyAi.CurrentSide == DuelSide.Player &&
+            supportOnlyAi.Opponent.Support(fallbackSlot) != null &&
+            supportOnlyAi.Opponent.SupportIsFaceDown(fallbackSlot),
+            "support-only opponent sets a card instead of skipping turn");
 
         var standardDeck = DemoDeck.Create();
         var shuffledA = DeckRandomizer.Shuffle(standardDeck, new Random(154));
@@ -164,6 +213,7 @@ internal static class Program
         var adaptiveMatch = Match(M("player",1500,1300),M("opponent",2600,1900));
         Check(!brain.TryChoosePlacement(adaptiveMatch, out _),
             "adaptive brain refuses placement outside opponent turn");
+        Play(adaptiveMatch, DuelSide.Player);
         End(adaptiveMatch, DuelSide.Player);
         int adaptiveEvents = adaptiveMatch.Events.Count;
         Check(brain.TryChoosePlacement(adaptiveMatch, out var adaptivePlan) &&
@@ -329,7 +379,10 @@ internal static class Program
             favorableDefender.Player.Monster(0) == null,
             "shared forecast agrees with actual combat destruction");
 
-        var targetSafety = Match(M("p",900,900),M("o",1400,900));
+        var targetSafety = Match(S("setup"),M("o",1400,900));
+        Check(targetSafety.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _),
+            "set support counts as mandatory play without blocking direct attacks");
         End(targetSafety,DuelSide.Player);
         targetSafety.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Monster,0,
             BattlePosition.Attack,GuardianStar.None,out _);
@@ -346,7 +399,7 @@ internal static class Program
         // attacker can go direct. Greedy attack scoring could waste the
         // stronger attacker on a defender without inflicting LP damage.
         var sequenceMatch = new DuelMatch(
-            Deck(M("wall", 200, 1800)),
+            Deck(M("wall", 200, 1800), S("passSetup")),
             Deck(M("small", 2100, 900), M("strong", 3200, 1500)));
         Check(sequenceMatch.TryPlay(DuelSide.Player, new[] {0},
             FieldLane.Monster, 0, BattlePosition.Defense,
@@ -356,6 +409,9 @@ internal static class Program
             FieldLane.Monster, 0, BattlePosition.Attack,
             GuardianStar.None, out _), "first AI attacker is summoned");
         End(sequenceMatch, DuelSide.Opponent);
+        Check(sequenceMatch.TryPlay(DuelSide.Player, new[]{0},
+            FieldLane.Support, 0, BattlePosition.Attack, GuardianStar.None,
+            true, out _), "player sets support instead of skipping turn");
         End(sequenceMatch, DuelSide.Player);
         Check(sequenceMatch.TryPlay(DuelSide.Opponent, new[] {0},
             FieldLane.Monster, 1, BattlePosition.Attack,
@@ -466,9 +522,11 @@ internal static class Program
             0, BattlePosition.Defense, GuardianStar.None, true, out _) &&
             fluid.Player.Monster(0).FaceDown,
             "one monster can be set face-down in defense");
-        Check(!fluid.TryChangePosition(DuelSide.Player, 0,
-            BattlePosition.Attack, out _),
-            "newly summoned monster cannot change position during its placement turn");
+        Check(fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Attack, out _) &&
+            fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Defense, out _),
+            "new monster can toggle ATK/DEF repeatedly before attacking");
         Check(!fluid.CanPlay(DuelSide.Player, new[] { 0 },
             FieldLane.Support, 0, GuardianStar.None, out _),
             "one hand placement per turn remains enforced");
@@ -483,9 +541,14 @@ internal static class Program
             fluid.Player.Monster(0).Position == BattlePosition.Attack &&
             !fluid.Player.Monster(0).FaceDown,
             "set monster can be flipped to attack only on its owner's later turn");
-        Check(!fluid.TryChangePosition(DuelSide.Player, 0,
-            BattlePosition.Defense, out _),
-            "a monster cannot change position twice in one turn");
+        Check(fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Defense, out _) &&
+            fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Attack, out _),
+            "Q/E can alternate positions repeatedly");
+        Check(fluid.TryPlay(DuelSide.Player, new[]{0},
+            FieldLane.Support, 0, BattlePosition.Attack, GuardianStar.None,
+            true, out _), "a second-turn support card satisfies required placement");
         Battle(fluid, DuelSide.Player);
         Check(fluid.TryAttack(DuelSide.Player, 0, 0, out _) &&
             fluid.Player.Monster(0).AttackedThisTurn,
@@ -545,7 +608,7 @@ internal static class Program
 
         // Existing enemy defense may switch into attack on a later turn.
         var opponentFlip = new DuelMatch(
-            Deck(M("playerWall", 400, 1400)),
+            Deck(M("playerWall", 400, 1400), S("turn2Support")),
             Deck(M("aiSet", 2500, 1700)));
         Check(opponentFlip.TryPlay(DuelSide.Player, new[] {0},FieldLane.Monster,
             0,BattlePosition.Defense,GuardianStar.None,true,out _),
@@ -554,10 +617,13 @@ internal static class Program
         Check(opponentFlip.TryPlay(DuelSide.Opponent,new[] {0},FieldLane.Monster,
             0,BattlePosition.Defense,GuardianStar.None,true,out _),
             "AI can set a monster in face-down defense");
-        Check(!opponentFlip.TryChangePosition(DuelSide.Opponent,0,
+        Check(opponentFlip.CanChangePosition(DuelSide.Opponent,0,
             BattlePosition.Attack,out _),
-            "AI cannot flip its new set monster in the same turn");
+            "the same unrestricted pre-attack toggle applies to a freshly set monster");
         End(opponentFlip,DuelSide.Opponent);
+        Check(opponentFlip.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _),
+            "player sets support before ending the following turn");
         End(opponentFlip,DuelSide.Player);
         var tacticalFlip = new AdaptiveOpponentBrain(new Random(203));
         tacticalFlip.StartDuel(new AiLearningState("tactical:flip"));
@@ -567,9 +633,9 @@ internal static class Program
             opponentFlip.TryChangePosition(DuelSide.Opponent,switchSlot,nextMode,out _) &&
             !opponentFlip.Opponent.Monster(0).FaceDown,
             "AI switches previously set defense into attack without reading a concealed target");
-        Check(!opponentFlip.TryChangePosition(DuelSide.Opponent,0,
+        Check(opponentFlip.TryChangePosition(DuelSide.Opponent,0,
             BattlePosition.Defense,out _),
-            "AI cannot switch the same monster twice in one turn");
+            "AI can return to defense before attacking");
 
         // Prototype 0.14.1 inverted and responsive 3D hand fan geometry.
         // These checks are pure C# and can run in CI without a Unity Editor.
