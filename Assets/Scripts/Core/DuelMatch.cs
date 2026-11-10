@@ -6,7 +6,7 @@ namespace Reborn.Core
     public enum MatchEventKind
     {
         Reset, Draw, Play, Fusion, FusionFailed, RitualSummoned, BattleStarted, PositionChanged, SupportActivated, Attack,
-        Destroy, LifeChanged, TurnStarted, Graveyard, Finished
+        Destroy, LifeChanged, TurnStarted, Graveyard, Equipped, Finished
     }
 
     public sealed class MatchEvent
@@ -43,6 +43,28 @@ namespace Reborn.Core
         public bool PositionChangedThisTurn { get; internal set; }
         public bool FaceDown { get; private set; }
         public int TurnPlaced { get; }
+        public int EquipAttackBonus { get; private set; }
+        public int EquipDefenseBonus { get; private set; }
+        public int EquipCount { get; private set; }
+        public int EffectiveAttack => checked(Card.Attack + EquipAttackBonus);
+        public int EffectiveDefense => checked(Card.Defense + EquipDefenseBonus);
+
+        internal bool CanApplyEquip(int attack, int defense)
+        {
+            return attack > 0 && defense > 0 &&
+                (long)Card.Attack + EquipAttackBonus + attack <= int.MaxValue &&
+                (long)Card.Defense + EquipDefenseBonus + defense <= int.MaxValue &&
+                EquipCount < int.MaxValue;
+        }
+
+        internal void ApplyEquip(int attack, int defense)
+        {
+            if (!CanApplyEquip(attack, defense))
+                throw new InvalidOperationException("Bonus de equip fora de faixa");
+            EquipAttackBonus += attack;
+            EquipDefenseBonus += defense;
+            EquipCount++;
+        }
 
         internal MonsterOnField(CardDefinition card, BattlePosition position, GuardianStar star,
             bool faceDown = false, int turnPlaced = -1)
@@ -133,6 +155,7 @@ namespace Reborn.Core
         private readonly FusionCatalog fusions;
         private readonly RitualCatalog rituals;
         private readonly VerifiedSpellCatalog verifiedSpells;
+        private readonly VerifiedEquipCatalog verifiedEquips;
         private readonly List<MatchEvent> history = new List<MatchEvent>();
         private long sequence;
         private bool hasPlayed;
@@ -151,7 +174,8 @@ namespace Reborn.Core
         public DuelMatch(IReadOnlyList<CardDefinition> playerDeck,
             IReadOnlyList<CardDefinition> opponentDeck, FusionCatalog catalog = null,
             RitualCatalog ritualCatalog = null,
-            VerifiedSpellCatalog spellCatalog = null)
+            VerifiedSpellCatalog spellCatalog = null,
+            VerifiedEquipCatalog equipCatalog = null)
         {
             CheckDeck(playerDeck, nameof(playerDeck));
             CheckDeck(opponentDeck, nameof(opponentDeck));
@@ -160,6 +184,7 @@ namespace Reborn.Core
             fusions = catalog ?? new FusionCatalog();
             rituals = ritualCatalog ?? new RitualCatalog();
             verifiedSpells = spellCatalog ?? new VerifiedSpellCatalog();
+            verifiedEquips = equipCatalog ?? new VerifiedEquipCatalog();
             Emit(MatchEventKind.Reset, DuelSide.Player);
             DrawToHand(player, DuelSide.Player, false);
             DrawToHand(opponent, DuelSide.Opponent, false);
