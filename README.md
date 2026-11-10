@@ -1,3 +1,15 @@
+# Prototype 0.16 — In-field fusion (draft)
+
+Place selected hand card(s) onto an occupied **player monster** to resolve
+field-first fusion, using up to five ordered hand materials. Valid recipes
+yield the verified monster; failed recipes may replace the field monster.
+The resulting card/Guardian Stars are previewed before a legal play. AI can
+also perform safe field combinations when its zones are full.
+
+See [0.16 rules, limits and Unity checklist](Docs/PROTOTYPE_0_16.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.15 (draft)
 
 Classic turn controls: mandatory placement before ending turn, Q/E to toggle
