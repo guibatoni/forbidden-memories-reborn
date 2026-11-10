@@ -322,9 +322,19 @@ namespace Reborn.Presentation
                         pressStart = pointer;
                         var outcome = match.PreviewResult(DuelSide.Player,fusionSelection);
                         hud.Message = outcome == null ? "Selecao invalida." :
-                            "Fusao: " + fusionSelection.Count + "/5. " + outcome.Name +
-                            " | escolha face, posicao e Guardian, depois a zona.";
+                            "Materiais: " + fusionSelection.Count + "/5. " + outcome.Name +
+                            " | clique uma zona vazia ou coloque sobre seu monstro para fundir.";
                     }
+                }
+                else if (zone != null && !zone.Opponent &&
+                    zone.Lane == FieldLane.Monster &&
+                    match.Player.Monster(zone.Index) != null &&
+                    match.Phase == MatchPhase.Main &&
+                    hud.SelectedHandIndex >= 0 && fusionSelection.Count > 0)
+                {
+                    // Existing field monster is first, followed by selected
+                    // hand cards in the exact Shift-click sequence.
+                    PlaceMatchCard(zone);
                 }
                 else if (zone != null && !zone.Opponent &&
                     zone.Lane == FieldLane.Monster &&
@@ -417,29 +427,66 @@ namespace Reborn.Presentation
 
         private void PlaceMatchCard(ZoneView zone)
         {
+            if (zone == null || zone.Opponent ||
+                match.Phase != MatchPhase.Main || match.PlayedThisTurn) return;
             var selected = fusionSelection.Count > 0 ?
                 (IReadOnlyList<int>)fusionSelection : new [] { hud.SelectedHandIndex };
-            var result = match.PreviewResult(DuelSide.Player,selected);
+            bool onField = zone.Lane == FieldLane.Monster &&
+                match.Player.Monster(zone.Index) != null;
+            // Unlike a hand-only combination, field material is FIRST.
+            var result = onField ?
+                match.PreviewFieldResult(DuelSide.Player, selected, zone.Index) :
+                match.PreviewResult(DuelSide.Player, selected);
             if (result == null) { hud.Message = "Selecao invalida."; return; }
             var star = hud.UseSecondaryStar ? result.StarB : result.StarA;
             var position = hud.UseDefense ? BattlePosition.Defense : BattlePosition.Attack;
             var source = FindHandView(hud.SelectedHandIndex);
             var origin = source != null ? source.transform.position : zone.transform.position;
-            arena.StagePlacement(zone.Lane,zone.Index,origin,hud.AnimationsEnabled);
-            if (match.TryPlay(DuelSide.Player,selected,zone.Lane,zone.Index,
-                position,star,hud.PlaceFaceDown,out var reason))
+
+            if (onField)
             {
-                hud.Announce("Carta colocada: " + result.Name +
-                    (hud.PlaceFaceDown ? " virada para baixo." : " virada para cima."));
-                hud.AfterHandPlacement();
-                // Keep the freshly placed card selected for immediate Q/E.
-                hud.SelectedFieldMonster = zone.Lane == FieldLane.Monster ?
-                    zone.Index : -1;
+                if (!match.CanPlayOnField(DuelSide.Player, selected, zone.Index,
+                    star, out _, out var previewReason))
+                {
+                    hud.Message = previewReason;
+                    return; // Never animate or consume cards for invalid effects.
+                }
+                arena.StagePlacement(zone.Lane, zone.Index, origin, hud.AnimationsEnabled);
+                if (match.TryPlayOnField(DuelSide.Player, selected, zone.Index,
+                    position, star, hud.PlaceFaceDown,
+                    out var fieldResult, out bool fused, out var reason))
+                {
+                    arena.PlayFieldCombinationEffect(DuelSide.Player, zone.Index,
+                        fused, hud.AnimationsEnabled);
+                    hud.Announce(fused ? "Fusao no campo: " + fieldResult.Name :
+                        "Sem receita de fusao: " + fieldResult.Name +
+                        " substituiu o monstro anterior.");
+                    hud.AfterHandPlacement();
+                    hud.SelectedFieldMonster = zone.Index;
+                }
+                else
+                {
+                    arena.ClearStagedPlacement();
+                    hud.Message = reason;
+                }
             }
             else
             {
-                arena.ClearStagedPlacement();
-                hud.Message = reason;
+                arena.StagePlacement(zone.Lane, zone.Index, origin, hud.AnimationsEnabled);
+                if (match.TryPlay(DuelSide.Player, selected, zone.Lane, zone.Index,
+                    position, star, hud.PlaceFaceDown, out var reason))
+                {
+                    hud.Announce("Carta colocada: " + result.Name +
+                        (hud.PlaceFaceDown ? " virada para baixo." : " virada para cima."));
+                    hud.AfterHandPlacement();
+                    hud.SelectedFieldMonster = zone.Lane == FieldLane.Monster ?
+                        zone.Index : -1;
+                }
+                else
+                {
+                    arena.ClearStagedPlacement();
+                    hud.Message = reason;
+                }
             }
             UpdateLegalHighlights();
         }
@@ -563,12 +610,21 @@ namespace Reborn.Presentation
                     }
                     var selection = fusionSelection.Count > 0 ?
                         (IReadOnlyList<int>)fusionSelection : new [] { lastSelectedHand };
-                    var card = match.PreviewResult(DuelSide.Player, selection);
+                    bool occupiedMonster = !zone.Opponent &&
+                        zone.Lane == FieldLane.Monster &&
+                        match.Player.Monster(zone.Index) != null;
+                    var card = occupiedMonster ?
+                        match.PreviewFieldResult(DuelSide.Player, selection, zone.Index) :
+                        match.PreviewResult(DuelSide.Player, selection);
                     var star = card == null ? GuardianStar.None :
                         (hud.UseSecondaryStar ? card.StarB : card.StarA);
-                    zone.SetLegal(!zone.Opponent && card != null &&
-                        match.CanPlay(DuelSide.Player, selection,
-                            zone.Lane, zone.Index, star, out _));
+                    bool legal = !zone.Opponent && card != null &&
+                        (occupiedMonster ?
+                            match.CanPlayOnField(DuelSide.Player, selection,
+                                zone.Index, star, out _, out _) :
+                            match.CanPlay(DuelSide.Player, selection,
+                                zone.Lane, zone.Index, star, out _));
+                    zone.SetLegal(legal);
                 }
                 else zone.SetLegal(!zone.Opponent &&
                     session.CanPlace(lastSelectedHand, zone.Lane, zone.Index, out _));
