@@ -49,6 +49,9 @@ jobs:
       - name: Verify responsive inverted hand fan (static only)
         run: python3 tools/check_responsive_hand_fan.py
 
+      - name: Verify legal field targets and summon motion (static only)
+        run: python3 tools/check_field_interaction.py
+
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
 
@@ -73,7 +76,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: Reborn-0.14.2-Clean-Source
+          name: Reborn-0.14.3-Clean-Source
           retention-days: 90
           if-no-files-found: error
           path: |

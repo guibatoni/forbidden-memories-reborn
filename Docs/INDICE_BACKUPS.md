@@ -112,3 +112,11 @@ A interface Unity so e considerada validada depois dos testes locais do editor.
 - ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.14.2
 - Raised focused card, neighbor separation, preserved mouse drag and
   Shift-fusion order; rules and AI unchanged.
+
+
+## Prototype 0.14.3 — Field Interaction
+- Recovery branch: backup/prototype-0.14.3
+- CI source artifact: Reborn-0.14.3-Clean-Source
+- ChatGPT Library: Forbidden Memories Reborn/Backups/Prototype 0.14.3
+- Legal placement/attack feedback, hover highlights, gold attacker source,
+  and eased arcing summon animation. No rules or camera changes.

@@ -1,3 +1,14 @@
+# Forbidden Memories Reborn — Prototype 0.14.3
+
+More readable field play: legal placement zones in cyan, a bright hover
+outline for valid targets, a gold selected attacker, and a smoother,
+arcing card summon with final landing ease. Existing core rules,
+adaptive AI and fixed camera remain unchanged.
+
+[0.14.3 field interaction notes](Docs/PROTOTYPE_0_14_3.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.14.2
 
 Improved MTGA-inspired hand focus: the hovered card rises more clearly,
