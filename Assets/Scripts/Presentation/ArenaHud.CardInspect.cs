@@ -87,20 +87,31 @@ namespace Reborn.Presentation
                 cursorY += 39f;
             }
             GUI.Label(new Rect(infoX, cursorY, infoW, 27f),
-                "DESCRICAO / EFEITO IMPORTADO", body);
+                "DESCRICAO E INFORMACOES DE EFEITO", body);
             cursorY += 34f;
             float available = Mathf.Max(48f, y + h - cursorY - 68f);
             string description = string.IsNullOrWhiteSpace(card.Description) ?
-                "Nenhum texto ou efeito verificado foi importado para esta carta." :
-                card.Description;
+                "Descricao original indisponivel neste perfil." : card.Description;
+            string content = "DESCRICAO DA CARTA\n" + description;
+            if (card.HasEffectText)
+            {
+                content += "\n\nTEXTO DE EFEITO (INFORMATIVO)\n" +
+                    card.EffectText + "\n\nFonte: " + card.EffectSource +
+                    "\nEstado: " + card.EffectStatus +
+                    "\nExecucao no jogo: NAO VERIFICADA";
+            }
+            else if (card.Kind != CardKind.Monster)
+            {
+                content += "\n\nNenhum texto de efeito com procedencia foi importado.";
+            }
             var infoStyle = Style(16, new Color(0.88f, 0.91f, 0.96f));
             float textHeight = Mathf.Max(available, infoStyle.CalcHeight(
-                new GUIContent(description), infoW - 27f) + 10f);
+                new GUIContent(content), infoW - 27f) + 10f);
             inspectionScroll = GUI.BeginScrollView(
                 new Rect(infoX, cursorY, infoW, available),
                 inspectionScroll, new Rect(0f, 0f, infoW - 18f, textHeight));
             GUI.Label(new Rect(0f, 0f, infoW - 28f, textHeight),
-                description, infoStyle);
+                content, infoStyle);
             GUI.EndScrollView();
             GUI.Label(new Rect(infoX, y + h - 49f, infoW, 37f),
                 "Botao direito ou ESC: fechar", small);
