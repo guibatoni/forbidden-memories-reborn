@@ -42,7 +42,10 @@ namespace Reborn.Presentation
 
             if (targetSlot >= 0 && match.Opponent.Monster(targetSlot) != null)
             {
-                hud.Announce("Alvo: " + match.Opponent.Monster(targetSlot).Card.Name + ".");
+                var target = match.Opponent.Monster(targetSlot);
+                hud.Announce(target.FaceDown
+                    ? "Alvo: monstro virado para baixo."
+                    : "Alvo: " + target.Card.Name + ".");
                 arena.HighlightAttacker(DuelSide.Opponent,targetSlot);
             }
             else hud.Announce("Ataque direto declarado!");
@@ -67,8 +70,13 @@ namespace Reborn.Presentation
             }
             arena.HighlightAttacker(DuelSide.Player,-1);
             arena.HighlightAttacker(DuelSide.Opponent,-1);
+            if (match == hud.Match && hud.DuelModeActive &&
+                match.Phase == MatchPhase.Battle && hud.AnimationsEnabled)
+                yield return new WaitForSeconds(0.40f);
             hud.SetPlayerAttackBusy(false);
             active = null;
+            if (match == hud.Match && hud.DuelModeActive)
+                hud.AfterPlayerAttack();
         }
 
         public void Cancel()
