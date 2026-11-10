@@ -427,6 +427,13 @@ namespace Reborn.Presentation
                     var monster = state.Monster(i);
                     if (monster != null)
                     {
+                        if (!monster.FaceDown && monster.EquipCount > 0)
+                            ArenaVisuals.Label(
+                                "ATK " + monster.EffectiveAttack +
+                                " | DEF " + monster.EffectiveDefense,
+                                dynamicRoot,
+                                new Vector3((i-2)*2.4f, 0.65f, sign*2.95f),
+                                new Color(0.43f, 0.96f, 0.74f), 0.075f);
                         var placed = MakeCard(side+"_Monster_"+i,monster.Card,-1,
                             new Vector3((i-2)*2.4f,0.39f,sign*2.0f),
                             new Vector3(1.51f,0.12f,1.71f), monster.FaceDown);
@@ -515,6 +522,46 @@ namespace Reborn.Presentation
                 shape.radius = 0.33f;
                 particles.GetComponent<ParticleSystemRenderer>().sharedMaterial =
                     side == DuelSide.Player ? cyan : gold;
+                particles.Play();
+                Object.Destroy(fx, 1.7f);
+                return;
+            }
+        }
+
+        /// <summary>
+        /// Non-licensed, original equip constellation. The monster remains
+        /// stationary; only the light rings move to its field position.
+        /// </summary>
+        public void PlayEquipActivation(DuelSide side, int slot)
+        {
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent != (side == DuelSide.Opponent) ||
+                    zone.Lane != FieldLane.Monster || zone.Index != slot) continue;
+                var fx = new GameObject("Original_Equip_Constellation");
+                fx.transform.SetParent(root, false);
+                fx.transform.position = zone.transform.position + Vector3.up * 0.42f;
+                var particles = fx.AddComponent<ParticleSystem>();
+                particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = particles.main;
+                main.loop = false;
+                main.playOnAwake = false;
+                main.duration = 0.54f;
+                main.startLifetime = 0.72f;
+                main.startSpeed = 1.35f;
+                main.startSize = 0.12f;
+                main.maxParticles = 85;
+                main.startColor = ArenaVisuals.Gold;
+                var emission = particles.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new[] {
+                    new ParticleSystem.Burst(0f, 42),
+                    new ParticleSystem.Burst(0.17f, 20)
+                });
+                var shape = particles.shape;
+                shape.shapeType = ParticleSystemShapeType.Circle;
+                shape.radius = 0.65f;
+                particles.GetComponent<ParticleSystemRenderer>().sharedMaterial = gold;
                 particles.Play();
                 Object.Destroy(fx, 1.7f);
                 return;
