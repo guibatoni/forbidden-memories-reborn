@@ -521,11 +521,23 @@ namespace Reborn.Presentation
                 }
                 else if (SelectedSupportSlot >= 0)
                 {
-                    if (GUI.Button(new Rect(right+12,250,170,36),
-                        match.CanActivateSupport(DuelSide.Player,
-                            SelectedSupportSlot, out _) ?
-                        "Ativar magia setada" : "Efeito indisponivel",button))
-                        TryActivateSelectedSupport();
+                    var chosenSupport = match.Player.Support(SelectedSupportSlot);
+                    if (chosenSupport != null &&
+                        chosenSupport.Kind == CardKind.Equip)
+                    {
+                        GUI.Label(new Rect(right+12,244,176,59),
+                            "EQUIP setado: clique no seu monstro revelado para escolher o alvo.",small);
+                    }
+                    else
+                    {
+                        GUI.enabled = player && !InputLocked &&
+                            match.CanActivateSupport(DuelSide.Player,
+                                SelectedSupportSlot, out _);
+                        if (GUI.Button(new Rect(right+12,250,170,36),
+                            GUI.enabled ? "Ativar magia setada" : "Efeito indisponivel",button))
+                            TryActivateSelectedSupport();
+                        GUI.enabled = player && !InputLocked;
+                    }
                 }
                 else GUI.Label(new Rect(right+13,247,174,37),
                     "Selecione um monstro no campo para mudar ATK/DEF",small);
