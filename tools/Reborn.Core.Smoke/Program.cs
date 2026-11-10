@@ -107,6 +107,97 @@ internal static class Program
             "fusion by explicit data");
         Check(m2.Events.Select(e=>e.Sequence).SequenceEqual(m2.Events.Select(e=>e.Sequence).OrderBy(v=>v)),
             "ordered engine events");
+        // Prototype 0.16 — field card FIRST, followed by up to five hand
+        // materials. Intermediate results are virtual (never buried).
+        var fieldRecipes = new FusionCatalog();
+        fieldRecipes.Add("base", "a", M("f1", 1400, 1200));
+        fieldRecipes.Add("f1", "b", M("f2", 1700, 1450));
+        fieldRecipes.Add("f2", "c", M("f3", 2200, 1550));
+        fieldRecipes.Add("f3", "d", M("f4", 2500, 1600));
+        fieldRecipes.Add("f4", "e", M("f5", 3000, 2300, GuardianStar.Mercury));
+        var fieldGame = new DuelMatch(
+            Deck(M("base", 900, 850), M("a", 400, 400),
+                M("b", 500, 500), M("c", 600, 600),
+                M("d", 700, 700), M("e", 800, 800)),
+            Deck(M("enemy", 900, 850)), fieldRecipes);
+        Check(fieldGame.TryPlay(DuelSide.Player, new[]{0},
+            FieldLane.Monster, 0, BattlePosition.Defense,
+            GuardianStar.None, true, out _), "0.16 setup: field material set");
+        End(fieldGame, DuelSide.Player);
+        Play(fieldGame, DuelSide.Opponent);
+        End(fieldGame, DuelSide.Opponent);
+        var fiveMaterials = new[]{0,1,2,3,4};
+        int previewEventCount = fieldGame.Events.Count;
+        int previewGraveCount = fieldGame.Player.Graveyard.Count;
+        var fieldPreview = fieldGame.PreviewFieldResult(DuelSide.Player,
+            fiveMaterials, 0);
+        Check(fieldPreview?.Id == "f5" &&
+            fieldGame.CanPlayOnField(DuelSide.Player, fiveMaterials, 0,
+                GuardianStar.Mercury, out var legalResult, out _) &&
+            legalResult.Id == "f5",
+            "field first plus five hand cards produces ordered sixth-card result");
+        Check(fieldGame.Events.Count == previewEventCount &&
+            fieldGame.Player.Graveyard.Count == previewGraveCount &&
+            fieldGame.Player.Hand.Count == 5,
+            "field fusion preview is read-only");
+        Check(!fieldGame.CanPlayOnField(DuelSide.Player,
+            new[]{0,0},0,GuardianStar.None,out _,out _) &&
+            !fieldGame.CanPlayOnField(DuelSide.Player,
+                new[]{5},0,GuardianStar.None,out _,out _) &&
+            !fieldGame.CanPlayOnField(DuelSide.Player,
+                new[]{0},-1,GuardianStar.None,out _,out _),
+            "duplicate, invalid and out-of-range field materials are rejected");
+        Check(fieldGame.TryPlayOnField(DuelSide.Player,
+            fiveMaterials, 0, BattlePosition.Attack, GuardianStar.Mercury,
+            true, out var fieldOutcome, out bool combined, out _) &&
+            combined && fieldOutcome.Id == "f5" &&
+            fieldGame.Player.Monster(0).Card.Id == "f5" &&
+            !fieldGame.Player.Monster(0).FaceDown &&
+            fieldGame.Player.Monster(0).Star == GuardianStar.Mercury,
+            "validated six-material field fusion sets correct face-up result and star");
+        Check(fieldGame.Player.Hand.Count == 0 &&
+            fieldGame.Player.Graveyard.Count == previewGraveCount + 6 &&
+            fieldGame.Events.Count(e => e.Kind == MatchEventKind.Fusion &&
+                e.Side == DuelSide.Player) == 5,
+            "only six physical materials buried; no virtual intermediate results");
+        Check(!fieldGame.CanPlayOnField(DuelSide.Player,
+            new[]{0},0,GuardianStar.None,out _,out _) &&
+            !fieldGame.TryPlayOnField(DuelSide.Player,
+                new[]{0},0,BattlePosition.Attack,GuardianStar.None,false,
+                out _,out _,out _),
+            "field fusion consumes the same one mandatory placement action");
+
+        // A failed recipe replaces the older field monster with the last
+        // selected hand monster; unsupported Equip effects never run.
+        var failedField = new DuelMatch(
+            Deck(M("old", 2400, 1800), S("unverifiedEquip"),
+                M("new", 1300, 900)), Deck(M("op", 1000, 1000)));
+        Play(failedField,DuelSide.Player);
+        End(failedField,DuelSide.Player);
+        Play(failedField,DuelSide.Opponent);
+        End(failedField,DuelSide.Opponent);
+        int failedBefore = failedField.Events.Count;
+        Check(!failedField.CanPlayOnField(DuelSide.Player,new[]{0},
+            0,GuardianStar.None,out _,out _) &&
+            !failedField.TryPlayOnField(DuelSide.Player,new[]{0},
+                0,BattlePosition.Attack,GuardianStar.None,false,
+                out _,out _,out _),
+            "unverified equip on occupied monster cannot fabricate an effect");
+        Check(failedField.Events.Count == failedBefore &&
+            failedField.Player.Monster(0).Card.Id == "old" &&
+            failedField.Player.Graveyard.Count == 0,
+            "invalid support combination preserves full duel state");
+        Check(failedField.TryPlayOnField(DuelSide.Player,new[]{1},
+            0,BattlePosition.Defense,GuardianStar.None,true,
+            out var failResult,out bool wasFusion,out _) &&
+            !wasFusion && failResult.Id == "new" &&
+            failedField.Player.Monster(0).FaceDown &&
+            failedField.Player.Graveyard.Count == 1,
+            "failed monster fusion replaces old field material without inventing a result");
+        Check(failedField.Player.Hand.Count == 4 &&
+            failedField.Player.Graveyard[0].Id == "old",
+            "failed field combination preserves surviving hand card as on-field material");
+
         var m3=Match(M("big",8500,500),M("small",500,500));
         Play(m3,DuelSide.Player);Battle(m3,DuelSide.Player);
         m3.TryAttack(DuelSide.Player,0,-1,out _);
