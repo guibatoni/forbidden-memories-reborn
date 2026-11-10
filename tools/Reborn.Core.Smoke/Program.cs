@@ -542,6 +542,34 @@ internal static class Program
             "face-down attacker is revealed on successful attack");
         Check(supportSet.Player.SupportSetTurn(1) == 1,
             "support card records the original turn it was set");
+
+        // Existing enemy defense may switch into attack on a later turn.
+        var opponentFlip = new DuelMatch(
+            Deck(M("playerWall", 400, 1400)),
+            Deck(M("aiSet", 2500, 1700)));
+        Check(opponentFlip.TryPlay(DuelSide.Player, new[] {0},FieldLane.Monster,
+            0,BattlePosition.Defense,GuardianStar.None,true,out _),
+            "player hides a defensive monster");
+        End(opponentFlip,DuelSide.Player);
+        Check(opponentFlip.TryPlay(DuelSide.Opponent,new[] {0},FieldLane.Monster,
+            0,BattlePosition.Defense,GuardianStar.None,true,out _),
+            "AI can set a monster in face-down defense");
+        Check(!opponentFlip.TryChangePosition(DuelSide.Opponent,0,
+            BattlePosition.Attack,out _),
+            "AI cannot flip its new set monster in the same turn");
+        End(opponentFlip,DuelSide.Opponent);
+        End(opponentFlip,DuelSide.Player);
+        var tacticalFlip = new AdaptiveOpponentBrain(new Random(203));
+        tacticalFlip.StartDuel(new AiLearningState("tactical:flip"));
+        Check(tacticalFlip.TryChoosePositionChange(opponentFlip,
+            out int switchSlot, out var nextMode) &&
+            switchSlot == 0 && nextMode == BattlePosition.Attack &&
+            opponentFlip.TryChangePosition(DuelSide.Opponent,switchSlot,nextMode,out _) &&
+            !opponentFlip.Opponent.Monster(0).FaceDown,
+            "AI switches previously set defense into attack without reading a concealed target");
+        Check(!opponentFlip.TryChangePosition(DuelSide.Opponent,0,
+            BattlePosition.Defense,out _),
+            "AI cannot switch the same monster twice in one turn");
         Console.WriteLine("PASS: " + passed + " deterministic smoke assertions");
     }
 }
