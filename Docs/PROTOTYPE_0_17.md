@@ -74,13 +74,16 @@ without permission from the rightsholder.
 
 ### Original PS1 ritual mechanic — NOT modern Yu-Gi-Oh!
 
-The ritual spell is activated using **three exact, distinct, face-up monsters
-already placed on your own field**. These monsters are sacrificed and the
+The ritual spell is activated using **three specific, face-up monster copies
+already placed in three separate slots of your own field**. Some recipes
+require repeated card IDs (e.g. three identical monsters); the field copies
+must be physically distinct. These monsters are sacrificed and the
 ritual result appears in their place. You do **not** need the ritual monster
 in your hand, an Extra Deck, an exact Level sum, or generic tributes.
 
-Example: Gate Guardian Ritual (#667) requires Sanga of the Thunder (#371),
-Kazejin (#372) and Suijin (#373) in the field to summon Gate Guardian (#374).
+Example: a three-copy ritual can ask for three separate Blue-Eyes White
+Dragon cards rather than three different monster IDs. The actual required
+IDs and result are always taken from the local disc export, never assumed.
 
 In the 0.17 prototype:
 1. Have the three necessary monsters face-up in separate field slots.
