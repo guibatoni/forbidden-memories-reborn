@@ -60,8 +60,75 @@ internal static class Program
     {
         if (!m.TryEndTurn(side,out var reason)) throw new Exception(reason);
     }
+    private static void CheckOriginalStarterChoices()
+    {
+        var catalog = new List<CardDefinition>();
+        for (int id = 1; id <= 722; id++)
+        {
+            CardKind kind = id <= 690 ? CardKind.Monster :
+                id <= 719 ? CardKind.Spell : CardKind.Equip;
+            int atk = id <= 200 ? 300 : id <= 400 ? 600 :
+                id <= 600 ? 900 : 1600;
+            int def = id <= 200 ? 350 : id <= 400 ? 650 :
+                id <= 600 ? 900 : 1100;
+            catalog.Add(new CardDefinition(id.ToString("000"),
+                "Synthetic #" + id, kind, kind == CardKind.Monster ? atk : 0,
+                kind == CardKind.Monster ? def : 0, ""));
+        }
+        var weights = new List<int[]>();
+        for (int group=0;group<7;group++)
+        {
+            var row = new int[722];
+            int start = group == 0 ? 1 : group == 1 ? 201 :
+                group == 2 ? 401 : group == 3 ? 601 :
+                group == 4 ? 691 : group == 5 ? 705 : 720;
+            int count = group < 2 ? 8 : group == 6 ? 3 : 4;
+            int baseWeight = 2048/count;
+            for (int i=0;i<count;i++) row[start-1+i]=baseWeight;
+            row[start-1]+=2048-baseWeight*count;
+            weights.Add(row);
+        }
+        var source = new StarterDeckCatalog(catalog,weights);
+        var options = source.FourChoices(new Random(9917));
+        Check(options.Count == 4 && options.All(d => d.Count == 40),
+            "four independent original-pool starter proposals, 40 cards each");
+        var signatures = new HashSet<string>();
+        foreach(var deck in options)
+        {
+            Check(deck.GroupBy(c=>c.Id).All(g=>g.Count()<=3),
+                "starter caps duplicated physical cards at three copies");
+            Check(deck.Count(c=>c.Kind==CardKind.Monster &&
+                c.Attack+c.Defense<1100)==16 &&
+                deck.Count(c=>c.Kind==CardKind.Monster &&
+                c.Attack+c.Defense>=1100 && c.Attack+c.Defense<1600)==16 &&
+                deck.Count(c=>c.Kind==CardKind.Monster &&
+                c.Attack+c.Defense>=1600 && c.Attack+c.Defense<2100)==4 &&
+                deck.Count(c=>c.Kind==CardKind.Monster &&
+                c.Attack+c.Defense>=2100)==1 &&
+                deck.Count(c=>c.Kind==CardKind.Spell)==2 &&
+                deck.Count(c=>c.Kind==CardKind.Equip)==1,
+                "starter distribution matches authentic 16+16+4+1+1+1+1");
+            signatures.Add(string.Join(",", deck.Select(c=>c.Id)
+                .OrderBy(x=>x,StringComparer.Ordinal)));
+        }
+        Check(signatures.Count==4,
+            "four starter choices have distinct physical card sets");
+        var corrupt = weights.Select(w=>(int[])w.Clone()).ToList();
+        corrupt[0][0]=0;
+        try
+        {
+            new StarterDeckCatalog(catalog,corrupt);
+            throw new Exception("FAIL corrupt starter weights were accepted");
+        }
+        catch(ArgumentException)
+        {
+            Check(true,"corrupt original starter rows rejected");
+        }
+    }
+
     private static void Main()
     {
+        CheckOriginalStarterChoices();
         var m = Match(M("mine",2000,1500),M("theirs",1200,800));
         Check(!m.TryEndTurn(DuelSide.Player,out _),
             "START cannot pass before one card has been played");
