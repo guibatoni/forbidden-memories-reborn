@@ -60,11 +60,18 @@ namespace Reborn.Presentation
                 match.CanAttack(DuelSide.Player,fromSlot,targetSlot,out string reason))
             {
                 // Forecast and execution share the same rule calculation.
+                int eventCount = match.Events.Count;
                 if (match.TryPreviewAttack(DuelSide.Player,fromSlot,targetSlot,
                     out var preview,out reason) &&
                     match.TryAttack(DuelSide.Player,fromSlot,targetSlot,out reason))
                 {
-                    hud.Announce(CombatExplanation.Describe(preview));
+                    string trap = "";
+                    for (int i = eventCount; i < match.Events.Count; i++)
+                        if (match.Events[i].Kind == MatchEventKind.TrapTriggered)
+                            trap = match.Events[i].CardId;
+                    hud.Announce(trap.Length > 0 ?
+                        "Armadilha #" + trap + " bloqueou o ataque e destruiu o atacante!" :
+                        CombatExplanation.Describe(preview));
                 }
                 else hud.Announce("Ataque recusado: " + reason);
             }
