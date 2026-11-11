@@ -270,8 +270,8 @@ namespace Reborn.Presentation
                     match.PreviewFieldResult(DuelSide.Player, fusionSelection, zone.Index);
                 if (prediction != null && prediction.Kind == CardKind.Monster &&
                     (ritualPreview ||
-                     match.CountFieldFusionSteps(DuelSide.Player,
-                         fusionSelection,zone.Index) > 0))
+                     match.FinalFieldResultIsFusion(DuelSide.Player,
+                         fusionSelection,zone.Index)))
                     hud.FieldFusionPreview = prediction;
             }
             if (mouse.rightButton.wasPressedThisFrame && !overHud)
@@ -559,8 +559,8 @@ namespace Reborn.Presentation
             // Warn before destroying the old monster, but preserve deliberate
             // PS1 field substitutions through explicit confirmation.
             bool replacesWithoutFusion = onField && !ritual &&
-                match.CountFieldFusionSteps(DuelSide.Player,
-                    selected, zone.Index) == 0;
+                !match.FinalFieldResultIsFusion(DuelSide.Player,
+                    selected, zone.Index);
             if (replacesWithoutFusion)
                 hud.Message = "Sem receita: a jogada substituira o monstro " +
                     "no campo. Confirme conscientemente.";
