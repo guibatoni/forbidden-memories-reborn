@@ -156,6 +156,7 @@ namespace Reborn.Core
         private readonly RitualCatalog rituals;
         private readonly VerifiedSpellCatalog verifiedSpells;
         private readonly VerifiedEquipCatalog verifiedEquips;
+        private readonly AttackTrapCatalog attackTraps;
         private readonly List<MatchEvent> history = new List<MatchEvent>();
         private long sequence;
         private bool hasPlayed;
@@ -177,7 +178,8 @@ namespace Reborn.Core
             IReadOnlyList<CardDefinition> opponentDeck, FusionCatalog catalog = null,
             RitualCatalog ritualCatalog = null,
             VerifiedSpellCatalog spellCatalog = null,
-            VerifiedEquipCatalog equipCatalog = null)
+            VerifiedEquipCatalog equipCatalog = null,
+            AttackTrapCatalog trapCatalog = null)
         {
             CheckDeck(playerDeck, nameof(playerDeck));
             CheckDeck(opponentDeck, nameof(opponentDeck));
@@ -187,6 +189,7 @@ namespace Reborn.Core
             rituals = ritualCatalog ?? new RitualCatalog();
             verifiedSpells = spellCatalog ?? new VerifiedSpellCatalog();
             verifiedEquips = equipCatalog ?? new VerifiedEquipCatalog();
+            attackTraps = trapCatalog ?? new AttackTrapCatalog();
             Emit(MatchEventKind.Reset, DuelSide.Player);
             DrawToHand(player, DuelSide.Player, false);
             DrawToHand(opponent, DuelSide.Opponent, false);
@@ -506,6 +509,15 @@ namespace Reborn.Core
         {
             if (!TryPreviewAttack(side, fromSlot, targetSlot, out var forecast, out reason))
                 return false;
+            // Hidden traps are evaluated only when the real attack commits,
+            // never during a preview. No guardian bonus or LP damage is leaked
+            // when a trap cancels an attack before combat.
+            if (TryTriggerAttackTrap(side, fromSlot, targetSlot,
+                forecast.EffectiveAttack))
+            {
+                reason = "";
+                return true;
+            }
             var attacker = Side(side).Monster(fromSlot);
             var defender = targetSlot >= 0 ? Side(Other(side)).Monster(targetSlot) : null;
             // Set monsters are revealed only when they actually participate in combat.
