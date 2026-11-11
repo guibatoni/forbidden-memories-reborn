@@ -103,7 +103,11 @@ namespace Reborn.Presentation
             int fusions = match.CountHandFusionSteps(DuelSide.Player, fusionSelection);
             var result = match.PreviewResult(DuelSide.Player, fusionSelection);
             hud.FieldFusionPreview = fusions > 0 ? result : null;
-            hud.Message = (fusionSelection.Count == 1 ? "Carta selecionada: " :
+            hud.Message = match.FusionRecipeCount == 0 &&
+                fusionSelection.Count > 1 ?
+                "Sem receitas de fusao neste perfil. Importe a ISO Original; " +
+                "nenhuma fusao sera inventada." :
+                (fusionSelection.Count == 1 ? "Carta selecionada: " :
                 "Materiais " + fusionSelection.Count + "/5: ") +
                 card.Name + (fusions > 0 && result != null
                     ? " | FUSOES " + fusions + " -> " + result.Name
