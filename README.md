@@ -1,3 +1,16 @@
+# Prototype 0.21 — Terrenos e armadilhas originais
+
+**Terrenos:** Forest, Wasteland, Mountain, Sogen, Umi e Yami alteram o campo
+global e modificam ATK/DEF conforme os tipos e as penalidades documentadas.
+**Traps:** House of Adhesive Tape, Eatgaboon, Bear Trap, Invisible Wire,
+Acid Trap Hole e Widespread Ruin disparam automaticamente quando o ATK do
+atacante está dentro do limite. O atacante é destruído antes do combate;
+a armadilha elegível de menor limiar tem prioridade.
+
+[Guia e validação do Prototype 0.21](Docs/PROTOTYPE_0_21.md)
+
+---
+
 # Prototype 0.20 — Equips do Forbidden Memories (PS1)
 
 Equipamentos agora aumentam ATK/DEF de monstros compativeis, somam bonus,

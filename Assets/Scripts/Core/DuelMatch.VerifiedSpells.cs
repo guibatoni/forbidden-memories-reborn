@@ -37,6 +37,13 @@ namespace Reborn.Core
         {
             switch (rule.Operation)
             {
+                case VerifiedSpellOperation.SetTerrain:
+                    if (!TerrainRules.IsKnown(rule.CardId))
+                        throw new InvalidOperationException("Campo fora da lista original");
+                    CurrentTerrainCardId = rule.CardId;
+                    Emit(MatchEventKind.TerrainChanged, user, rule.CardId,
+                        FieldLane.Support, -1);
+                    break;
                 case VerifiedSpellOperation.RestoreLife:
                 {
                     var side = Side(user);

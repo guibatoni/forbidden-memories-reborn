@@ -88,6 +88,98 @@ namespace Reborn.Tests
         }
 
 
+        private static CardDefinition TypedMonster(
+            string id, int attack, int defense, string type)
+        {
+            return new CardDefinition(id, "Test " + id,
+                CardKind.Monster, attack, defense, "",
+                GuardianStar.None, GuardianStar.None, "", "", "", type);
+        }
+
+        [Test]
+        public void AllSixFieldTypesIncludeCorrectBoostsAndPenalties()
+        {
+            Assert.AreEqual(500,TerrainRules.Bonus("330",
+                TypedMonster("beast",900,900,"Beast-Warrior")));
+            Assert.AreEqual(500,TerrainRules.Bonus("331",
+                TypedMonster("dinosaur",900,900,"Dinosaur")));
+            Assert.AreEqual(500,TerrainRules.Bonus("332",
+                TypedMonster("dragon",900,900,"Dragon")));
+            Assert.AreEqual(500,TerrainRules.Bonus("333",
+                TypedMonster("warrior",900,900,"Warrior")));
+            Assert.AreEqual(500,TerrainRules.Bonus("334",
+                TypedMonster("sea",900,900,"Sea Serpent")));
+            Assert.AreEqual(-500,TerrainRules.Bonus("334",
+                TypedMonster("machine",900,900,"Machine")));
+            Assert.AreEqual(-500,TerrainRules.Bonus("335",
+                TypedMonster("fairy",900,900,"Fairy")));
+            Assert.AreEqual(0,TerrainRules.Bonus("335",
+                TypedMonster("unknown",900,900,"")));
+        }
+
+        [Test]
+        public void TerrainSpellsReplaceGlobalFieldAndChangeBothCombatSides()
+        {
+            var game = new DuelMatch(
+                Deck(TypedMonster("dragon",1600,1000,"Dragon"),Support("332")),
+                Deck(TypedMonster("wizard",1300,900,"Spellcaster"),Support("335")),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core());
+            Play(game,DuelSide.Player);
+            End(game,DuelSide.Player);
+            Play(game,DuelSide.Opponent);
+            End(game,DuelSide.Opponent);
+            Assert.IsTrue(game.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,GuardianStar.None,
+                false,out _));
+            Assert.AreEqual("Mountain",game.CurrentTerrainName);
+            Begin(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPreviewAttack(DuelSide.Player,0,0,
+                out var forecast,out _));
+            Assert.AreEqual(2100,forecast.EffectiveAttack);
+            End(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,GuardianStar.None,
+                false,out _));
+            Assert.AreEqual("Yami",game.CurrentTerrainName);
+            Begin(game,DuelSide.Opponent);
+            Assert.IsTrue(game.TryPreviewAttack(DuelSide.Opponent,0,0,
+                out var newForecast,out _));
+            Assert.AreEqual(500,newForecast.AttackerTerrainBonus);
+            Assert.AreEqual(0,newForecast.DefenderTerrainBonus);
+        }
+
+        [Test]
+        public void HiddenTrapsUseLowestEligibleThresholdWithoutRevealingOthers()
+        {
+            var game = new DuelMatch(
+                Deck(Monster("attacker",1400,900)),
+                Deck(Support("686",CardKind.Trap),Support("683",CardKind.Trap)),
+                null,null,null,null,AttackTrapCatalog.OriginalPs1());
+            Play(game,DuelSide.Player); End(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Defense,GuardianStar.None,
+                true,out _));
+            End(game,DuelSide.Opponent);
+            Begin(game,DuelSide.Player); End(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,1,BattlePosition.Defense,GuardianStar.None,
+                true,out _));
+            End(game,DuelSide.Opponent);
+            Begin(game,DuelSide.Player);
+            var count = game.Events.Count;
+            Assert.IsTrue(game.TryPreviewAttack(DuelSide.Player,0,-1,
+                out var publicForecast,out _));
+            Assert.AreEqual(1400,publicForecast.DamageToDefender);
+            Assert.AreEqual(count,game.Events.Count);
+            Assert.IsTrue(game.TryAttack(DuelSide.Player,0,-1,out _));
+            Assert.IsNull(game.Player.Monster(0));
+            Assert.AreEqual(8000,game.Opponent.Life);
+            Assert.IsNotNull(game.Opponent.Support(0));
+            Assert.IsNull(game.Opponent.Support(1));
+            Assert.IsTrue(game.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="683"));
+        }
+
         [Test]
         public void VerifiedOriginalMagicHealsAndAutomaticallyLeavesSupportZone()
         {

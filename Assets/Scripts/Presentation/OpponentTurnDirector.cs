@@ -211,11 +211,18 @@ namespace Reborn.Presentation
                     : Mathf.Max(0.15f, 0.45f * hud.OpponentPace));
 
                 // The same read-only forecast is used to explain the final result.
+                int eventCount = game.Events.Count;
                 if (game.TryPreviewAttack(DuelSide.Opponent, attackerSlot, targetSlot,
                     out var preview,out var reason) &&
                     game.TryAttack(DuelSide.Opponent, attackerSlot, targetSlot,out reason))
                 {
-                    hud.Announce(CombatExplanation.Describe(preview));
+                    string trap = "";
+                    for (int i = eventCount; i < game.Events.Count; i++)
+                        if (game.Events[i].Kind == MatchEventKind.TrapTriggered)
+                            trap = game.Events[i].CardId;
+                    hud.Announce(trap.Length > 0 ?
+                        "Armadilha #" + trap + " interceptou a IA!" :
+                        CombatExplanation.Describe(preview));
                 }
                 else hud.Announce("Ataque nao executado: " + reason);
                 arena.HighlightAttacker(DuelSide.Opponent, -1);

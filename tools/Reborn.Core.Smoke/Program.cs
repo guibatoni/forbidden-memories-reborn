@@ -129,12 +129,12 @@ internal static class Program
     private static void CheckVerifiedMagicEngine()
     {
         var spells = VerifiedSpellCatalog.OriginalPs1Core();
-        Check(spells.Count == 12 &&
+        Check(spells.Count == 18 &&
             spells.TryGet(S("338"), out var recovery) &&
             recovery.Amount == 200 &&
             recovery.Operation == VerifiedSpellOperation.RestoreLife &&
             !spells.TryGet(S("701"), out _),
-            "0.19 PS1 rule catalog has explicit audited IDs, not arbitrary effect text");
+            "0.21 PS1 rule catalog retains exact verified magic and terrain IDs");
 
         var healing = new DuelMatch(Deck(S("338")), Deck(M("enemy",1000,900)),
             null, null, spells);
@@ -374,9 +374,125 @@ internal static class Program
             "0.20 missing verified compatibility never consumes physical cards");
     }
 
+    private static CardDefinition Typed(string id, int atk, int def, string type)
+        => new CardDefinition(id, id, CardKind.Monster, atk, def,
+            "synthetic", GuardianStar.None, GuardianStar.None, "", "", "", type);
+
+    private static CardDefinition Trap(string id)
+        => new CardDefinition(id, id, CardKind.Trap, 0, 0, "synthetic");
+
+    private static void CheckTerrainAndTraps()
+    {
+        Check(TerrainRules.Bonus("332", Typed("dragon",1000,1000,"Dragon")) == 500 &&
+            TerrainRules.Bonus("332", Typed("warrior",1000,1000,"Warrior")) == 0 &&
+            TerrainRules.Bonus("335", Typed("fairy",1000,1000,"Fairy")) == -500 &&
+            TerrainRules.Bonus("334", Typed("machine",1000,1000,"Machine")) == -500 &&
+            TerrainRules.Bonus("334", Typed("thunder",1000,1000,"Thunder")) == 500 &&
+            TerrainRules.Bonus("330", Typed("beast",1000,1000,"Beast-Warrior")) == 500 &&
+            TerrainRules.Bonus("335", Typed("missing",1000,1000,"")) == 0,
+            "0.21 six fields include positive and negative type bonuses; unknown types not guessed");
+
+        var terrainDuel = new DuelMatch(
+            Deck(Typed("dragon",1800,1500,"Dragon"),S("332"),S("330")),
+            Deck(Typed("wizard",1500,1400,"Spellcaster"),S("335")),
+            null,null,VerifiedSpellCatalog.OriginalPs1Core());
+        Play(terrainDuel,DuelSide.Player);
+        End(terrainDuel,DuelSide.Player);
+        Play(terrainDuel,DuelSide.Opponent);
+        End(terrainDuel,DuelSide.Opponent);
+        Check(terrainDuel.TryPlay(DuelSide.Player,new[]{0},
+            FieldLane.Support,0,BattlePosition.Attack,GuardianStar.None,
+            false,out _) && terrainDuel.CurrentTerrainCardId == "332" &&
+            terrainDuel.Player.Support(0) == null &&
+            terrainDuel.Player.Graveyard.Any(c=>c.Id=="332") &&
+            terrainDuel.Events.Any(e=>e.Kind==MatchEventKind.TerrainChanged &&
+                e.CardId=="332"),
+            "0.21 Mountain activates immediately, becomes one global terrain and goes to graveyard");
+        Battle(terrainDuel,DuelSide.Player);
+        Check(terrainDuel.TryPreviewAttack(DuelSide.Player,0,0,
+            out var mountainForecast,out _) &&
+            mountainForecast.AttackerBase == 2300 &&
+            mountainForecast.AttackerTerrainBonus == 500 &&
+            mountainForecast.DefenderTerrainBonus == 0,
+            "0.21 global terrain affects combat forecast before attack");
+        End(terrainDuel,DuelSide.Player);
+        Check(terrainDuel.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Support,0,BattlePosition.Attack,GuardianStar.None,
+            false,out _) && terrainDuel.CurrentTerrainCardId=="335",
+            "0.21 opponent Yami replaces Mountain across both players");
+        Battle(terrainDuel,DuelSide.Opponent);
+        Check(terrainDuel.TryPreviewAttack(DuelSide.Opponent,0,0,
+            out var yamiForecast,out _) &&
+            yamiForecast.AttackerTerrainBonus==500 &&
+            yamiForecast.DefenderTerrainBonus==0 &&
+            yamiForecast.AttackerBase==2000,
+            "0.21 opponent field bonus is applied to both sides rather than only caster");
+
+        var allTraps=AttackTrapCatalog.OriginalPs1();
+        Check(allTraps.Count==6 &&
+            allTraps.TryMatch(Trap("681"),500,out int limit) && limit==500 &&
+            !allTraps.TryMatch(Trap("681"),501,out _) &&
+            allTraps.TryMatch(Trap("685"),3000,out _) &&
+            !allTraps.TryMatch(Trap("685"),3001,out _) &&
+            allTraps.TryMatch(Trap("686"),25000,out _),
+            "0.21 traps #681-686 use inclusive retail attack thresholds");
+
+        var protect = new DuelMatch(
+            Deck(M("attacker",1450,1000)),
+            Deck(Trap("686"),Trap("683"),M("foe",800,850)),
+            null,null,null,null,allTraps);
+        Play(protect,DuelSide.Player);
+        End(protect,DuelSide.Player);
+        Check(protect.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,1,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.21 opponent sets Widespread Ruin without revealing its content");
+        End(protect,DuelSide.Opponent);
+        Battle(protect,DuelSide.Player); End(protect,DuelSide.Player);
+        Check(protect.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,2,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.21 opponent sets Bear Trap on another turn");
+        End(protect,DuelSide.Opponent);
+        Battle(protect,DuelSide.Player);
+        int eventsBefore=protect.Events.Count;
+        int hpBefore=protect.Opponent.Life;
+        Check(protect.TryPreviewAttack(DuelSide.Player,0,-1,out var cleanPreview,out _) &&
+            protect.Events.Count==eventsBefore &&
+            protect.Opponent.SupportIsFaceDown(1) &&
+            protect.Opponent.SupportIsFaceDown(2) &&
+            cleanPreview.DamageToDefender==1450,
+            "0.21 preview does not reveal either hidden trap");
+        Check(protect.TryAttack(DuelSide.Player,0,-1,out _) &&
+            protect.Player.Monster(0)==null &&
+            protect.Opponent.Life==hpBefore &&
+            protect.Opponent.Support(2)==null &&
+            protect.Opponent.Support(1)?.Id=="686" &&
+            protect.Opponent.Graveyard.Any(c=>c.Id=="683") &&
+            protect.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="683"),
+            "0.21 lowest eligible trap interrupts direct attack, kills attacker and leaves broader trap set");
+        Check(!protect.TryAttack(DuelSide.Player,0,-1,out _),
+            "0.21 destroyed attacker cannot declare a second attack");
+
+        var tooWeak = new DuelMatch(Deck(M("strong",1050,800)),
+            Deck(Trap("681"),M("small",800,900)),
+            null,null,null,null,allTraps);
+        Play(tooWeak,DuelSide.Player); End(tooWeak,DuelSide.Player);
+        Check(tooWeak.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,0,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.21 one narrow trap placed");
+        End(tooWeak,DuelSide.Opponent);
+        Battle(tooWeak,DuelSide.Player);
+        Check(tooWeak.TryAttack(DuelSide.Player,0,-1,out _) &&
+            tooWeak.Opponent.Life==6950 &&
+            tooWeak.Opponent.Support(0)?.Id=="681" &&
+            !tooWeak.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered),
+            "0.21 a trap below attack power stays hidden and ordinary battle resolves");
+    }
+
     private static void Main()
     {
         CheckOriginalStarterChoices();
+        CheckTerrainAndTraps();
         CheckVerifiedEquipEngine();
         CheckVerifiedMagicEngine();
         var m = Match(M("mine",2000,1500),M("theirs",1200,800));

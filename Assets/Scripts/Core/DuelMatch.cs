@@ -6,7 +6,7 @@ namespace Reborn.Core
     public enum MatchEventKind
     {
         Reset, Draw, Play, Fusion, FusionFailed, RitualSummoned, BattleStarted, PositionChanged, SupportActivated, Attack,
-        Destroy, LifeChanged, TurnStarted, Graveyard, Equipped, Finished
+        Destroy, LifeChanged, TurnStarted, Graveyard, Equipped, TerrainChanged, TrapTriggered, Finished
     }
 
     public sealed class MatchEvent
@@ -156,6 +156,7 @@ namespace Reborn.Core
         private readonly RitualCatalog rituals;
         private readonly VerifiedSpellCatalog verifiedSpells;
         private readonly VerifiedEquipCatalog verifiedEquips;
+        private readonly AttackTrapCatalog attackTraps;
         private readonly List<MatchEvent> history = new List<MatchEvent>();
         private long sequence;
         private bool hasPlayed;
@@ -170,12 +171,15 @@ namespace Reborn.Core
         public int Turn { get; private set; } = 1;
         public IReadOnlyList<MatchEvent> Events => history.AsReadOnly();
         public bool PlayedThisTurn => hasPlayed;
+        public string CurrentTerrainCardId { get; private set; } = "";
+        public string CurrentTerrainName => TerrainRules.Name(CurrentTerrainCardId);
 
         public DuelMatch(IReadOnlyList<CardDefinition> playerDeck,
             IReadOnlyList<CardDefinition> opponentDeck, FusionCatalog catalog = null,
             RitualCatalog ritualCatalog = null,
             VerifiedSpellCatalog spellCatalog = null,
-            VerifiedEquipCatalog equipCatalog = null)
+            VerifiedEquipCatalog equipCatalog = null,
+            AttackTrapCatalog trapCatalog = null)
         {
             CheckDeck(playerDeck, nameof(playerDeck));
             CheckDeck(opponentDeck, nameof(opponentDeck));
@@ -185,6 +189,7 @@ namespace Reborn.Core
             rituals = ritualCatalog ?? new RitualCatalog();
             verifiedSpells = spellCatalog ?? new VerifiedSpellCatalog();
             verifiedEquips = equipCatalog ?? new VerifiedEquipCatalog();
+            attackTraps = trapCatalog ?? new AttackTrapCatalog();
             Emit(MatchEventKind.Reset, DuelSide.Player);
             DrawToHand(player, DuelSide.Player, false);
             DrawToHand(opponent, DuelSide.Opponent, false);
@@ -495,7 +500,8 @@ namespace Reborn.Core
             var own = Side(side);
             var enemy = Side(Other(side));
             forecast = new CombatForecast(own.Monster(fromSlot),
-                targetSlot < 0 ? null : enemy.Monster(targetSlot));
+                targetSlot < 0 ? null : enemy.Monster(targetSlot),
+                CurrentTerrainCardId);
             return true;
         }
 
@@ -503,6 +509,15 @@ namespace Reborn.Core
         {
             if (!TryPreviewAttack(side, fromSlot, targetSlot, out var forecast, out reason))
                 return false;
+            // Hidden traps are evaluated only when the real attack commits,
+            // never during a preview. No guardian bonus or LP damage is leaked
+            // when a trap cancels an attack before combat.
+            if (TryTriggerAttackTrap(side, fromSlot, targetSlot,
+                forecast.EffectiveAttack))
+            {
+                reason = "";
+                return true;
+            }
             var attacker = Side(side).Monster(fromSlot);
             var defender = targetSlot >= 0 ? Side(Other(side)).Monster(targetSlot) : null;
             // Set monsters are revealed only when they actually participate in combat.

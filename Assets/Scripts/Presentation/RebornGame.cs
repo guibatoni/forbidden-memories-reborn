@@ -124,10 +124,12 @@ namespace Reborn.Presentation
                 var effects = originalPs1 ?
                     VerifiedSpellCatalog.OriginalPs1Core() :
                     new VerifiedSpellCatalog();
+                var traps = originalPs1 ?
+                    AttackTrapCatalog.OriginalPs1() : new AttackTrapCatalog();
                 return new DuelMatch(playerDeck, opponentDeck,
                     loaded ? imported.Fusions : DemoDeck.CreateSampleFusions(),
                     loaded ? imported.Rituals : new RitualCatalog(), effects,
-                    verifiedEquips);
+                    verifiedEquips, traps);
             }
 
             var opponentDirector = gameObject.AddComponent<OpponentTurnDirector>();
@@ -171,6 +173,10 @@ namespace Reborn.Presentation
                         arena.PlaySpellActivation(evt.Side, evt.Slot);
                     else if (evt.Kind == MatchEventKind.Equipped)
                         arena.PlayEquipActivation(evt.Side, evt.Slot);
+                    else if (evt.Kind == MatchEventKind.TerrainChanged)
+                        arena.PlayTerrainShift(evt.CardId);
+                    else if (evt.Kind == MatchEventKind.TrapTriggered)
+                        arena.PlayTrapBurst(evt.Side, evt.Slot);
                 };
             }
 
