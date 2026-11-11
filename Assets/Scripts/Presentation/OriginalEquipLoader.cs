@@ -65,7 +65,8 @@ namespace Reborn.Presentation
                     string.IsNullOrEmpty(content.SourceSha256) ||
                     !string.Equals(parsed.source.discSha256,
                         content.SourceSha256, StringComparison.OrdinalIgnoreCase) ||
-                    !string.Equals(parsed.source.edition, "original-ps1",
+                    string.IsNullOrWhiteSpace(parsed.source.edition) ||
+                    !parsed.source.edition.StartsWith("original-ps1",
                         StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException(
                         "Equip rules sem origem Original PS1 ou SHA-256 correspondente");
@@ -117,8 +118,8 @@ namespace Reborn.Presentation
                     loaded.AddTargets(number, equip.attackBonus,
                         equip.defenseBonus, targets);
                 }
-                status = "Compatibilidades Equip verificadas: " +
-                    loaded.Count + " cartas (catalogo local do mesmo SHA).";
+                status = "Compatibilidades Equip estruturais importadas: " +
+                    loaded.Count + " cartas (mesma ISO/SHA; testes individuais pendentes).";
                 return loaded;
             }
             catch (Exception ex)

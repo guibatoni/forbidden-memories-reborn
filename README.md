@@ -1,3 +1,19 @@
+# Prototype 0.23 — Equips da ISO e subtipos reais
+
+A tabela privada original do PS1 já incluía os alvos de Equip, mas
+faltava convertê-los para o Unity. O Reborn agora gera o
+`equip_rules.json` automaticamente e permite reexportar as tabelas
+existentes sem nova leitura do disco, preservando a conferência SHA-256.
+Corrigi também a extração de `typeLabel` para que os bônus de terreno
+funcionem em todos os monstros importados da ISO.
+
+**Com dados antigos:** execute `tools/EXPORTAR_EQUIPS.ps1`.
+Para obter `typeLabel`, reimporte a imagem pelo importador atualizado.
+
+[Guia e limites do Prototype 0.23](Docs/PROTOTYPE_0_23.md).
+
+---
+
 # Prototype 0.22 — Goblin Fan, Simochi e IA de suportes
 
 Goblin Fan (#687) reflete dano de magia direta, e Bad Reaction to Simochi
