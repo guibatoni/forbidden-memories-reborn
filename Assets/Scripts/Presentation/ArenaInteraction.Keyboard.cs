@@ -23,6 +23,22 @@ namespace Reborn.Presentation
         private bool keyboardHandArmed;
         private int lastClickHandIndex = -1;
         private float lastHandClickTime = -10f;
+        private bool mousePositionKnown;
+        private Vector2 previousMousePosition;
+
+        private void TrackMouseActivity(Vector2 pointer)
+        {
+            var mouse = Mouse.current;
+            if (mousePositionKnown &&
+                (pointer-previousMousePosition).sqrMagnitude > 25f)
+                keyboardActive = false;
+            if (mouse != null &&
+                (mouse.leftButton.wasPressedThisFrame ||
+                 mouse.rightButton.wasPressedThisFrame))
+                keyboardActive = false;
+            mousePositionKnown = true;
+            previousMousePosition = pointer;
+        }
 
         private bool Shortcut(Keyboard keyboard, RebornKeyAction action) =>
             hud != null && hud.KeyBindings.Pressed(keyboard, action);
