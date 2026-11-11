@@ -658,9 +658,75 @@ internal static class Program
             "0.24 set-over-monster Equip activates on next turn with +1000 and no extra placement");
     }
 
+    private static void CheckAvailableFusionAssistant()
+    {
+        // Synthetic IDs: exercising the rules engine, not pretending these
+        // pairings belong to the user's retail ISO.
+        var first = M("hero", 1000, 700);
+        var second = M("supporter", 800, 600);
+        var result = M("fusion-win", 2300, 1800);
+        var rules = new FusionCatalog();
+        rules.Add(first.Id, second.Id, result);
+
+        var handMatch = new DuelMatch(Deck(first, second, M("other", 900, 500)),
+            Deck(M("enemy",1000,800)), rules);
+        int eventCount = handMatch.Events.Count;
+        int originalHand = handMatch.Player.Hand.Count;
+        var choices = handMatch.FindAvailableFusions(DuelSide.Player);
+        Check(choices.Count == 1 && !choices[0].UsesField &&
+            choices[0].FirstHandIndex == 0 &&
+            choices[0].SecondHandIndex == 1 &&
+            choices[0].FieldSlot == -1 &&
+            choices[0].Result.Id == result.Id &&
+            handMatch.Events.Count == eventCount &&
+            handMatch.Player.Hand.Count == originalHand &&
+            !handMatch.PlayedThisTurn,
+            "0.25 fusion assistant lists only validated, playable hand pairs without any mutation");
+        Check(handMatch.FindAvailableFusions(DuelSide.Opponent).Count == 0,
+            "0.25 fusion assistant cannot inspect or suggest opponent private hand during player turn");
+        Check(handMatch.TryPlay(DuelSide.Player,
+            new[] {choices[0].FirstHandIndex,choices[0].SecondHandIndex},
+            FieldLane.Monster,0,BattlePosition.Defense,GuardianStar.None,true,
+            out var reason) && handMatch.Player.Monster(0).Card.Id == result.Id &&
+            handMatch.Player.Monster(0).FaceDown &&
+            handMatch.Player.Monster(0).Position == BattlePosition.Defense &&
+            handMatch.FindAvailableFusions(DuelSide.Player).Count == 0,
+            "0.25 selecting a suggested hand fusion performs exactly one real placement");
+
+        var fieldMatch = new DuelMatch(Deck(first,second),
+            Deck(M("enemy",1000,800)),rules);
+        Play(fieldMatch,DuelSide.Player);
+        End(fieldMatch,DuelSide.Player);
+        Play(fieldMatch,DuelSide.Opponent);
+        End(fieldMatch,DuelSide.Opponent);
+        int previousEvents = fieldMatch.Events.Count;
+        int previousHand = fieldMatch.Player.Hand.Count;
+        var fields = fieldMatch.FindAvailableFusions(DuelSide.Player);
+        Check(fields.Count == 1 && fields[0].UsesField &&
+            fields[0].FieldSlot == 0 &&
+            fields[0].FirstHandIndex == 0 &&
+            fields[0].SecondHandIndex == -1 &&
+            fields[0].Result.Id == result.Id &&
+            fieldMatch.Events.Count == previousEvents &&
+            fieldMatch.Player.Hand.Count == previousHand,
+            "0.25 field assistant considers own field monster first and preserves read-only state");
+        Check(fieldMatch.TryPlayOnField(DuelSide.Player,
+            new[] {fields[0].FirstHandIndex}, fields[0].FieldSlot,
+            BattlePosition.Attack,GuardianStar.None,false,
+            out var fieldResult,out var fused,out _) &&
+            fused && fieldResult.Id == result.Id,
+            "0.25 field suggestion commits a verified on-table fusion");
+
+        var none = new DuelMatch(Deck(first,second),Deck(M("enemy",1000,800)));
+        Check(none.FusionRecipeCount == 0 &&
+            none.FindAvailableFusions(DuelSide.Player).Count == 0,
+            "0.25 missing imported recipes never generate invented fusion advice");
+    }
+
     private static void Main()
     {
         CheckOriginalStarterChoices();
+        CheckAvailableFusionAssistant();
         CheckNewFusionAndAutoSlotRules();
         CheckTerrainAndTraps();
         CheckReactiveTraps();
