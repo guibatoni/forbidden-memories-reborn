@@ -497,17 +497,25 @@ namespace Reborn.Presentation
             if (equipSelected)
             {
                 int selectedIndex = selected[0];
-                if (!match.CanEquipFromHand(DuelSide.Player, selectedIndex,
-                    zone.Index, out var equipRule, out var equipReason))
+                bool canApply = match.CanEquipFromHand(DuelSide.Player,
+                    selectedIndex, zone.Index, out var equipRule,
+                    out var equipReason);
+                bool canSet = match.CanPlay(DuelSide.Player,
+                    new[] {selectedIndex}, FieldLane.Support, zone.Index,
+                    GuardianStar.None, out var setReason);
+                if (!canApply && !canSet)
                 {
-                    hud.Message = equipReason;
+                    hud.Message = equipReason + " / " + setReason;
                     return;
                 }
                 var equip = match.Player.Hand[selectedIndex];
                 var target = match.Player.Monster(zone.Index);
                 int targetSlot = zone.Index;
-                hud.BeginEquipChoice(equip, target, equipRule,
-                    () => CommitEquipFromHand(selectedIndex, targetSlot));
+                hud.BeginEquipChoice(equip, target, canApply ? equipRule : null,
+                    canApply ? (Func<bool>)(() =>
+                        CommitEquipFromHand(selectedIndex, targetSlot)) : null,
+                    canSet ? (Func<bool>)(() =>
+                        CommitSetEquipOverMonster(selectedIndex,targetSlot)) : null);
                 return;
             }
             bool ritual = onField && selected.Count == 1 &&
@@ -539,6 +547,47 @@ namespace Reborn.Presentation
             // The wizard is presentation only; no card has been consumed yet.
             hud.BeginPlacementChoices(outcome, ritual,
                 () => CommitMatchCard(zone));
+        }
+
+        /// <summary>
+        /// A Face Down Equip stacked over monster column N is stored in
+        /// support slot N. It is never prematurely applied. The user may
+        /// activate it on a later turn by selecting that stack then the monster.
+        /// </summary>
+        private bool CommitSetEquipOverMonster(int handIndex, int monsterSlot)
+        {
+            if (match == null || match.Phase != MatchPhase.Main ||
+                handIndex < 0 || handIndex >= match.Player.Hand.Count ||
+                match.Player.Monster(monsterSlot) == null)
+                return false;
+            var card = match.Player.Hand[handIndex];
+            if (card.Kind != CardKind.Equip) return false;
+            if (!match.CanPlay(DuelSide.Player,new[] {handIndex},
+                FieldLane.Support,monsterSlot,GuardianStar.None,out var reason))
+            {
+                hud.Message = reason;
+                return false;
+            }
+            var from = FindHandView(handIndex);
+            var zone = KeyboardZone(false,FieldLane.Support,monsterSlot);
+            if (zone != null)
+                arena.StagePlacement(FieldLane.Support,monsterSlot,
+                    from != null ? from.transform.position : zone.transform.position,
+                    hud.AnimationsEnabled);
+            if (!match.TryPlay(DuelSide.Player,new[] {handIndex},
+                FieldLane.Support,monsterSlot,BattlePosition.Defense,
+                GuardianStar.None,true,out reason))
+            {
+                arena.ClearStagedPlacement();
+                hud.Message = reason;
+                return false;
+            }
+            hud.Announce("Equip " + card.Name +
+                " setado Face Down sobre monstro da zona " + (monsterSlot+1) + ".");
+            hud.AfterHandPlacement();
+            hud.SelectedSupportSlot = monsterSlot;
+            UpdateLegalHighlights();
+            return true;
         }
 
         private bool CommitSetEquip(int supportSlot, int monsterSlot)
@@ -750,6 +799,18 @@ namespace Reborn.Presentation
                 var foundCard = hit.collider.GetComponentInParent<CardView>();
                 if (foundCard != null && foundCard.HandIndex == ignoredHand && ignoredHand >= 0)
                     continue;
+                // A set Equip visually overlaps its monster but remains a
+                // support card in the authoritative rules engine. Map clicks
+                // on that visible stack back to its true support slot.
+                if (foundCard != null &&
+                    foundCard.gameObject.name.StartsWith("Player_EquipOverlay_") &&
+                    int.TryParse(foundCard.gameObject.name.Substring(
+                        "Player_EquipOverlay_".Length),out int equipSlot))
+                {
+                    card = foundCard;
+                    zone = KeyboardZone(false,FieldLane.Support,equipSlot);
+                    return;
+                }
                 if (card == null && foundCard != null) card = foundCard;
                 if (zone == null)
                 {
@@ -858,8 +919,11 @@ namespace Reborn.Presentation
                         (hud.UseSecondaryStar ? card.StarB : card.StarA);
                     bool legal = !zone.Opponent && card != null &&
                         (equipSelected ?
-                            match.CanEquipFromHand(DuelSide.Player, selection[0],
-                                zone.Index, out _, out _) :
+                            (match.CanEquipFromHand(DuelSide.Player, selection[0],
+                                zone.Index, out _, out _) ||
+                             match.CanPlay(DuelSide.Player, new[] {selection[0]},
+                                FieldLane.Support, zone.Index,
+                                GuardianStar.None, out _)) :
                          ritualSelected && occupiedMonster ?
                             match.CanSummonRitual(DuelSide.Player, selection[0],
                                 zone.Index, star, out _, out _) :
