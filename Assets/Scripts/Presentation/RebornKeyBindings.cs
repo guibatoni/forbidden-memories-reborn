@@ -111,6 +111,7 @@ namespace Reborn.Presentation
         public bool TrySet(RebornKeyAction action, Key key, out string reason)
         {
             if (!keys.ContainsKey(action) || key == Key.None ||
+                key == Key.F1 || // Reserved rescue shortcut: settings menu
                 !Enum.IsDefined(typeof(Key), key))
             {
                 reason = "Escolha uma tecla valida.";
