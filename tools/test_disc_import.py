@@ -86,6 +86,7 @@ with tempfile.TemporaryDirectory() as sandbox:
     game = SimpleNamespace(
         read_game=lambda slus,wa: fake_data,
         TYPE_MAGIC=20, TYPE_TRAP=21, TYPE_RITUAL=22, TYPE_EQUIP=23,
+        TYPE_NAMES=["Dragon"]*20 + ["Magic","Trap","Ritual","Equip"],
         STAR_NAMES=[""], STARTER_BASE=0)
     old_load_game = module.load_game
     try:
@@ -106,6 +107,8 @@ with tempfile.TemporaryDirectory() as sandbox:
     assert report["fusions"] == 2 and report["descriptionCount"] == 722
     assert report["descriptionCoverageByKind"]["Ritual"]["withDescription"] == 2
     extracted = __import__("json").loads(generated.read_text(encoding="utf-8"))
+    assert extracted["cards"][0]["typeLabel"] == "Dragon"
+    assert extracted["cards"][711]["typeLabel"] == "Equip"
     assert any(recipe["tributes"] == [1,1,1]
                for recipe in extracted["rituals"])
     assert report["descriptionCoverageByKind"]["Spell"]["withDescription"] == 1
