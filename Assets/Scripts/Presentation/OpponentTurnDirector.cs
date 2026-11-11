@@ -81,6 +81,52 @@ namespace Reborn.Presentation
             hud.Announce("Turno da IA: analisando as cartas...");
             yield return Pause(0.85f);
 
+            // The PS1 CPU can use prepared cards on its own later turn.
+            // No trap or unverified effect is activated proactively.
+            for (int support = 0; support < DuelMatch.ZoneCount &&
+                 game.Phase == MatchPhase.Main &&
+                 game.CurrentSide == DuelSide.Opponent; support++)
+            {
+                var card = game.Opponent.Support(support);
+                if (card == null || card.Kind != CardKind.Spell ||
+                    !game.CanActivateSupport(DuelSide.Opponent, support, out _))
+                    continue;
+                hud.Announce("IA ativa magia previamente preparada: " + card.Name);
+                yield return Pause(0.40f);
+                if (game.TryActivateSupport(DuelSide.Opponent, support, out var reason))
+                    hud.Announce("Magia da IA ativada: " + card.Name + ".");
+                else
+                    hud.Announce("Magia da IA recusada: " + reason);
+                yield return Pause(0.35f);
+            }
+            for (int support = 0; support < DuelMatch.ZoneCount &&
+                 game.Phase == MatchPhase.Main &&
+                 game.CurrentSide == DuelSide.Opponent; support++)
+            {
+                var card = game.Opponent.Support(support);
+                if (card == null || card.Kind != CardKind.Equip) continue;
+                for (int target = 0; target < DuelMatch.ZoneCount; target++)
+                {
+                    if (!game.CanEquipFromSupport(DuelSide.Opponent,
+                        support, target, out _, out _)) continue;
+                    hud.Announce("IA seleciona um monstro para " + card.Name + ".");
+                    yield return Pause(0.40f);
+                    if (game.TryEquipFromSupport(DuelSide.Opponent,
+                        support, target, out var reason))
+                        hud.Announce("Equip da IA aplicado: " + card.Name + ".");
+                    else
+                        hud.Announce("Equip da IA recusado: " + reason);
+                    yield return Pause(0.35f);
+                    break;
+                }
+            }
+            if (game.Phase == MatchPhase.Finished)
+            {
+                active = null;
+                hud.SetOpponentBusy(false);
+                yield break;
+            }
+
             if (brain != null && brain.TryChoosePlacement(game, out var plan))
             {
                 var monster = plan.Result;
