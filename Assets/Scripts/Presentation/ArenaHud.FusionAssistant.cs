@@ -88,9 +88,12 @@ namespace Reborn.Presentation
                 OpponentBusy || PlayerAttackBusy || ContentImportRequired ||
                 StarterSelectionRequired || KeyboardSettingsOpen ||
                 PlacementWizardOpen || EquipChoiceOpen) return;
-            var y = Screen.height - 111f;
-            if (y < 540f) return;
-            if (GUI.Button(new Rect(12f, y, 251f, 38f),
+            // On short landscape windows put the launcher above the board
+            // instead of hiding the only mouse-only way to open the helper.
+            bool compact = Screen.height < 651f;
+            float x = compact ? (Screen.width - 251f) * 0.5f : 12f;
+            float y = compact ? 17f : Screen.height - 111f;
+            if (GUI.Button(new Rect(x, y, 251f, 38f),
                 "FUSOES DISPONIVEIS [F]", button))
                 OpenFusionAssistant(null);
         }
