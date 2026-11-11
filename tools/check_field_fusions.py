@@ -34,7 +34,9 @@ checks = {
         "!seen.Add(index)" in field,
     "originals are buried but virtual results are not": "state.Bury(onField.Card);" in field and
         "if (index != survivor) discarded.Add(" in field,
-    "fusion result is face-up": "fused ? false : faceDown" in field,
+    "final verified fusion face-up, later failed survivor preserves requested face":
+        "finalResultIsFusion ? false : faceDown" in field and
+        "finalResultIsFusion = false;" in field,
     "failure replaces earlier result": "current = next;" in field and
         "MatchEventKind.FusionFailed" in field,
     "real fusion uses validated recipes only": "fusions.TryFuse(current, next" in field,
