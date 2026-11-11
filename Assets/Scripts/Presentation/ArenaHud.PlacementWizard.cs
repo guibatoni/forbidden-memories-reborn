@@ -5,9 +5,9 @@ using UnityEngine;
 namespace Reborn.Presentation
 {
     /// <summary>
-    /// Presentation-only, transactional placement wizard. Selecting a target
-    /// does not mutate the duel: the validated commit happens after choosing
-    /// Guardian Star and facing. ATK/DEF is chosen after the card lands.
+    /// Fully transactional PS1-style placement: Guardian -> Face ->
+    /// rotated preview of ATK/DEF -> ONE confirmed hand action.
+    /// No card is spent and no monster enters battle during the wizard.
     /// </summary>
     public sealed partial class ArenaHud
     {
@@ -15,11 +15,12 @@ namespace Reborn.Presentation
         private PlacementChoiceStep placementStep;
         private CardDefinition placementPreview;
         private Func<bool> placementCommit;
-        private int placedMonsterSlot = -1;
         private bool placementIsRitual;
-        private float positionChoiceReadyAt;
+        private bool placementSecondaryChoice;
 
         public bool PlacementWizardOpen => placementStep != PlacementChoiceStep.None;
+        public bool PlacementPositionPreviewOpen =>
+            placementStep == PlacementChoiceStep.Position;
 
         public void BeginPlacementChoices(CardDefinition result, bool ritual,
             Func<bool> commit)
@@ -31,171 +32,206 @@ namespace Reborn.Presentation
             placementPreview = result;
             placementCommit = commit;
             placementIsRitual = ritual;
-            PlaceFaceDown = false;
             UseDefense = false;
+            PlaceFaceDown = false;
             UseSecondaryStar = false;
-            placedMonsterSlot = -1;
+            placementSecondaryChoice = false;
             bool twoStars = result.Kind == CardKind.Monster &&
                 result.StarA != GuardianStar.None &&
                 result.StarB != GuardianStar.None &&
                 result.StarA != result.StarB;
             placementStep = twoStars ? PlacementChoiceStep.Guardian :
-                ritual ? PlacementChoiceStep.Position : PlacementChoiceStep.Facing;
-            // Ritual still commits only after the player confirms the selected
-            // Guardian Star; this screen never invents a facing or second star.
-            if (ritual && !twoStars) placementStep = PlacementChoiceStep.Facing;
+                PlacementChoiceStep.Facing;
+            if (!twoStars && !CanPlaceFaceUp())
+                placementSecondaryChoice = true;
         }
 
         public void CancelPlacementChoices()
         {
-            if (placementStep == PlacementChoiceStep.Position)
-            {
-                // The main card action is already legal/committed: closing the
-                // positioning dialog cannot undo or duplicate the placement.
-                placementStep = PlacementChoiceStep.None;
-                placementCommit = null;
-                placementPreview = null;
-                return;
-            }
+            if (!PlacementWizardOpen) return;
             placementStep = PlacementChoiceStep.None;
             placementCommit = null;
             placementPreview = null;
-            placedMonsterSlot = -1;
-            Announce("Posicionamento cancelado. Nenhuma carta foi utilizada.");
+            placementIsRitual = false;
+            Announce("Selecao cancelada: nenhuma carta foi baixada.");
         }
 
-        private void ConfirmFacing(bool faceDown)
+        private bool CanPlaceFaceUp()
         {
-            if (placementStep != PlacementChoiceStep.Facing) return;
-            // Ritual cards are activated from the hand, never set facedown.
-            PlaceFaceDown = !placementIsRitual && faceDown;
-            var callback = placementCommit;
-            placementStep = PlacementChoiceStep.None;
-            bool succeeded = callback != null && callback();
-            placementCommit = null;
-            if (!succeeded)
-            {
-                placementPreview = null;
-                return;
-            }
-            if (placedMonsterSlot >= 0 && match != null &&
-                match.Player.Monster(placedMonsterSlot) != null &&
-                match.CurrentSide == DuelSide.Player)
-            {
-                placementStep = PlacementChoiceStep.Position;
-                // Let the original card glide play before showing ATK/DEF.
-                positionChoiceReadyAt = Time.unscaledTime +
-                    (AnimationsEnabled ? 0.64f : 0f);
-            }
-            else
-            {
-                placementPreview = null;
-                Announce("Carta posicionada. Pressione Espaco para encerrar o turno.");
-            }
+            if (placementPreview == null) return false;
+            return placementPreview.Kind == CardKind.Monster ||
+                placementIsRitual ||
+                (placementPreview.Kind == CardKind.Spell &&
+                 match != null && match.HasVerifiedSpell(placementPreview));
         }
 
-        public void MarkPlacedMonster(int slot)
+        public void ChoosePlacementOption(bool secondary)
         {
-            placedMonsterSlot = slot;
+            if (!PlacementWizardOpen) return;
+            placementSecondaryChoice = secondary;
         }
 
-        private void SetPlacedPosition(BattlePosition position)
+        public void RotatePlacementPreview(bool defense)
         {
             if (placementStep != PlacementChoiceStep.Position) return;
-            var monster = match?.Player.Monster(placedMonsterSlot);
-            if (monster != null && monster.Position != position)
+            UseDefense = defense;
+        }
+
+        public void ConfirmPlacementChoice()
+        {
+            ConfirmPlacementOption(placementSecondaryChoice);
+        }
+
+        private void ConfirmPlacementOption(bool secondary)
+        {
+            switch (placementStep)
             {
-                if (!match.TryChangePosition(DuelSide.Player,
-                    placedMonsterSlot, position, out var reason))
-                {
-                    Announce(reason);
-                    return;
-                }
+                case PlacementChoiceStep.Guardian:
+                    UseSecondaryStar = secondary;
+                    placementStep = PlacementChoiceStep.Facing;
+                    placementSecondaryChoice = !CanPlaceFaceUp();
+                    break;
+                case PlacementChoiceStep.Facing:
+                    if (!secondary && !CanPlaceFaceUp())
+                    {
+                        Announce("Este suporte nao possui ativacao Face Up verificada. Use Face Down.");
+                        return;
+                    }
+                    PlaceFaceDown = !placementIsRitual && secondary;
+                    if (placementPreview != null &&
+                        placementPreview.Kind == CardKind.Monster)
+                    {
+                        // The monster is NOT committed until the visual card
+                        // is rotated and confirmed with Z / two mouse clicks.
+                        placementStep = PlacementChoiceStep.Position;
+                        UseDefense = false;
+                    }
+                    else CommitPlacement();
+                    break;
+                case PlacementChoiceStep.Position:
+                    CommitPlacement();
+                    break;
             }
-            // After an attack, the existing DuelMatch rule prevents changing
-            // position. Q/E remains available throughout the remainder of turn.
-            SelectedFieldMonster = placedMonsterSlot;
+        }
+
+        private void CommitPlacement()
+        {
+            var callback = placementCommit;
+            // Unlock the HUD before the callback fires Match.Changed, but
+            // keep the chosen Star, Face and Position values intact.
             placementStep = PlacementChoiceStep.None;
+            placementCommit = null;
             placementPreview = null;
-            placedMonsterSlot = -1;
-            Announce("Posicao definida. Use Q/E ou Espaco para passar o turno.");
+            placementIsRitual = false;
+            bool succeeded = callback != null && callback();
+            if (!succeeded)
+                Announce("Posicionamento recusado; sua carta continua na mao.");
+        }
+
+        // Compatibility for existing placement callers: now a pure post-commit
+        // selection of the placed monster, never a second modal.
+        public void MarkPlacedMonster(int slot)
+        {
+            SelectedFieldMonster = slot;
+        }
+
+        private void DrawRotatingCard(Rect canvas)
+        {
+            if (placementPreview == null) return;
+            float cardW = Mathf.Min(161f, canvas.height * 0.62f);
+            float cardH = cardW * 1.32f;
+            var rect = new Rect(canvas.center.x - cardW * 0.5f,
+                canvas.center.y - cardH * 0.5f, cardW, cardH);
+            Matrix4x4 original = GUI.matrix;
+            GUIUtility.RotateAroundPivot(UseDefense ? 90f : 0f, canvas.center);
+            Panel(new Rect(rect.x - 7f, rect.y - 7f,
+                rect.width + 14f, rect.height + 14f),
+                new Color(0.83f,0.61f,0.31f));
+            if (PlaceFaceDown)
+            {
+                Panel(rect, new Color(0.18f,0.115f,0.275f));
+                Panel(new Rect(rect.x+12f,rect.y+12f,rect.width-24f,
+                    rect.height-24f), new Color(0.32f,0.20f,0.47f));
+                GUI.Label(rect,"REBORN\nFACE DOWN",
+                    Style(18,Color.white,FontStyle.Bold));
+            }
+            else
+                GUI.DrawTexture(rect, CardArtCatalog.Get(placementPreview),
+                    ScaleMode.ScaleToFit);
+            GUI.matrix = original;
         }
 
         private void DrawPlacementChoices()
         {
             if (!PlacementWizardOpen || placementPreview == null) return;
-            if (placementStep == PlacementChoiceStep.Position &&
-                Time.unscaledTime < positionChoiceReadyAt)
-                return; // The summon stays visible without dark overlay.
-            Panel(new Rect(0, 0, Screen.width, Screen.height),
-                new Color(0.007f, 0.011f, 0.025f, 0.94f));
-            float w = Mathf.Min(690f, Screen.width - 32f);
-            float h = Mathf.Min(350f, Screen.height - 28f);
-            float left = (Screen.width - w) * 0.5f;
-            float top = (Screen.height - h) * 0.5f;
-            Panel(new Rect(left, top, w, h), new Color(0.025f, 0.045f, 0.090f, 1f));
-            Panel(new Rect(left + 14f, top + 13f, w - 28f, 4f),
-                new Color(0.87f, 0.65f, 0.29f, 1f));
-            string phase = placementStep == PlacementChoiceStep.Guardian ?
+            Panel(new Rect(0,0,Screen.width,Screen.height),
+                new Color(0.006f,0.012f,0.028f,0.95f));
+            float w = Mathf.Min(710f, Screen.width-26f);
+            float h = Mathf.Min(510f, Screen.height-24f);
+            float left = (Screen.width-w)*0.5f;
+            float top = (Screen.height-h)*0.5f;
+            Panel(new Rect(left,top,w,h), new Color(0.025f,0.043f,0.090f));
+            Panel(new Rect(left+14f,top+13f,w-28f,4f),
+                new Color(0.88f,0.65f,0.29f));
+            string title = placementStep == PlacementChoiceStep.Guardian ?
                 "ESCOLHA A GUARDIAN STAR" :
                 placementStep == PlacementChoiceStep.Facing ?
-                "CARTA VIRADA PARA CIMA OU PARA BAIXO?" :
-                "ESCOLHA A POSICAO APOS COLOCAR";
-            GUI.Label(new Rect(left + 25f, top + 30f, w - 50f, 43f), phase, heading);
-            GUI.Label(new Rect(left + 25f, top + 83f, w - 50f, 46f),
-                placementPreview.Name + "  #" + placementPreview.Id +
-                "    ATK " + placementPreview.Attack +
-                " / DEF " + placementPreview.Defense, body);
-            string first = "", second = "";
-            if (placementStep == PlacementChoiceStep.Guardian)
+                "FACE UP OU FACE DOWN?" : "GIRE A CARTA ANTES DE JOGAR";
+            GUI.Label(new Rect(left+22f,top+25f,w-44f,43f),title,heading);
+            GUI.Label(new Rect(left+22f,top+73f,w-44f,37f),
+                placementPreview.Name+"  #"+placementPreview.Id,body);
+
+            if (placementStep == PlacementChoiceStep.Position)
             {
-                first = placementPreview.StarA.ToString();
-                second = placementPreview.StarB.ToString();
-            }
-            else if (placementStep == PlacementChoiceStep.Facing)
-            {
-                first = "FACE PARA CIMA";
-                second = "FACE PARA BAIXO";
-            }
-            else
-            {
-                first = "ATAQUE";
-                second = "DEFESA";
-            }
-            float optionWidth = (w - 75f) * 0.5f;
-            float optionTop = top + 147f;
-            if (GUI.Button(new Rect(left + 25f, optionTop, optionWidth, 94f), first, button))
-            {
-                if (placementStep == PlacementChoiceStep.Guardian)
+                float midY = top + Mathf.Min(h*0.53f,260f);
+                DrawRotatingCard(new Rect(left+w*0.5f-125f,top+97f,250f,
+                    Mathf.Min(260f,h-216f)));
+                GUI.Label(new Rect(left+22f,top+h-124f,w-44f,32f),
+                    (UseDefense ? "DEFESA  |  CARTA HORIZONTAL" :
+                        "ATAQUE  |  CARTA VERTICAL") +
+                    "   |   Q = ATK   E = DEF",body);
+                GUI.Label(new Rect(left+22f,top+h-95f,w-44f,24f),
+                    "Z confirma. X cancela sem gastar carta. Clique na carta para girar.",small);
+                if (GUI.Button(new Rect(left+22f,top+h-60f,w*0.54f-27f,39f),
+                    "CONFIRMAR A CARTA [Z]",button))
+                    CommitPlacement();
+                if (GUI.Button(new Rect(left+w*0.54f+5f,top+h-60f,
+                    w*0.46f-27f,39f),"CANCELAR [X]",button))
+                    CancelPlacementChoices();
+                // Clicking the card twice is not required inside this modal;
+                // one click rotates, keyboard Z or button commits.
+                if (Event.current.type == EventType.MouseDown &&
+                    new Rect(left+w*0.5f-130f,top+100f,260f,
+                        Mathf.Min(260f,h-220f)).Contains(Event.current.mousePosition))
                 {
-                    UseSecondaryStar = false;
-                    placementStep = PlacementChoiceStep.Facing;
+                    UseDefense = !UseDefense;
+                    Event.current.Use();
                 }
-                else if (placementStep == PlacementChoiceStep.Facing) ConfirmFacing(false);
-                else SetPlacedPosition(BattlePosition.Attack);
+                return;
             }
-            if (GUI.Button(new Rect(left + 50f + optionWidth, optionTop,
-                optionWidth, 94f),
-                placementIsRitual && placementStep == PlacementChoiceStep.Facing ?
-                    "RITUAL: FACE PARA CIMA" : second, button))
-            {
-                if (placementStep == PlacementChoiceStep.Guardian)
-                {
-                    UseSecondaryStar = true;
-                    placementStep = PlacementChoiceStep.Facing;
-                }
-                else if (placementStep == PlacementChoiceStep.Facing)
-                    ConfirmFacing(!placementIsRitual);
-                else SetPlacedPosition(BattlePosition.Defense);
-            }
-            GUI.Label(new Rect(left + 25f, top + h - 88f, w - 50f, 43f),
-                placementStep == PlacementChoiceStep.Position ?
-                "A carta ja foi baixada; Q/E permite mudar ATK/DEF antes de atacar." :
-                "Escolha uma opcao. ESC cancela sem gastar sua jogada.",small);
-            if (GUI.Button(new Rect(left + 25f, top + h - 45f, w - 50f, 30f),
-                placementStep == PlacementChoiceStep.Position ?
-                "Manter posicao atual" : "Cancelar sem colocar", button))
-                CancelPlacementChoices();
+
+            string first = placementStep == PlacementChoiceStep.Guardian ?
+                placementPreview.StarA.ToString() : "FACE PARA CIMA";
+            string second = placementStep == PlacementChoiceStep.Guardian ?
+                placementPreview.StarB.ToString() :
+                (placementIsRitual ? "RITUAL FACE UP" : "FACE PARA BAIXO");
+            float optionWidth=(w-74f)*0.5f;
+            float optionY=top+Mathf.Min(160f,h*0.37f);
+            GUI.enabled = placementStep != PlacementChoiceStep.Facing ||
+                CanPlaceFaceUp();
+            if (GUI.Button(new Rect(left+22f,optionY,optionWidth,109f),
+                (placementSecondaryChoice ? "" : "► ") + first,button))
+                ConfirmPlacementOption(false);
+            GUI.enabled = true;
+            if (GUI.Button(new Rect(left+50f+optionWidth,optionY,
+                optionWidth,109f),
+                (placementSecondaryChoice ? "► " : "") + second,button))
+                ConfirmPlacementOption(true);
+            GUI.Label(new Rect(left+22f,top+h-111f,w-44f,47f),
+                "Use setas esquerda/direita e Z. Clique tambem funciona.\n" +
+                "Nenhuma carta e gasta antes da confirmacao final.",small);
+            if (GUI.Button(new Rect(left+22f,top+h-55f,w-44f,34f),
+                "CANCELAR [X]",button)) CancelPlacementChoices();
         }
     }
 }
