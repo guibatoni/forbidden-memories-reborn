@@ -391,7 +391,7 @@ namespace Reborn.Presentation
                     !monster.AttackedThisTurn ? keyboardIndex : -1;
                 hud.Message = hud.SelectedAttacker >= 0 ?
                     "Atacante selecionado. W vai para o oponente; Z confirma alvo." :
-                    "Monstro selecionado. Q/E alterna ATK e DEF.";
+                    "Monstro selecionado. Q=ATK e E=DEF.";
                 return;
             }
             if (lane == FieldLane.Support &&
