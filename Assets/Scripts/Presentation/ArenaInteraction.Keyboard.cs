@@ -365,6 +365,22 @@ namespace Reborn.Presentation
                 hud.ToggleKeyboardSettings();
                 return true;
             }
+            if (hud.FusionAssistantOpen)
+            {
+                if (Shortcut(keyboard,RebornKeyAction.Cancel) ||
+                    Shortcut(keyboard,RebornKeyAction.FusionAssistant) ||
+                    keyboard.escapeKey.wasPressedThisFrame)
+                    hud.CloseFusionAssistant();
+                else if (Shortcut(keyboard,RebornKeyAction.FusionMarkUp) ||
+                    Shortcut(keyboard,RebornKeyAction.NavigateLeft))
+                    hud.MoveFusionAssistantChoice(-1);
+                else if (Shortcut(keyboard,RebornKeyAction.FusionUnmarkDown) ||
+                    Shortcut(keyboard,RebornKeyAction.NavigateRight))
+                    hud.MoveFusionAssistantChoice(1);
+                else if (Shortcut(keyboard,RebornKeyAction.Select))
+                    hud.ConfirmFusionAssistantChoice();
+                return true;
+            }
             if (hud.StarterSelectionRequired)
             {
                 if (Shortcut(keyboard,RebornKeyAction.NavigateLeft) ||
@@ -419,6 +435,11 @@ namespace Reborn.Presentation
                 match.Phase == MatchPhase.Finished)
                 return false;
 
+            if (Shortcut(keyboard,RebornKeyAction.FusionAssistant))
+            {
+                hud.OpenFusionAssistant(null);
+                return true;
+            }
             if (Shortcut(keyboard,RebornKeyAction.PassTurn))
             {
                 hud.TryPassPlayerTurn();
@@ -478,7 +499,8 @@ namespace Reborn.Presentation
                 int maxIndex = keyboardLocation == KeyboardLocation.Hand ?
                     Math.Max(0, match.Player.Hand.Count-1) : DuelMatch.ZoneCount-1;
                 keyboardIndex = Mathf.Clamp(keyboardIndex+direction,0,maxIndex);
-                keyboardHandArmed = false;
+                // Navigation does NOT cancel the ordered materials already
+                // marked with Up. Z may confirm after moving the cursor.
                 SetKeyboardFocus(keyboardLocation,keyboardIndex);
                 return true;
             }
@@ -493,14 +515,10 @@ namespace Reborn.Presentation
             {
                 if (keyboardLocation == KeyboardLocation.Hand)
                 {
-                    if (keyboardHandArmed &&
-                        fusionSelection.Contains(keyboardIndex))
+                    if (fusionSelection.Count > 0)
                         TryAutoPlaceSelected();
-                    else
-                    {
-                        SelectHandMaterial(keyboardIndex,false);
+                    else if (SelectHandMaterial(keyboardIndex,false))
                         keyboardHandArmed = true;
-                    }
                 }
                 else SelectKeyboardZone();
                 keyboardActive = true;
