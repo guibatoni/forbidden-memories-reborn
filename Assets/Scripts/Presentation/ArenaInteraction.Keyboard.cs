@@ -353,6 +353,25 @@ namespace Reborn.Presentation
                 hud.CaptureKeyboardSetting(keyboard);
                 return true;
             }
+            // F1 is a dedicated rescue shortcut even after the user rebinds
+            // the configured keys. Mouse settings button stays available.
+            if (keyboard.f1Key.wasPressedThisFrame)
+            {
+                hud.ToggleKeyboardSettings();
+                return true;
+            }
+            if (hud.StarterSelectionRequired)
+            {
+                if (Shortcut(keyboard,RebornKeyAction.NavigateLeft) ||
+                    Shortcut(keyboard,RebornKeyAction.FusionUnmarkDown))
+                    hud.MoveStarterChoice(-1);
+                else if (Shortcut(keyboard,RebornKeyAction.NavigateRight) ||
+                    Shortcut(keyboard,RebornKeyAction.FusionMarkUp))
+                    hud.MoveStarterChoice(1);
+                else if (Shortcut(keyboard,RebornKeyAction.Select))
+                    hud.ConfirmStarterChoice();
+                return true;
+            }
             if (hud.PlacementWizardOpen)
             {
                 if (Shortcut(keyboard,RebornKeyAction.Cancel) ||
