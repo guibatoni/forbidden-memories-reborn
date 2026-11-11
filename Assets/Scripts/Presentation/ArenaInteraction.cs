@@ -371,7 +371,8 @@ namespace Reborn.Presentation
                     {
                         hud.BeginEquipChoice(match.Player.Support(supportSlot),
                             match.Player.Monster(monsterSlot), rule,
-                            () => CommitSetEquip(supportSlot, monsterSlot));
+                            () => CommitSetEquip(supportSlot, monsterSlot),
+                            null,true);
                     }
                     else hud.Message = reason;
                 }
