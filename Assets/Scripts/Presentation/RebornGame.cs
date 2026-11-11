@@ -194,6 +194,9 @@ namespace Reborn.Presentation
             // Launch straight into the playable duel; Sandbox stays available
             // through the optional HUD button rather than interrupting gameplay.
             hud.SetDuelMode(true);
+            if (loaded && imported.Fusions.Count == 0)
+                hud.Announce("Fusoes indisponiveis neste perfil. " +
+                    "Importe a ISO original para recuperar receitas verificadas.");
             if (loaded)
             {
                 hud.ConfigureStarterDeckChoices(starterOffers, choice =>
