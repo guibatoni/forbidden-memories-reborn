@@ -16,11 +16,19 @@ namespace Reborn.Presentation
             string output = "ATK " + battle.AttackerBase;
             if (battle.AttackerEquipBonus > 0)
                 output += " (Equip +" + battle.AttackerEquipBonus + ")";
+            if (battle.AttackerTerrainBonus != 0)
+                output += " (Terreno " +
+                    (battle.AttackerTerrainBonus > 0 ? "+" : "") +
+                    battle.AttackerTerrainBonus + ")";
             if (battle.AttackerGuardianBonus > 0)
                 output += " + " + battle.AttackerGuardianBonus + " Guardian";
             output += " vs " + label + battle.DefenderBase;
             if (battle.DefenderEquipBonus > 0)
                 output += " (Equip +" + battle.DefenderEquipBonus + ")";
+            if (battle.DefenderTerrainBonus != 0)
+                output += " (Terreno " +
+                    (battle.DefenderTerrainBonus > 0 ? "+" : "") +
+                    battle.DefenderTerrainBonus + ")";
             if (battle.DefenderGuardianBonus > 0)
                 output += " + " + battle.DefenderGuardianBonus + " Guardian";
             output += " (efetivo " + battle.EffectiveAttack + " vs " +
