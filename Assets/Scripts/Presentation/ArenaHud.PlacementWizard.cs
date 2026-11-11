@@ -16,6 +16,7 @@ namespace Reborn.Presentation
         private CardDefinition placementPreview;
         private Func<bool> placementCommit;
         private bool placementIsRitual;
+        private bool placementOverwritesField;
         private bool placementSecondaryChoice;
 
         public bool PlacementWizardOpen => placementStep != PlacementChoiceStep.None;
@@ -23,7 +24,7 @@ namespace Reborn.Presentation
             placementStep == PlacementChoiceStep.Position;
 
         public void BeginPlacementChoices(CardDefinition result, bool ritual,
-            Func<bool> commit)
+            Func<bool> commit, bool overwritesField = false)
         {
             if (result == null || commit == null || PlacementWizardOpen ||
                 match == null || match.Phase != MatchPhase.Main ||
@@ -32,6 +33,7 @@ namespace Reborn.Presentation
             placementPreview = result;
             placementCommit = commit;
             placementIsRitual = ritual;
+            placementOverwritesField = overwritesField;
             UseDefense = false;
             PlaceFaceDown = false;
             UseSecondaryStar = false;
@@ -53,6 +55,7 @@ namespace Reborn.Presentation
             placementCommit = null;
             placementPreview = null;
             placementIsRitual = false;
+            placementOverwritesField = false;
             Announce("Selecao cancelada: nenhuma carta foi baixada.");
         }
 
@@ -123,6 +126,7 @@ namespace Reborn.Presentation
             placementCommit = null;
             placementPreview = null;
             placementIsRitual = false;
+            placementOverwritesField = false;
             bool succeeded = callback != null && callback();
             if (!succeeded)
                 Announce("Posicionamento recusado; sua carta continua na mao.");
@@ -177,8 +181,12 @@ namespace Reborn.Presentation
                 "ESCOLHA A GUARDIAN STAR" :
                 placementStep == PlacementChoiceStep.Facing ?
                 "FACE UP OU FACE DOWN?" : "GIRE A CARTA ANTES DE JOGAR";
-            GUI.Label(new Rect(left+22f,top+25f,w-44f,43f),title,heading);
+            GUI.Label(new Rect(left+22f,top+25f,w-44f,43f),
+                placementOverwritesField ? "TROCA SEM FUSAO - " + title : title,
+                heading);
             GUI.Label(new Rect(left+22f,top+73f,w-44f,37f),
+                (placementOverwritesField ?
+                    "SEM RECEITA: o monstro atual sera substituido!  " : "") +
                 placementPreview.Name+"  #"+placementPreview.Id,body);
 
             if (placementStep == PlacementChoiceStep.Position)
