@@ -1,3 +1,15 @@
+# Prototype 0.24.3 — Correção de referências nos testes Unity
+
+Corrigidos os três erros de compilação `CS0234` reportados
+em `KeyboardInitializationTests.cs` e `KeyboardPositionTests.cs`.
+O assembly `Reborn.Core.Tests` agora referencia
+`Reborn.Presentation` e `Unity.InputSystem`, além de `Reborn.Core`.
+O projeto mantém os recursos da 0.24.2; nenhuma regra de jogo foi alterada.
+
+[Instruções para testar no Unity 6000.3.28f1](Docs/PROTOTYPE_0_24_3.md)
+
+---
+
 # Prototype 0.24.2 — Estabilidade, Q/E exatos e diagnóstico de fusões
 
 Esta entrega corrige a diferença entre Q e E depois de posicionar o
