@@ -1,3 +1,14 @@
+# Prototype 0.22 — Goblin Fan, Simochi e IA de suportes
+
+Goblin Fan (#687) reflete dano de magia direta, e Bad Reaction to Simochi
+(#688) transforma recuperação de LP em dano ao lançador. Ambas são
+armadilhas automáticas quando setadas em turno anterior. A IA também
+começa a ativar magias e equipamentos próprios já preparados.
+
+[Regras, limites e testes do Prototype 0.22](Docs/PROTOTYPE_0_22.md)
+
+---
+
 # Prototype 0.21 — Terrenos e armadilhas originais
 
 **Terrenos:** Forest, Wasteland, Mountain, Sogen, Umi e Yami alteram o campo
