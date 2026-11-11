@@ -46,6 +46,12 @@ namespace Reborn.Core
                     break;
                 case VerifiedSpellOperation.RestoreLife:
                 {
+                    if (ConsumeReactiveTrap(Other(user),
+                        ReactiveTrapOperation.ReverseSpellHealing, rule.Amount))
+                    {
+                        Damage(user, rule.Amount);
+                        break;
+                    }
                     var side = Side(user);
                     int healed = (int)Math.Min((long)rule.Amount,
                         (long)int.MaxValue - side.Life);
@@ -58,7 +64,11 @@ namespace Reborn.Core
                     break;
                 }
                 case VerifiedSpellOperation.DirectDamage:
-                    Damage(Other(user), rule.Amount);
+                    if (ConsumeReactiveTrap(Other(user),
+                        ReactiveTrapOperation.ReflectDirectSpellDamage, rule.Amount))
+                        Damage(user, rule.Amount);
+                    else
+                        Damage(Other(user), rule.Amount);
                     break;
                 case VerifiedSpellOperation.DestroyEnemyMonsters:
                     for (int i = 0; i < ZoneCount; i++)

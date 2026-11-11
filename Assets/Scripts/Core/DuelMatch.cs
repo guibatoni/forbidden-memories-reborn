@@ -157,6 +157,7 @@ namespace Reborn.Core
         private readonly VerifiedSpellCatalog verifiedSpells;
         private readonly VerifiedEquipCatalog verifiedEquips;
         private readonly AttackTrapCatalog attackTraps;
+        private readonly ReactiveTrapCatalog reactiveTraps;
         private readonly List<MatchEvent> history = new List<MatchEvent>();
         private long sequence;
         private bool hasPlayed;
@@ -179,7 +180,8 @@ namespace Reborn.Core
             RitualCatalog ritualCatalog = null,
             VerifiedSpellCatalog spellCatalog = null,
             VerifiedEquipCatalog equipCatalog = null,
-            AttackTrapCatalog trapCatalog = null)
+            AttackTrapCatalog trapCatalog = null,
+            ReactiveTrapCatalog reactionCatalog = null)
         {
             CheckDeck(playerDeck, nameof(playerDeck));
             CheckDeck(opponentDeck, nameof(opponentDeck));
@@ -190,6 +192,7 @@ namespace Reborn.Core
             verifiedSpells = spellCatalog ?? new VerifiedSpellCatalog();
             verifiedEquips = equipCatalog ?? new VerifiedEquipCatalog();
             attackTraps = trapCatalog ?? new AttackTrapCatalog();
+            reactiveTraps = reactionCatalog ?? new ReactiveTrapCatalog();
             Emit(MatchEventKind.Reset, DuelSide.Player);
             DrawToHand(player, DuelSide.Player, false);
             DrawToHand(opponent, DuelSide.Opponent, false);
