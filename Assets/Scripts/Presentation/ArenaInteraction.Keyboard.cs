@@ -155,6 +155,14 @@ namespace Reborn.Presentation
             var order = (IReadOnlyList<int>)new List<int>(fusionSelection);
             var result = match.PreviewResult(DuelSide.Player, order);
             if (result == null) return false;
+            if (order.Count > 1 &&
+                match.CountHandFusionSteps(DuelSide.Player, order) == 0)
+            {
+                hud.Message = "As cartas marcadas nao possuem fusao nesta ordem. " +
+                    "Revise a receita ou jogue manualmente para uma troca " +
+                    "intencional, sem descartar materiais por engano.";
+                return false;
+            }
             var lane = result.Kind == CardKind.Monster ?
                 FieldLane.Monster : FieldLane.Support;
             for (int slot = 0; slot < DuelMatch.ZoneCount; slot++)
