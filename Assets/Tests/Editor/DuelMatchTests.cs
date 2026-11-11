@@ -181,6 +181,64 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void GoblinFanReflectsBurnAndSimochiChangesHealingToDamage()
+        {
+            var duel = new DuelMatch(
+                Deck(Monster("mine",1300,1000),Support("343"),Support("339")),
+                Deck(Support("687",CardKind.Trap),Support("688",CardKind.Trap)),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+                null,null,ReactiveTrapCatalog.OriginalPs1());
+            Play(duel,DuelSide.Player);
+            End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(7950,duel.Player.Life);
+            Assert.AreEqual(8000,duel.Opponent.Life);
+            Assert.IsNull(duel.Opponent.Support(0));
+            End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,1,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(7450,duel.Player.Life);
+            Assert.IsNull(duel.Opponent.Support(1));
+            Assert.AreEqual(2,duel.Events.Count(e=>
+                e.Kind==MatchEventKind.TrapTriggered));
+            Assert.IsTrue(duel.Opponent.Graveyard.Any(c=>c.Id=="687"));
+            Assert.IsTrue(duel.Opponent.Graveyard.Any(c=>c.Id=="688"));
+        }
+
+        [Test]
+        public void UnrelatedReactiveTrapDoesNotTriggerOrRevealOnBurn()
+        {
+            var duel = new DuelMatch(
+                Deck(Monster("mine",900,1000),Support("343")),
+                Deck(Support("688",CardKind.Trap)),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+                null,null,ReactiveTrapCatalog.OriginalPs1());
+            Play(duel,DuelSide.Player);End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(7950,duel.Opponent.Life);
+            Assert.IsTrue(duel.Opponent.SupportIsFaceDown(0));
+            Assert.IsFalse(duel.Events.Any(e=>
+                e.Kind==MatchEventKind.TrapTriggered));
+        }
+
+        [Test]
         public void VerifiedOriginalMagicHealsAndAutomaticallyLeavesSupportZone()
         {
             var duel = new DuelMatch(
