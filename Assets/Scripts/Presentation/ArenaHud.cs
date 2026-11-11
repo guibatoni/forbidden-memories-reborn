@@ -122,7 +122,7 @@ namespace Reborn.Presentation
             SelectedSupportSlot = -1;
             FusionCount = 0;
             AttackMode = false;
-            Message = active ? "MODO DUELO 0.24.2: Q=ATK, E=DEF; fusoes exigem receitas importadas." :
+            Message = active ? "MODO DUELO 0.25: F mostra fusoes validas; Q=ATK e E=DEF." :
                 "Sandbox visual 0.3 restaurado.";
             ModeChanged?.Invoke(active);
         }
@@ -177,7 +177,9 @@ namespace Reborn.Presentation
             return ContentImportRequired || StarterSelectionRequired || PlacementWizardOpen ||
                 EquipChoiceOpen || KeyboardSettingsOpen || FusionAssistantOpen ||
                 CardInspectionOpen || showStory ||
-                (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
+                (x < 264f && (y < (DuelModeActive ? 543f : 315f) ||
+                    (DuelModeActive && y > Screen.height - 118f &&
+                     y < Screen.height - 68f))) ||
                 (x > Screen.width - 225f && (y < 638f || y > Screen.height - 55f));
         }
 
