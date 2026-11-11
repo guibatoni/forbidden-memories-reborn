@@ -180,6 +180,9 @@ namespace Reborn.Presentation
                 (x < 264f && (y < (DuelModeActive ? 543f : 315f) ||
                     (DuelModeActive && y > Screen.height - 118f &&
                      y < Screen.height - 68f))) ||
+                (DuelModeActive && Screen.height < 651f &&
+                    x > (Screen.width - 251f)*0.5f &&
+                    x < (Screen.width + 251f)*0.5f && y < 62f) ||
                 (x > Screen.width - 225f && (y < 638f || y > Screen.height - 55f));
         }
 
