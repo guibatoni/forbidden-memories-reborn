@@ -571,9 +571,97 @@ internal static class Program
             "0.22 no set opponent trap means ordinary burn behavior unchanged");
     }
 
+    private static void CheckNewFusionAndAutoSlotRules()
+    {
+        // Explicit recipes only: this is synthetic CI data, not a ROM import.
+        var alpha = M("fusion-alpha",850,650);
+        var beta = M("fusion-beta",1000,600);
+        var combined = M("fusion-result",2200,1300);
+        var recipes = new FusionCatalog();
+        recipes.Add(alpha.Id,beta.Id,combined);
+        var duel = new DuelMatch(Deck(alpha,beta,M("other",900,900)),
+            Deck(M("rival",900,800)),recipes);
+        int before = duel.Events.Count;
+        Check(duel.FusionRecipeCount == 1 &&
+            duel.CountHandFusionSteps(DuelSide.Player,new[]{0,1})==1 &&
+            duel.CountHandFusionSteps(DuelSide.Player,new[]{1,0})==1 &&
+            duel.CountHandFusionSteps(DuelSide.Player,new[]{0,2})==0 &&
+            duel.CountHandFusionSteps(DuelSide.Player,new[]{0,0})==0 &&
+            duel.PreviewResult(DuelSide.Player,new[]{0,1}).Id==combined.Id &&
+            duel.Events.Count==before && !duel.PlayedThisTurn,
+            "0.24 ordered hand fusion preview uses actual recipe without spending cards");
+        Check(duel.TryPlay(DuelSide.Player,new[]{0,1},FieldLane.Monster,0,
+            BattlePosition.Defense,GuardianStar.None,true,out _) &&
+            duel.Player.Monster(0).Card.Id==combined.Id &&
+            duel.Player.Monster(0).Position==BattlePosition.Defense &&
+            duel.Player.Monster(0).FaceDown &&
+            duel.Player.Hand.Count==3 &&
+            duel.Player.Monster(1)==null &&
+            duel.Events.Any(e=>e.Kind==MatchEventKind.Fusion),
+            "0.24 two materials fuse in a single confirmed turn and respect preselected DEF/FaceDown");
+
+        var slots = new DuelMatch(Deck(alpha,beta,M("next",1000,1000)),
+            Deck(M("rival",800,800)),recipes);
+        Check(slots.TryPlay(DuelSide.Player,new[]{0},FieldLane.Monster,0,
+            BattlePosition.Attack,GuardianStar.None,out _),
+            "0.24 occupied slot fixture");
+        End(slots,DuelSide.Player);
+        Play(slots,DuelSide.Opponent);
+        End(slots,DuelSide.Opponent);
+        Check(!slots.CanPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,0,GuardianStar.None,out _) &&
+            slots.CanPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,1,GuardianStar.None,out _) &&
+            slots.TryPlay(DuelSide.Player,new[]{0},FieldLane.Monster,1,
+                BattlePosition.Attack,GuardianStar.None,out _) &&
+            slots.Player.Monster(0).Card.Id == alpha.Id &&
+            slots.Player.Monster(1).Card.Id == beta.Id,
+            "0.24 first free slot is 2 when slot 1 occupied, without overwriting first monster");
+
+        var field = new DuelMatch(Deck(alpha,beta),
+            Deck(M("enemy",700,700)),recipes);
+        Play(field,DuelSide.Player);End(field,DuelSide.Player);
+        Play(field,DuelSide.Opponent);End(field,DuelSide.Opponent);
+        Check(field.PreviewFieldResult(DuelSide.Player,new[]{0},0)?.Id ==
+            combined.Id &&
+            field.TryPlayOnField(DuelSide.Player,new[]{0},0,
+                BattlePosition.Attack,GuardianStar.None,false,
+                out var result,out var fused,out _) &&
+            fused && result.Id==combined.Id &&
+            field.Player.Monster(0).Card.Id==combined.Id,
+            "0.24 on-field fusion accepts actual own monster as material #1");
+
+        var equip=new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+        var equipMatch = new DuelMatch(
+            Deck(M("owned",1400,1200),equip),
+            Deck(M("opponent",900,900)),null,null,null,
+            VerifiedEquipCatalog.OriginalPs1Foundation());
+        Play(equipMatch,DuelSide.Player);End(equipMatch,DuelSide.Player);
+        Play(equipMatch,DuelSide.Opponent);End(equipMatch,DuelSide.Opponent);
+        Check(equipMatch.CanPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,GuardianStar.None,out _) &&
+            equipMatch.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+                BattlePosition.Defense,GuardianStar.None,true,out _) &&
+            equipMatch.Player.Monster(0).EffectiveAttack==1400 &&
+            equipMatch.Player.Support(0)?.Id=="657" &&
+            equipMatch.Player.SupportIsFaceDown(0),
+            "0.24 setting Equip over occupied monster does not apply bonus prematurely");
+        End(equipMatch,DuelSide.Player);
+        Check(equipMatch.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Monster,1,BattlePosition.Attack,
+            GuardianStar.None,out _),"0.24 equip next turn fixture");
+        End(equipMatch,DuelSide.Opponent);
+        Check(equipMatch.TryEquipFromSupport(DuelSide.Player,0,0,out _) &&
+            equipMatch.Player.Monster(0).EffectiveAttack==2400 &&
+            equipMatch.Player.Support(0)==null &&
+            !equipMatch.PlayedThisTurn,
+            "0.24 set-over-monster Equip activates on next turn with +1000 and no extra placement");
+    }
+
     private static void Main()
     {
         CheckOriginalStarterChoices();
+        CheckNewFusionAndAutoSlotRules();
         CheckTerrainAndTraps();
         CheckReactiveTraps();
         CheckVerifiedEquipEngine();
