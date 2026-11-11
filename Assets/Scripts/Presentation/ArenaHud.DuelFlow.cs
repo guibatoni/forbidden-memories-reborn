@@ -70,24 +70,37 @@ namespace Reborn.Presentation
             }
         }
 
+        // Kept for the mouse button: clicking toggles the current stance.
         public void TryChangeSelectedMonster()
         {
-            if (match == null || SelectedFieldMonster < 0 || InputLocked ||
+            if (match == null || SelectedFieldMonster < 0 ||
+                SelectedFieldMonster >= DuelMatch.ZoneCount) return;
+            var monster = match.Player.Monster(SelectedFieldMonster);
+            if (monster == null) return;
+            TrySetSelectedMonsterPosition(monster.Position == BattlePosition.Attack
+                ? BattlePosition.Defense : BattlePosition.Attack);
+        }
+
+        // Keyboard Q = ATK and E = DEF, regardless of the current stance.
+        // Repeated presses of the same key are intentional no-ops.
+        public void TrySetSelectedMonsterPosition(BattlePosition position)
+        {
+            if (match == null || SelectedFieldMonster < 0 ||
+                SelectedFieldMonster >= DuelMatch.ZoneCount || InputLocked ||
                 match.CurrentSide != DuelSide.Player) return;
             int slot = SelectedFieldMonster;
             var monster = match.Player.Monster(slot);
             if (monster == null) return;
-            var next = monster.Position == BattlePosition.Attack
-                ? BattlePosition.Defense : BattlePosition.Attack;
-            if (match.TryChangePosition(DuelSide.Player, slot, next, out var reason))
+            if (monster.Position == position) return;
+            if (match.TryChangePosition(DuelSide.Player, slot, position, out var reason))
             {
-                // Match.Changed clears transient selections; keep the same card
-                // focused so consecutive Q/E presses work without re-clicking it.
+                // The Match.Changed observer clears the transient selection.
+                // Restore the current slot for another Q/E without reselecting.
                 SelectedFieldMonster = slot;
                 SelectedAttacker = -1;
-                Announce(next == BattlePosition.Attack ?
-                    "Monstro em ATK. Escolha um alvo ou use Q/E para DEF." :
-                    "Monstro em DEF. Use Q/E para ATK ou Espaco para encerrar.");
+                Announce(position == BattlePosition.Attack ?
+                    "Monstro em ATK. Q escolhe ATK; E escolhe DEF." :
+                    "Monstro em DEF. Q escolhe ATK; E escolhe DEF.");
             }
             else Announce(reason);
         }

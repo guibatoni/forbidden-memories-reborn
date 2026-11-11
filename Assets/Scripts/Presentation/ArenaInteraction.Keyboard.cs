@@ -446,13 +446,15 @@ namespace Reborn.Presentation
                 keyboardActive = true;
                 return true;
             }
-            if (Shortcut(keyboard,RebornKeyAction.AttackPosition) ||
-                Shortcut(keyboard,RebornKeyAction.DefensePosition))
+            bool requestAttack = Shortcut(keyboard,RebornKeyAction.AttackPosition);
+            bool requestDefense = Shortcut(keyboard,RebornKeyAction.DefensePosition);
+            if (requestAttack || requestDefense)
             {
                 if (keyboardLocation == KeyboardLocation.OwnMonster &&
                     match.Player.Monster(keyboardIndex) != null)
                     hud.SelectedFieldMonster = keyboardIndex;
-                hud.TryChangeSelectedMonster();
+                hud.TrySetSelectedMonsterPosition(requestAttack ?
+                    BattlePosition.Attack : BattlePosition.Defense);
                 keyboardActive = true;
                 ApplyKeyboardFocus();
                 return true;

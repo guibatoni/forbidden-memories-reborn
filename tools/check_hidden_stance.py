@@ -33,7 +33,8 @@ checks={
         "PlaceFaceDown = !placementIsRitual && secondary;" in wizard and
         "GUIUtility.RotateAroundPivot" in wizard,
     "Q/E still changes position through DuelMatch":
-        "match.TryChangePosition(DuelSide.Player, slot, next" in hud,
+        "match.TryChangePosition(DuelSide.Player, slot, position" in hud and
+        "if (monster.Position == position) return;" in hud,
     "headless regression asserts hidden after toggling":
         "new facedown monster can toggle ATK/DEF repeatedly without revealing" in smoke and
         "set monster remains hidden when switched to ATK on a later turn" in smoke,
