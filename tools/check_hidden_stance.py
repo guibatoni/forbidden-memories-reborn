@@ -28,9 +28,10 @@ checks={
     "arena render uses actual face-down state":
         "monster.FaceDown" in arena and "MakeCard(side+\"_Monster_\"" in arena,
     "ATK/DEF placement wizard preserves engine state":
-        "match.TryChangePosition(DuelSide.Player," in wizard and
+        "UseDefense = defense;" in wizard and
         "Reveal()" not in wizard and
-        "PlaceFaceDown = !placementIsRitual && faceDown;" in wizard,
+        "PlaceFaceDown = !placementIsRitual && secondary;" in wizard and
+        "GUIUtility.RotateAroundPivot" in wizard,
     "Q/E still changes position through DuelMatch":
         "match.TryChangePosition(DuelSide.Player, slot, next" in hud,
     "headless regression asserts hidden after toggling":
