@@ -35,6 +35,23 @@ namespace Reborn.Core
             return successful;
         }
 
+        public int CountFieldFusionSteps(DuelSide side,
+            IReadOnlyList<int> handIndices, int monsterSlot)
+        {
+            if (!ResolveFieldSequence(side, handIndices, monsterSlot,
+                out _, out _, out int successful, out _))
+                return 0;
+            return successful;
+        }
+
+        public bool FinalFieldResultIsFusion(DuelSide side,
+            IReadOnlyList<int> handIndices, int monsterSlot)
+        {
+            return ResolveFieldSequence(side, handIndices, monsterSlot,
+                out _, out int survivor, out int successful, out _) &&
+                successful > 0 && survivor < 0;
+        }
+
         public bool HasRecipe(CardDefinition a, CardDefinition b) =>
             fusions.TryFuse(a,b,out _);
     }

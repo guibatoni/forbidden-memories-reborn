@@ -35,7 +35,7 @@ namespace Reborn.Presentation
             SelectedFieldMonster = -1;
             // Unlike the older prototype, never pass automatically.
             // SPACE is the explicit START equivalent, even in empty battle.
-            Announce("Carta baixada. Q/E alterna ATK/DEF; Espaco passa o turno.");
+            Announce("Carta baixada. Q escolhe ATK, E escolhe DEF. Espaco passa turno.");
         }
 
         public void AfterPlayerAttack()

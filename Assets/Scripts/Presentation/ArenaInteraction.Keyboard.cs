@@ -155,6 +155,14 @@ namespace Reborn.Presentation
             var order = (IReadOnlyList<int>)new List<int>(fusionSelection);
             var result = match.PreviewResult(DuelSide.Player, order);
             if (result == null) return false;
+            if (order.Count > 1 &&
+                match.CountHandFusionSteps(DuelSide.Player, order) == 0)
+            {
+                hud.Message = "As cartas marcadas nao possuem fusao nesta ordem. " +
+                    "Revise a receita ou jogue manualmente para uma troca " +
+                    "intencional, sem descartar materiais por engano.";
+                return false;
+            }
             var lane = result.Kind == CardKind.Monster ?
                 FieldLane.Monster : FieldLane.Support;
             for (int slot = 0; slot < DuelMatch.ZoneCount; slot++)
@@ -180,6 +188,59 @@ namespace Reborn.Presentation
                 "ou passe o turno se ja tiver baixado uma carta." :
                 "Suportes 1-5 ocupados: escolha uma zona livre ou um alvo de Equip.";
             return false;
+        }
+
+        private void ChooseFusionOption(AvailableFusion selected)
+        {
+            if (selected == null || match == null || hud.InputLocked ||
+                match.Phase != MatchPhase.Main ||
+                match.CurrentSide != DuelSide.Player || match.PlayedThisTurn)
+                return;
+            // A previously displayed result may become stale after a duel
+            // event. Compare it with a fresh, read-only legal option set.
+            AvailableFusion legal = null;
+            foreach (var choice in match.FindAvailableFusions(DuelSide.Player))
+            {
+                if (choice.FieldSlot == selected.FieldSlot &&
+                    choice.FirstHandIndex == selected.FirstHandIndex &&
+                    choice.SecondHandIndex == selected.SecondHandIndex &&
+                    choice.Result.Id == selected.Result.Id)
+                {
+                    legal = choice;
+                    break;
+                }
+            }
+            if (legal == null)
+            {
+                hud.Message = "O campo mudou: revise as fusoes disponiveis.";
+                return;
+            }
+            fusionSelection.Clear();
+            fusionSelection.Add(legal.FirstHandIndex);
+            if (!legal.UsesField)
+                fusionSelection.Add(legal.SecondHandIndex);
+            hud.ConfigurePlacement(match.Player.Hand[legal.FirstHandIndex]);
+            hud.SelectedHandIndex = legal.FirstHandIndex;
+            hud.FusionCount = fusionSelection.Count;
+            hud.FieldFusionPreview = legal.Result;
+            keyboardHandArmed = true;
+            lastClickHandIndex = -1;
+            if (legal.UsesField)
+            {
+                var zone = KeyboardZone(false, FieldLane.Monster, legal.FieldSlot);
+                if (zone != null)
+                {
+                    SetKeyboardFocus(KeyboardLocation.OwnMonster,legal.FieldSlot);
+                    PlaceMatchCard(zone);
+                }
+            }
+            else
+            {
+                SetKeyboardFocus(KeyboardLocation.Hand,legal.FirstHandIndex);
+                TryAutoPlaceSelected();
+            }
+            if (!hud.PlacementWizardOpen)
+                hud.Message = "Receita selecionada. Escolha uma zona legal para jogar.";
         }
 
         private void SetKeyboardFocus(KeyboardLocation location, int index)
@@ -330,7 +391,7 @@ namespace Reborn.Presentation
                     !monster.AttackedThisTurn ? keyboardIndex : -1;
                 hud.Message = hud.SelectedAttacker >= 0 ?
                     "Atacante selecionado. W vai para o oponente; Z confirma alvo." :
-                    "Monstro selecionado. Q/E alterna ATK e DEF.";
+                    "Monstro selecionado. Q=ATK e E=DEF.";
                 return;
             }
             if (lane == FieldLane.Support &&
@@ -363,6 +424,22 @@ namespace Reborn.Presentation
             if (keyboard.f1Key.wasPressedThisFrame)
             {
                 hud.ToggleKeyboardSettings();
+                return true;
+            }
+            if (hud.FusionAssistantOpen)
+            {
+                if (Shortcut(keyboard,RebornKeyAction.Cancel) ||
+                    Shortcut(keyboard,RebornKeyAction.FusionAssistant) ||
+                    keyboard.escapeKey.wasPressedThisFrame)
+                    hud.CloseFusionAssistant();
+                else if (Shortcut(keyboard,RebornKeyAction.FusionMarkUp) ||
+                    Shortcut(keyboard,RebornKeyAction.NavigateLeft))
+                    hud.MoveFusionAssistantChoice(-1);
+                else if (Shortcut(keyboard,RebornKeyAction.FusionUnmarkDown) ||
+                    Shortcut(keyboard,RebornKeyAction.NavigateRight))
+                    hud.MoveFusionAssistantChoice(1);
+                else if (Shortcut(keyboard,RebornKeyAction.Select))
+                    hud.ConfirmFusionAssistantChoice();
                 return true;
             }
             if (hud.StarterSelectionRequired)
@@ -419,6 +496,11 @@ namespace Reborn.Presentation
                 match.Phase == MatchPhase.Finished)
                 return false;
 
+            if (Shortcut(keyboard,RebornKeyAction.FusionAssistant))
+            {
+                hud.OpenFusionAssistant(null);
+                return true;
+            }
             if (Shortcut(keyboard,RebornKeyAction.PassTurn))
             {
                 hud.TryPassPlayerTurn();
@@ -478,7 +560,8 @@ namespace Reborn.Presentation
                 int maxIndex = keyboardLocation == KeyboardLocation.Hand ?
                     Math.Max(0, match.Player.Hand.Count-1) : DuelMatch.ZoneCount-1;
                 keyboardIndex = Mathf.Clamp(keyboardIndex+direction,0,maxIndex);
-                keyboardHandArmed = false;
+                // Navigation does NOT cancel the ordered materials already
+                // marked with Up. Z may confirm after moving the cursor.
                 SetKeyboardFocus(keyboardLocation,keyboardIndex);
                 return true;
             }
@@ -493,14 +576,10 @@ namespace Reborn.Presentation
             {
                 if (keyboardLocation == KeyboardLocation.Hand)
                 {
-                    if (keyboardHandArmed &&
-                        fusionSelection.Contains(keyboardIndex))
+                    if (fusionSelection.Count > 0)
                         TryAutoPlaceSelected();
-                    else
-                    {
-                        SelectHandMaterial(keyboardIndex,false);
+                    else if (SelectHandMaterial(keyboardIndex,false))
                         keyboardHandArmed = true;
-                    }
                 }
                 else SelectKeyboardZone();
                 keyboardActive = true;

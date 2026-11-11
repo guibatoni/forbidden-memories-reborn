@@ -26,6 +26,7 @@ namespace Reborn.Presentation
             session = model;
             arena = factory;
             hud = ui;
+            hud.FusionRequested += ChooseFusionOption;
             session.Changed += () =>
             {
                 hud.SelectedHandIndex = -1;
@@ -267,7 +268,10 @@ namespace Reborn.Presentation
                 var prediction = ritualPreview ?
                     match.PreviewRitual(DuelSide.Player, hud.SelectedHandIndex) :
                     match.PreviewFieldResult(DuelSide.Player, fusionSelection, zone.Index);
-                if (prediction != null && prediction.Kind == CardKind.Monster)
+                if (prediction != null && prediction.Kind == CardKind.Monster &&
+                    (ritualPreview ||
+                     match.FinalFieldResultIsFusion(DuelSide.Player,
+                         fusionSelection,zone.Index)))
                     hud.FieldFusionPreview = prediction;
             }
             if (mouse.rightButton.wasPressedThisFrame && !overHud)
@@ -336,7 +340,6 @@ namespace Reborn.Presentation
                              Keyboard.current.rightShiftKey.isPressed);
                         bool doubleClick = !shift && lastClickHandIndex == index &&
                             Time.unscaledTime-lastHandClickTime <= 0.40f &&
-                            fusionSelection.Count == 1 &&
                             fusionSelection.Contains(index);
                         lastClickHandIndex = index;
                         lastHandClickTime = Time.unscaledTime;
@@ -349,7 +352,12 @@ namespace Reborn.Presentation
                             lastClickHandIndex = -1;
                             return;
                         }
-                        if (SelectHandMaterial(index,shift))
+                        // A click on an ALREADY marked material must not
+                        // discard the current multi-card fusion selection.
+                        // Shift+click still appends other materials.
+                        bool preserveSelection = shift ||
+                            fusionSelection.Contains(index);
+                        if (SelectHandMaterial(index,preserveSelection))
                         {
                             pressedHand = index;
                             pressStart = pointer;
@@ -547,9 +555,17 @@ namespace Reborn.Presentation
                 hud.Message = reason;
                 return;
             }
-            // The wizard is presentation only; no card has been consumed yet.
+            // A legal field replacement without a recipe is NOT a fusion.
+            // Warn before destroying the old monster, but preserve deliberate
+            // PS1 field substitutions through explicit confirmation.
+            bool replacesWithoutFusion = onField && !ritual &&
+                !match.FinalFieldResultIsFusion(DuelSide.Player,
+                    selected, zone.Index);
+            if (replacesWithoutFusion)
+                hud.Message = "Sem receita: a jogada substituira o monstro " +
+                    "no campo. Confirme conscientemente.";
             hud.BeginPlacementChoices(outcome, ritual,
-                () => CommitMatchCard(zone));
+                () => CommitMatchCard(zone), replacesWithoutFusion);
         }
 
         /// <summary>

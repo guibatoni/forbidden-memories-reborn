@@ -22,7 +22,8 @@ namespace Reborn.Presentation
         NavigateLeft,
         NavigateRight,
         FusionMarkUp,
-        FusionUnmarkDown
+        FusionUnmarkDown,
+        FusionAssistant
     }
 
     public sealed class RebornKeyBindings
@@ -40,7 +41,8 @@ namespace Reborn.Presentation
             RebornKeyAction.NavigateLeft,
             RebornKeyAction.NavigateRight,
             RebornKeyAction.FusionMarkUp,
-            RebornKeyAction.FusionUnmarkDown
+            RebornKeyAction.FusionUnmarkDown,
+            RebornKeyAction.FusionAssistant
         };
 
         private readonly Dictionary<RebornKeyAction, Key> keys =
@@ -102,6 +104,7 @@ namespace Reborn.Presentation
                 case RebornKeyAction.NavigateRight: return "Seletor direita";
                 case RebornKeyAction.FusionMarkUp: return "Marcar fusao / mover acima";
                 case RebornKeyAction.FusionUnmarkDown: return "Desmarcar / mover abaixo";
+                case RebornKeyAction.FusionAssistant: return "Mostrar fusoes disponiveis";
                 default: return action.ToString();
             }
         }
@@ -121,6 +124,7 @@ namespace Reborn.Presentation
                 case RebornKeyAction.NavigateRight: return Key.RightArrow;
                 case RebornKeyAction.FusionMarkUp: return Key.UpArrow;
                 case RebornKeyAction.FusionUnmarkDown: return Key.DownArrow;
+                case RebornKeyAction.FusionAssistant: return Key.F;
                 default: throw new ArgumentOutOfRangeException(nameof(action));
             }
         }

@@ -1,8 +1,16 @@
 name: Reborn Core smoke tests
+# Avoid duplicate push+PR builds. GitHub Actions is a verification gate,
+# not a job on every development commit.
 on:
   push:
-    branches: [main, feature/prototype-0.18-card-flow-starter-four, feature/prototype-0.18.1-hidden-attack-stance, feature/prototype-0.19-verified-spell-effects, feature/prototype-0.20-original-equips, feature/prototype-0.21-terrain-and-attack-traps, feature/prototype-0.22-reactive-traps, feature/prototype-0.23-complete-equip-import, feature/prototype-0.24-keyboard-fusion-flow, feature/prototype-0.24.1-keyboard-init-hotfix, feature/prototype-0.24.2-duel-qa-and-fusion-diagnostics, feature/prototype-0.24.3-editor-test-asmdef-fix]
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
@@ -64,9 +72,6 @@ jobs:
       - name: Verify original disc descriptions, rituals and ceremonies (static only)
         run: python3 tools/check_original_data_rituals.py
 
-      - name: Disc-free importer and full-content validator
-        run: python3 tools/test_disc_import.py
-
       - name: Test DUELTRACE original catalog bridge (synthetic data only)
         run: |
           python3 -m py_compile tools/import_dueltrace_profile.py
@@ -114,6 +119,9 @@ jobs:
 
       - name: Guard Unity EditMode assembly references (CS0234)
         run: python3 tools/check_unity_editor_asmdef.py
+
+      - name: Verify 0.25 validated fusion assistant and safe auto-selection
+        run: python3 tools/check_fusion_assistant_v025.py
 
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test

@@ -1,3 +1,27 @@
+# Prototype 0.25 — Assistente de fusões reais e estabilidade
+
+O Reborn agora inclui um **assistente de fusões verificadas [F]**.
+Ele lista receitas da mão e combinações com monstros próprios no
+campo, sem inventar cartas/efeitos, e abre a seleção Guardian/Face/ATK-DEF
+sem consumir materiais até a confirmação. As setas preservam a ordem
+marcada por ↑, e Z/duplo clique não descartam automaticamente
+múltiplas cartas sem nenhuma fusão validada.
+
+Também corrigimos o Face Down da carta final numa sequência de
+campo com fusão intermediária seguida de falha, distinguimos
+**TROCA SEM FUSÃO** no modal e reduzimos execuções GitHub Actions
+duplicadas.
+
+Para validação local, sem depender do Actions:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\VALIDAR_REBORN.ps1
+```
+
+[Guia detalhado, comandos e testes da versão 0.25](Docs/PROTOTYPE_0_25.md)
+
+---
+
 # Prototype 0.24.3 — Correção de referências nos testes Unity
 
 Corrigidos os três erros de compilação `CS0234` reportados
