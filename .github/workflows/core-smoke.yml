@@ -1,7 +1,7 @@
 name: Reborn Core smoke tests
 on:
   push:
-    branches: [main, feature/prototype-0.18-card-flow-starter-four, feature/prototype-0.18.1-hidden-attack-stance, feature/prototype-0.19-verified-spell-effects, feature/prototype-0.20-original-equips, feature/prototype-0.21-terrain-and-attack-traps, feature/prototype-0.22-reactive-traps, feature/prototype-0.23-complete-equip-import, feature/prototype-0.24-keyboard-fusion-flow]
+    branches: [main, feature/prototype-0.18-card-flow-starter-four, feature/prototype-0.18.1-hidden-attack-stance, feature/prototype-0.19-verified-spell-effects, feature/prototype-0.20-original-equips, feature/prototype-0.21-terrain-and-attack-traps, feature/prototype-0.22-reactive-traps, feature/prototype-0.23-complete-equip-import, feature/prototype-0.24-keyboard-fusion-flow, feature/prototype-0.24.1-keyboard-init-hotfix]
   pull_request:
 permissions:
   contents: read
@@ -103,6 +103,9 @@ jobs:
 
       - name: Verify 0.24 rebindable keyboard, ordered fusion and auto-slot
         run: python3 tools/check_keyboard_fusion_v024.py
+
+      - name: Prevent Unity MonoBehaviour constructor PlayerPrefs regression
+        run: python3 tools/check_keyboard_init_v0241.py
 
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
