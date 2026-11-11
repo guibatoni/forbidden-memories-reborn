@@ -31,9 +31,9 @@ checks = {
     "SPACE explicitly passes": "RebornKeyAction.PassTurn" in keyboard and
         "hud.TryPassPlayerTurn();" in keyboard and
         "case RebornKeyAction.PassTurn: return Key.Space;" in bindings,
-    "Q and E toggle positions": "RebornKeyAction.AttackPosition" in keyboard and
+    "Q explicitly sets ATK, E explicitly sets DEF": "RebornKeyAction.AttackPosition" in keyboard and
         "RebornKeyAction.DefensePosition" in keyboard and
-        "hud.TryChangeSelectedMonster();" in keyboard,
+        "hud.TrySetSelectedMonsterPosition(requestAttack ?" in keyboard,
     "toggle selection survives match redraw": "SelectedFieldMonster = slot;" in flow,
     "new monster remains selected": "zone.Index : -1;" in input_code and "hud.AfterHandPlacement();" in input_code,
     "right-click no longer rotates the camera": "rightButton." not in orbit,
