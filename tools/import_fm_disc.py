@@ -115,6 +115,12 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
             first = second = 0  # schema 1 requires a validated pair
         cards.append({
             "id": cid, "name": card.name, "kind": card_kind(card, gamedata),
+            # Needed by the 0.21 field rules; without it Mountain, Umi,
+            # Yami etc. could never classify imported PS1 monsters.
+            "typeLabel": (
+                gamedata.TYPE_NAMES[int(card.type)]
+                if 0 <= int(card.type) < len(gamedata.TYPE_NAMES) else ""
+            ),
             "attack": card.attack, "defense": card.defense,
             "description": card.description,
             "guardianStarA": gamedata.STAR_NAMES[first],
@@ -227,6 +233,23 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
     (private / "disc_tables.json").write_text(
         json.dumps(tables_file, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    # Reuse the already extracted local Equip table. The seven terrain
+    # copies must agree, and the card catalog must be from this exact SHA.
+    equip_report = None
+    try:
+        from export_equip_rules import build as build_equip_rules
+        equip_export, equip_report = build_equip_rules(tables_file, export_file)
+        (target / "equip_rules.json").write_text(
+            json.dumps(equip_export, indent=2, ensure_ascii=False),
+            encoding="utf-8")
+    except ValueError as exc:
+        # Never leave a stale other-disc equip_rules.json active.
+        (target / "equip_rules.json").unlink(missing_ok=True)
+        equip_report = {"error": str(exc), "status": "not imported"}
+    (private / "equip-import-report.json").write_text(
+        json.dumps(equip_report, indent=2, ensure_ascii=False),
+        encoding="utf-8")
+
     images = 0
     if extract_art:
         path = pc / "extract_images.py"
@@ -282,6 +305,7 @@ def export(disc_path: Path, project: Path, pc: Path, edition: str,
         "missingDescriptionCount": sum(x["missingDescription"] for x in categories.values()),
         "duelists": len(opponents),
         "starterPools": len(starter_pools), "opponentDeckPools": len(deck_pools), "artsImported": images,
+        "equips": equip_report,
         "artSource": "disc-derived PNG; visual quality limited by PS1 originals",
         "tables": str(private / "disc_tables.json"),
         "unityJson": str(target / "original_export.json"),
