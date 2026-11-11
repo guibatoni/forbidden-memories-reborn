@@ -1,7 +1,7 @@
 name: Reborn Core smoke tests
 on:
   push:
-    branches: [main, feature/prototype-0.18-card-flow-starter-four, feature/prototype-0.18.1-hidden-attack-stance, feature/prototype-0.19-verified-spell-effects, feature/prototype-0.20-original-equips, feature/prototype-0.21-terrain-and-attack-traps, feature/prototype-0.22-reactive-traps, feature/prototype-0.23-complete-equip-import, feature/prototype-0.24-keyboard-fusion-flow, feature/prototype-0.24.1-keyboard-init-hotfix, feature/prototype-0.24.2-duel-qa-and-fusion-diagnostics]
+    branches: [main, feature/prototype-0.18-card-flow-starter-four, feature/prototype-0.18.1-hidden-attack-stance, feature/prototype-0.19-verified-spell-effects, feature/prototype-0.20-original-equips, feature/prototype-0.21-terrain-and-attack-traps, feature/prototype-0.22-reactive-traps, feature/prototype-0.23-complete-equip-import, feature/prototype-0.24-keyboard-fusion-flow, feature/prototype-0.24.1-keyboard-init-hotfix, feature/prototype-0.24.2-duel-qa-and-fusion-diagnostics, feature/prototype-0.24.3-editor-test-asmdef-fix]
   pull_request:
 permissions:
   contents: read
@@ -111,6 +111,9 @@ jobs:
         run: |
           python3 tools/test_fusion_diagnostics.py
           python3 tools/check_duel_qa_v0242.py
+
+      - name: Guard Unity EditMode assembly references (CS0234)
+        run: python3 tools/check_unity_editor_asmdef.py
 
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
