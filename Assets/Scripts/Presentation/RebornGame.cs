@@ -126,10 +126,12 @@ namespace Reborn.Presentation
                     new VerifiedSpellCatalog();
                 var traps = originalPs1 ?
                     AttackTrapCatalog.OriginalPs1() : new AttackTrapCatalog();
+                var reactions = originalPs1 ?
+                    ReactiveTrapCatalog.OriginalPs1() : new ReactiveTrapCatalog();
                 return new DuelMatch(playerDeck, opponentDeck,
                     loaded ? imported.Fusions : DemoDeck.CreateSampleFusions(),
                     loaded ? imported.Rituals : new RitualCatalog(), effects,
-                    verifiedEquips, traps);
+                    verifiedEquips, traps, reactions);
             }
 
             var opponentDirector = gameObject.AddComponent<OpponentTurnDirector>();
