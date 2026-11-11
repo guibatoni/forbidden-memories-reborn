@@ -1,3 +1,15 @@
+# Prototype 0.24.1 — Correção de inicialização no Unity
+
+Corrigido o erro `UnityException: GetString is not allowed to be called
+from a MonoBehaviour constructor`, que provocava um
+`NullReferenceException` no `ArenaHud.Initialize`.
+Preferências do teclado passam a ser carregadas apenas em
+`ArenaHud.Awake()`. As funções da versão 0.24 foram preservadas.
+
+[Diagnóstico e teste no Unity](Docs/PROTOTYPE_0_24_1.md)
+
+---
+
 # Prototype 0.24 — Teclado completo, fusoes e invocacao classica
 
 O Reborn pode ser jogado por mouse ou teclado remapeavel. O jogador

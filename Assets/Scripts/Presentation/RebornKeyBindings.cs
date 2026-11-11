@@ -47,17 +47,43 @@ namespace Reborn.Presentation
             new Dictionary<RebornKeyAction, Key>();
 
         public static IReadOnlyList<RebornKeyAction> Actions => All;
+        // Pure managed construction: UnityEngine.PlayerPrefs must NEVER be read
+        // by a field initializer or the constructor of a MonoBehaviour that
+        // owns this object. Initialize defaults without calling Unity APIs.
         public RebornKeyBindings()
         {
             foreach (var action in All)
+                keys[action] = Default(action);
+        }
+
+        /// <summary>
+        /// Called only from ArenaHud.Awake, after the Unity component exists.
+        /// Invalid or duplicate persisted keys are ignored individually,
+        /// leaving a fully usable default mapping.
+        /// </summary>
+        public void LoadSaved()
+        {
+            foreach (var action in All)
+                keys[action] = Default(action);
+            foreach (var action in All)
             {
-                var fallback = Default(action);
-                string stored = PlayerPrefs.GetString(Prefix + action, fallback.ToString());
+                string stored = PlayerPrefs.GetString(
+                    Prefix + action, Default(action).ToString());
                 if (!Enum.TryParse(stored, true, out Key candidate) ||
-                    candidate == Key.None || !Enum.IsDefined(typeof(Key), candidate) ||
-                    keys.ContainsValue(candidate))
-                    candidate = fallback;
-                keys[action] = candidate;
+                    candidate == Key.None || candidate == Key.F1 ||
+                    !Enum.IsDefined(typeof(Key), candidate))
+                    continue;
+                bool occupied = false;
+                foreach (var other in All)
+                {
+                    if (other != action && keys[other] == candidate)
+                    {
+                        occupied = true;
+                        break;
+                    }
+                }
+                if (!occupied)
+                    keys[action] = candidate;
             }
         }
 
