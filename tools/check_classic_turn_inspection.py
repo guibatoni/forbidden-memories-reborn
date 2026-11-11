@@ -9,6 +9,8 @@ def read(path):
 core = read("Assets/Scripts/Core/DuelMatch.cs")
 flow = read("Assets/Scripts/Presentation/ArenaHud.DuelFlow.cs")
 input_code = read("Assets/Scripts/Presentation/ArenaInteraction.cs")
+keyboard = read("Assets/Scripts/Presentation/ArenaInteraction.Keyboard.cs")
+bindings = read("Assets/Scripts/Presentation/RebornKeyBindings.cs")
 hud = read("Assets/Scripts/Presentation/ArenaHud.cs")
 inspect = read("Assets/Scripts/Presentation/ArenaHud.CardInspect.cs")
 orbit = read("Assets/Scripts/Presentation/OrbitCamera.cs")
@@ -26,8 +28,12 @@ checks = {
     "battle enters after placement": "match.TryBeginBattle(DuelSide.Player" in flow,
     "no automatic pass after playing": "Sem ataque disponivel. Passando" not in flow,
     "no automatic pass after last attack": "TryPassPlayerTurn();" not in flow,
-    "SPACE explicitly passes": "keys.spaceKey.wasPressedThisFrame" in input_code and "hud.TryPassPlayerTurn();" in input_code,
-    "Q and E toggle positions": "keys.qKey.wasPressedThisFrame" in input_code and "keys.eKey.wasPressedThisFrame" in input_code,
+    "SPACE explicitly passes": "RebornKeyAction.PassTurn" in keyboard and
+        "hud.TryPassPlayerTurn();" in keyboard and
+        "case RebornKeyAction.PassTurn: return Key.Space;" in bindings,
+    "Q and E toggle positions": "RebornKeyAction.AttackPosition" in keyboard and
+        "RebornKeyAction.DefensePosition" in keyboard and
+        "hud.TryChangeSelectedMonster();" in keyboard,
     "toggle selection survives match redraw": "SelectedFieldMonster = slot;" in flow,
     "new monster remains selected": "zone.Index : -1;" in input_code and "hud.AfterHandPlacement();" in input_code,
     "right-click no longer rotates the camera": "rightButton." not in orbit,
