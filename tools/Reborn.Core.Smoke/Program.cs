@@ -723,10 +723,44 @@ internal static class Program
             "0.25 missing imported recipes never generate invented fusion advice");
     }
 
+    private static void CheckIntermediateFieldFusionConcealment()
+    {
+        // One successful intermediate recipe, followed by an incompatible
+        // material. The LAST physical card must obey the final chosen face.
+        var original = M("field-a", 1100, 900);
+        var ingredient = M("hand-b", 500, 500);
+        var finalOriginal = M("hand-last", 1400, 1200);
+        var intermediate = M("fused-temporary", 2000, 1600);
+        var rules = new FusionCatalog();
+        rules.Add(original.Id, ingredient.Id, intermediate);
+        var duel = new DuelMatch(Deck(original, ingredient, finalOriginal),
+            Deck(M("enemy", 1000, 900)), rules);
+        Play(duel,DuelSide.Player);
+        End(duel,DuelSide.Player);
+        Play(duel,DuelSide.Opponent);
+        End(duel,DuelSide.Opponent);
+        int previousEvents = duel.Events.Count;
+        Check(duel.CountFieldFusionSteps(DuelSide.Player,new[]{0,1},0) == 1 &&
+            duel.PreviewFieldResult(DuelSide.Player,new[]{0,1},0)?.Id ==
+                finalOriginal.Id &&
+            duel.Events.Count == previousEvents,
+            "0.25 exact field sequence preview includes one intermediate fusion without mutation");
+        Check(duel.TryPlayOnField(DuelSide.Player,new[]{0,1},0,
+            BattlePosition.Defense,GuardianStar.None,true,
+            out var resolved,out var anyFusion,out _) &&
+            anyFusion && resolved.Id == finalOriginal.Id &&
+            duel.Player.Monster(0).FaceDown &&
+            duel.Player.Monster(0).Position == BattlePosition.Defense &&
+            duel.Events.Any(e=>e.Kind==MatchEventKind.Fusion) &&
+            duel.Events.Any(e=>e.Kind==MatchEventKind.FusionFailed),
+            "0.25 final hand survivor remains Face Down after intermediate field fusion");
+    }
+
     private static void Main()
     {
         CheckOriginalStarterChoices();
         CheckAvailableFusionAssistant();
+        CheckIntermediateFieldFusionConcealment();
         CheckNewFusionAndAutoSlotRules();
         CheckTerrainAndTraps();
         CheckReactiveTraps();
