@@ -26,6 +26,7 @@ namespace Reborn.Presentation
             session = model;
             arena = factory;
             hud = ui;
+            hud.FusionRequested += ChooseFusionOption;
             session.Changed += () =>
             {
                 hud.SelectedHandIndex = -1;
@@ -336,7 +337,6 @@ namespace Reborn.Presentation
                              Keyboard.current.rightShiftKey.isPressed);
                         bool doubleClick = !shift && lastClickHandIndex == index &&
                             Time.unscaledTime-lastHandClickTime <= 0.40f &&
-                            fusionSelection.Count == 1 &&
                             fusionSelection.Contains(index);
                         lastClickHandIndex = index;
                         lastHandClickTime = Time.unscaledTime;
@@ -349,7 +349,12 @@ namespace Reborn.Presentation
                             lastClickHandIndex = -1;
                             return;
                         }
-                        if (SelectHandMaterial(index,shift))
+                        // A click on an ALREADY marked material must not
+                        // discard the current multi-card fusion selection.
+                        // Shift+click still appends other materials.
+                        bool preserveSelection = shift ||
+                            fusionSelection.Contains(index);
+                        if (SelectHandMaterial(index,preserveSelection))
                         {
                             pressedHand = index;
                             pressStart = pointer;
