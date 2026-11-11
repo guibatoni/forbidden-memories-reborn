@@ -1,7 +1,7 @@
 name: Reborn Core smoke tests
 on:
   push:
-    branches: [main, feature/prototype-0.18-card-flow-starter-four, feature/prototype-0.18.1-hidden-attack-stance, feature/prototype-0.19-verified-spell-effects, feature/prototype-0.20-original-equips]
+    branches: [main, feature/prototype-0.18-card-flow-starter-four, feature/prototype-0.18.1-hidden-attack-stance, feature/prototype-0.19-verified-spell-effects, feature/prototype-0.20-original-equips, feature/prototype-0.21-terrain-and-attack-traps]
   pull_request:
 permissions:
   contents: read
@@ -89,6 +89,9 @@ jobs:
 
       - name: Verify 0.20 original Equip rules and state
         run: python3 tools/check_original_equips.py
+
+      - name: Verify 0.21 fields and automatic threshold traps
+        run: python3 tools/check_terrain_traps.py
 
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
