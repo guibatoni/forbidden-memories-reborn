@@ -375,7 +375,8 @@ namespace Reborn.Presentation
                 "   Fase: " + phaseName,small);
             GUI.Label(new Rect(23,294,224,27),
                 "Terreno: " + match.CurrentTerrainName, small);
-            GUI.Label(new Rect(23,156,230,24),"Materiais da mao: " + FusionCount + "/5",small);
+            GUI.Label(new Rect(23,156,230,24),"Materiais: " + FusionCount + "/5  |  Fusoes: " +
+                match.FusionRecipeCount,small);
             if (FieldFusionPreview != null && match.Phase == MatchPhase.Main)
             {
                 GUI.Label(new Rect(23,183,227,44),
