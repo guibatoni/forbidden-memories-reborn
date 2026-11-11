@@ -12,6 +12,7 @@ hud = read("Assets/Scripts/Presentation/ArenaHud.cs")
 flow = read("Assets/Scripts/Presentation/ArenaHud.DuelFlow.cs")
 wizard = read("Assets/Scripts/Presentation/ArenaHud.PlacementWizard.cs")
 input_script = read("Assets/Scripts/Presentation/ArenaInteraction.cs")
+keyboard = read("Assets/Scripts/Presentation/ArenaInteraction.Keyboard.cs")
 card = read("Assets/Scripts/Presentation/CardView.cs")
 arena = read("Assets/Scripts/Presentation/ArenaFactory.cs")
 opponent = read("Assets/Scripts/Presentation/OpponentTurnDirector.cs")
@@ -42,8 +43,9 @@ checks = {
         "BeginPlacementChoices(" in input_script and
         "placementStep = PlacementChoiceStep.Facing;" in wizard and
         "placementStep = PlacementChoiceStep.Position;" in wizard and
-        "ConfirmFacing(bool faceDown)" in wizard and
-        "SetPlacedPosition(BattlePosition position)" in wizard,
+        "ConfirmPlacementChoice()" in wizard and
+        "RotatePlacementPreview(bool defense)" in wizard and
+        'GUIUtility.RotateAroundPivot' in wizard,
     "placing a card immediately enters battle": "hud.AfterHandPlacement();" in input_script and
         "match.TryBeginBattle(DuelSide.Player" in flow,
     "no need for attack button": '"Selecionar ataque"' not in hud and
@@ -58,7 +60,7 @@ checks = {
         "HandFanGeometry.CardWidth" in arena and
         "HandFanGeometry.CardLength" in arena and
         "view.SetHandLayoutTarget(" in arena,
-    "shift fusion sequence numbered": "fusionSelection.Add(index)" in input_script and
+    "shift fusion sequence numbered": "fusionSelection.Add(index)" in keyboard and
         "view.SetFusionOrder(fusionSelection.IndexOf(view.HandIndex) + 1)" in input_script and
         "Badge_Number" in card,
     "face-down opponent cards do not reveal values in HUD": "match.Opponent.Monster(previewTarget).FaceDown" in hud,
