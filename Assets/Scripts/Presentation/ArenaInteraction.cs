@@ -7,7 +7,7 @@ using UnityEngine.InputSystem;
 namespace Reborn.Presentation
 {
     /// <summary>Traduz gestos para comandos; somente DuelSession modifica o estado do campo.</summary>
-    public sealed class ArenaInteraction : MonoBehaviour
+    public sealed partial class ArenaInteraction : MonoBehaviour
     {
         private DuelSession session;
         private DuelMatch match;
@@ -37,6 +37,7 @@ namespace Reborn.Presentation
             hud.ModeChanged += active =>
             {
                 pressedHand = -1; dragging = false;
+                ResetKeyboardFocus();
                 fusionSelection.Clear(); hud.FusionCount = 0;
                 hud.SelectedHandIndex = -1;
                 hud.SelectedFieldMonster = -1;
@@ -54,6 +55,7 @@ namespace Reborn.Presentation
             if (match != null) match.Changed -= OnMatchChanged;
             match = model;
             match.Changed += OnMatchChanged;
+            ResetKeyboardFocus();
             fusionSelection.Clear();
             hud.FusionCount = 0;
         }
@@ -200,6 +202,8 @@ namespace Reborn.Presentation
         private void UpdateMatchInput()
         {
             if (match == null || arena.Camera == null) return;
+            // Process remapped keys even without a mouse device.
+            if (ProcessMatchKeyboard()) return;
             if (hud.PlacementWizardOpen)
             {
                 if (Keyboard.current != null &&
@@ -239,36 +243,15 @@ namespace Reborn.Presentation
                     hud.CloseCardInspection();
                 return;
             }
-            var keys = Keyboard.current;
-            if (keys != null && keys.spaceKey.wasPressedThisFrame)
-            {
-                hud.TryPassPlayerTurn();
-                return;
-            }
-            if (keys != null && (keys.qKey.wasPressedThisFrame ||
-                keys.eKey.wasPressedThisFrame))
-            {
-                hud.TryChangeSelectedMonster();
-                UpdateLegalHighlights();
-                return;
-            }
-            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                hud.SelectedHandIndex = -1;
-                hud.SelectedAttacker = -1;
-                hud.SelectedFieldMonster = -1;
-                hud.SelectedSupportSlot = -1;
-                hud.PreviewTargetSlot = -1;
-                fusionSelection.Clear(); hud.FusionCount = 0;
-                pressedHand = -1; dragging = false;
-                hud.Message = "Selecao cancelada.";
-            }
             Vector2 pointer = mouse.position.ReadValue();
+            TrackMouseActivity(pointer);
             bool overHud = hud.IsPointerOverHud(pointer);
             FindPointerTargets(pointer,dragging ? pressedHand : -1,
                 out CardView card,out ZoneView zone);
             if (overHud) { card = null; zone = null; }
-            hud.FieldFusionPreview = null;
+            hud.FieldFusionPreview = fusionSelection.Count > 1 &&
+                match.CountHandFusionSteps(DuelSide.Player, fusionSelection) > 0 ?
+                match.PreviewResult(DuelSide.Player, fusionSelection) : null;
             if (zone != null && !zone.Opponent &&
                 zone.Lane == FieldLane.Monster &&
                 match.Phase == MatchPhase.Main &&
@@ -351,25 +334,27 @@ namespace Reborn.Presentation
                         bool shift = Keyboard.current != null &&
                             (Keyboard.current.leftShiftKey.isPressed ||
                              Keyboard.current.rightShiftKey.isPressed);
-                        if (!shift) fusionSelection.Clear();
-                        if (fusionSelection.Count == 0) hud.ConfigurePlacement(card.Card);
-                        if (!fusionSelection.Contains(index) &&
-                            fusionSelection.Count < DuelMatch.HandLimit)
-                            fusionSelection.Add(index);
-                        hud.FusionCount = fusionSelection.Count;
-                        hud.SelectedHandIndex = index;
-                        pressedHand = index;
-                        pressStart = pointer;
-                        var outcome = match.PreviewResult(DuelSide.Player,fusionSelection);
-                        var ritual = match.PreviewRitual(DuelSide.Player, index);
-                        hud.Message = card.Card.Kind == CardKind.Ritual ?
-                            (ritual == null ?
-                                "Ritual: exige 3 monstros especificos revelados no campo." :
-                                "Ritual pronto: escolha uma zona de tributo para invocar " +
-                                ritual.Name + ".") :
-                            outcome == null ? "Selecao invalida." :
-                            "Materiais: " + fusionSelection.Count + "/5. " + outcome.Name +
-                            " | clique uma zona vazia ou coloque sobre seu monstro para fundir.";
+                        bool doubleClick = !shift && lastClickHandIndex == index &&
+                            Time.unscaledTime-lastHandClickTime <= 0.40f &&
+                            fusionSelection.Count == 1 &&
+                            fusionSelection.Contains(index);
+                        lastClickHandIndex = index;
+                        lastHandClickTime = Time.unscaledTime;
+                        if (doubleClick)
+                        {
+                            keyboardActive = false;
+                            pressedHand = -1;
+                            dragging = false;
+                            TryAutoPlaceSelected();
+                            lastClickHandIndex = -1;
+                            return;
+                        }
+                        if (SelectHandMaterial(index,shift))
+                        {
+                            pressedHand = index;
+                            pressStart = pointer;
+                            keyboardActive = false;
+                        }
                     }
                 }
                 else if (zone != null && !zone.Opponent &&
@@ -478,6 +463,7 @@ namespace Reborn.Presentation
                 view.SetSelected(fusionSelection.Contains(view.HandIndex));
                 view.SetFusionOrder(fusionSelection.IndexOf(view.HandIndex) + 1);
             }
+            ApplyKeyboardFocus();
         }
 
         private void InspectKnownCard(CardView card)
