@@ -353,6 +353,8 @@ namespace Reborn.Presentation
                         {
                             pressedHand = index;
                             pressStart = pointer;
+                            keyboardIndex = index;
+                            keyboardLocation = KeyboardLocation.Hand;
                             keyboardActive = false;
                         }
                     }
