@@ -1,3 +1,21 @@
+# Prototype 0.24.2 — Estabilidade, Q/E exatos e diagnóstico de fusões
+
+Esta entrega corrige a diferença entre Q e E depois de posicionar o
+monstro (**Q = ATK**, **E = DEF**, sem alternância involuntária) e
+introduz um diagnóstico **offline** para saber se a ISO/DUELTRACE
+realmente forneceu receitas de fusão ao Reborn.
+
+No Windows, na raiz do projeto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\DIAGNOSTICAR_FUSOES.ps1
+```
+
+[Guia da versão 0.24.2](Docs/PROTOTYPE_0_24_2.md) ·
+[Protocolo de qualidade das próximas entregas](Docs/WORKFLOW_RELEASE_GATES.md)
+
+---
+
 # Prototype 0.24.1 — Correção de inicialização no Unity
 
 Corrigido o erro `UnityException: GetString is not allowed to be called
