@@ -17,6 +17,7 @@ namespace Reborn.Presentation
         private string starterMessage;
         private bool starterMissing;
         private bool starterPracticeAllowed;
+        private int keyboardStarterIndex;
 
         public bool StarterSelectionRequired =>
             !starterPracticeAllowed && (starterMissing ||
@@ -31,6 +32,35 @@ namespace Reborn.Presentation
             starterMessage = statusMessage ?? "";
             starterMissing = offers == null || offers.Count != 4;
             starterPracticeAllowed = false;
+            keyboardStarterIndex = 0;
+        }
+
+        public void MoveStarterChoice(int direction)
+        {
+            if (!StarterSelectionRequired || starterMissing) return;
+            keyboardStarterIndex =
+                (keyboardStarterIndex+4+(direction>0?1:3))%4;
+        }
+
+        public void ConfirmStarterChoice()
+        {
+            if (!StarterSelectionRequired) return;
+            if (starterMissing)
+            {
+                // Z is an explicit training mode confirmation only while
+                // original disc starter pools are absent.
+                starterPracticeAllowed = true;
+                Announce("TREINO: deck aleatorio nao representa starter PS1.");
+                return;
+            }
+            if (starterOffers == null || onStarterChosen == null) return;
+            int chosen = keyboardStarterIndex;
+            var callback = onStarterChosen;
+            onStarterChosen = null;
+            starterOffers = null;
+            starterMissing = false;
+            starterPracticeAllowed = true;
+            callback(chosen);
         }
 
         private void DrawStarterDeckChoice()
@@ -65,8 +95,7 @@ namespace Reborn.Presentation
                 if (GUI.Button(new Rect(x+22f,y+h-70f,w-44f,45f),
                     "Continuar apenas em TREINO (deck experimental)",button))
                 {
-                    starterPracticeAllowed = true;
-                    Announce("TREINO: deck aleatorio nao representa o starter PS1.");
+                    ConfirmStarterChoice();
                 }
                 return;
             }
@@ -107,17 +136,14 @@ namespace Reborn.Presentation
                     GUI.Label(new Rect(bx+12f,by+95f,cardW-24f,65f),
                         "Maior ATK: " + strongest.Attack +
                         "\n" + strongest.Name,small);
+                if (i == keyboardStarterIndex)
+                    GUI.Label(new Rect(bx+12f,by+cardH-84f,cardW-24f,27f),
+                        "► SELECAO TECLADO",small);
                 if(GUI.Button(new Rect(bx+9f,by+cardH-48f,cardW-18f,37f),
                     "Escolher este deck",button))
                 {
-                    var callback = onStarterChosen;
-                    // Clear first so the game's ResetDuel does not re-open
-                    // the picker or accidentally select a second starter.
-                    onStarterChosen = null;
-                    starterOffers = null;
-                    starterMissing = false;
-                    starterPracticeAllowed = true;
-                    callback?.Invoke(i);
+                    keyboardStarterIndex = i;
+                    ConfirmStarterChoice();
                     return;
                 }
             }

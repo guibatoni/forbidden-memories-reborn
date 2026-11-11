@@ -323,6 +323,30 @@ namespace Reborn.Presentation
         /// Completely procedural, original celebration of a resolved fusion.
         /// No duplicated cards, no camera movement and no gameplay mutation.
         /// </summary>
+        public void PlayFusionMaterialTrails(
+            IReadOnlyList<Vector3> materialOrigins,
+            FieldLane lane, int slot, bool animate)
+        {
+            if (!animate || materialOrigins == null ||
+                materialOrigins.Count < 2 || slot < 0 || slot >= DuelMatch.ZoneCount)
+                return;
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent || zone.Lane != lane || zone.Index != slot)
+                    continue;
+                Vector3 center = zone.transform.position + Vector3.up*0.59f;
+                for (int i=0;i<materialOrigins.Count;i++)
+                {
+                    var visual = new GameObject("Fusion_Material_Stream_" + (i+1));
+                    visual.transform.SetParent(root,false);
+                    visual.AddComponent<FusionMaterialTrail>().Begin(
+                        materialOrigins[i],center,0.09f*i,
+                        (i%2==0) ? cyan : gold);
+                }
+                return;
+            }
+        }
+
         public void PlayFieldCombinationEffect(DuelSide side, int monsterSlot,
             bool fused, bool animate)
         {
@@ -446,13 +470,29 @@ namespace Reborn.Presentation
                     var support = state.Support(i);
                     if (support != null)
                     {
-                        var placed = MakeCard(side+"_Support_"+i,support,-1,
-                            new Vector3((i-2)*2.4f,0.39f,sign*4.35f),
-                            new Vector3(1.51f,0.12f,1.71f),
+                        bool overlayEquip = support.Kind == CardKind.Equip &&
+                            state.SupportIsFaceDown(i) && monster != null;
+                        var location = overlayEquip ?
+                            new Vector3((i-2)*2.4f,0.46f,sign*2.86f) :
+                            new Vector3((i-2)*2.4f,0.39f,sign*4.35f);
+                        // The actual card remains in Support[i] for effects
+                        // and later activation. The smaller visual offset
+                        // allows a set Equip to peek out above the monster.
+                        var placed = MakeCard(
+                            overlayEquip ? side+"_EquipOverlay_"+i :
+                                side+"_Support_"+i,
+                            support,-1,location,
+                            overlayEquip ? new Vector3(1.24f,0.12f,1.39f) :
+                                new Vector3(1.51f,0.12f,1.71f),
                             state.SupportIsFaceDown(i));
+                        if (overlayEquip)
+                            ArenaVisuals.Label("EQUIP SET",dynamicRoot,
+                                new Vector3((i-2)*2.4f,0.64f,sign*4.35f),
+                                ArenaVisuals.Gold,0.071f);
                         if (side == pendingSide && hasPendingPlace && pendingAnimate &&
                             pendingLane == FieldLane.Support && pendingSlot == i)
-                            placed.gameObject.AddComponent<CardMotion>().Play(pendingOrigin,placed.transform.position);
+                            placed.gameObject.AddComponent<CardMotion>().Play(
+                                pendingOrigin,placed.transform.position,0.68f);
                     }
                 }
             }

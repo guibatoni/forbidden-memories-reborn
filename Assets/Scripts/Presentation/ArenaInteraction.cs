@@ -7,7 +7,7 @@ using UnityEngine.InputSystem;
 namespace Reborn.Presentation
 {
     /// <summary>Traduz gestos para comandos; somente DuelSession modifica o estado do campo.</summary>
-    public sealed class ArenaInteraction : MonoBehaviour
+    public sealed partial class ArenaInteraction : MonoBehaviour
     {
         private DuelSession session;
         private DuelMatch match;
@@ -37,6 +37,7 @@ namespace Reborn.Presentation
             hud.ModeChanged += active =>
             {
                 pressedHand = -1; dragging = false;
+                ResetKeyboardFocus();
                 fusionSelection.Clear(); hud.FusionCount = 0;
                 hud.SelectedHandIndex = -1;
                 hud.SelectedFieldMonster = -1;
@@ -54,6 +55,7 @@ namespace Reborn.Presentation
             if (match != null) match.Changed -= OnMatchChanged;
             match = model;
             match.Changed += OnMatchChanged;
+            ResetKeyboardFocus();
             fusionSelection.Clear();
             hud.FusionCount = 0;
         }
@@ -200,6 +202,8 @@ namespace Reborn.Presentation
         private void UpdateMatchInput()
         {
             if (match == null || arena.Camera == null) return;
+            // Process remapped keys even without a mouse device.
+            if (ProcessMatchKeyboard()) return;
             if (hud.PlacementWizardOpen)
             {
                 if (Keyboard.current != null &&
@@ -239,36 +243,15 @@ namespace Reborn.Presentation
                     hud.CloseCardInspection();
                 return;
             }
-            var keys = Keyboard.current;
-            if (keys != null && keys.spaceKey.wasPressedThisFrame)
-            {
-                hud.TryPassPlayerTurn();
-                return;
-            }
-            if (keys != null && (keys.qKey.wasPressedThisFrame ||
-                keys.eKey.wasPressedThisFrame))
-            {
-                hud.TryChangeSelectedMonster();
-                UpdateLegalHighlights();
-                return;
-            }
-            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                hud.SelectedHandIndex = -1;
-                hud.SelectedAttacker = -1;
-                hud.SelectedFieldMonster = -1;
-                hud.SelectedSupportSlot = -1;
-                hud.PreviewTargetSlot = -1;
-                fusionSelection.Clear(); hud.FusionCount = 0;
-                pressedHand = -1; dragging = false;
-                hud.Message = "Selecao cancelada.";
-            }
             Vector2 pointer = mouse.position.ReadValue();
+            TrackMouseActivity(pointer);
             bool overHud = hud.IsPointerOverHud(pointer);
             FindPointerTargets(pointer,dragging ? pressedHand : -1,
                 out CardView card,out ZoneView zone);
             if (overHud) { card = null; zone = null; }
-            hud.FieldFusionPreview = null;
+            hud.FieldFusionPreview = fusionSelection.Count > 1 &&
+                match.CountHandFusionSteps(DuelSide.Player, fusionSelection) > 0 ?
+                match.PreviewResult(DuelSide.Player, fusionSelection) : null;
             if (zone != null && !zone.Opponent &&
                 zone.Lane == FieldLane.Monster &&
                 match.Phase == MatchPhase.Main &&
@@ -351,25 +334,29 @@ namespace Reborn.Presentation
                         bool shift = Keyboard.current != null &&
                             (Keyboard.current.leftShiftKey.isPressed ||
                              Keyboard.current.rightShiftKey.isPressed);
-                        if (!shift) fusionSelection.Clear();
-                        if (fusionSelection.Count == 0) hud.ConfigurePlacement(card.Card);
-                        if (!fusionSelection.Contains(index) &&
-                            fusionSelection.Count < DuelMatch.HandLimit)
-                            fusionSelection.Add(index);
-                        hud.FusionCount = fusionSelection.Count;
-                        hud.SelectedHandIndex = index;
-                        pressedHand = index;
-                        pressStart = pointer;
-                        var outcome = match.PreviewResult(DuelSide.Player,fusionSelection);
-                        var ritual = match.PreviewRitual(DuelSide.Player, index);
-                        hud.Message = card.Card.Kind == CardKind.Ritual ?
-                            (ritual == null ?
-                                "Ritual: exige 3 monstros especificos revelados no campo." :
-                                "Ritual pronto: escolha uma zona de tributo para invocar " +
-                                ritual.Name + ".") :
-                            outcome == null ? "Selecao invalida." :
-                            "Materiais: " + fusionSelection.Count + "/5. " + outcome.Name +
-                            " | clique uma zona vazia ou coloque sobre seu monstro para fundir.";
+                        bool doubleClick = !shift && lastClickHandIndex == index &&
+                            Time.unscaledTime-lastHandClickTime <= 0.40f &&
+                            fusionSelection.Count == 1 &&
+                            fusionSelection.Contains(index);
+                        lastClickHandIndex = index;
+                        lastHandClickTime = Time.unscaledTime;
+                        if (doubleClick)
+                        {
+                            keyboardActive = false;
+                            pressedHand = -1;
+                            dragging = false;
+                            TryAutoPlaceSelected();
+                            lastClickHandIndex = -1;
+                            return;
+                        }
+                        if (SelectHandMaterial(index,shift))
+                        {
+                            pressedHand = index;
+                            pressStart = pointer;
+                            keyboardIndex = index;
+                            keyboardLocation = KeyboardLocation.Hand;
+                            keyboardActive = false;
+                        }
                     }
                 }
                 else if (zone != null && !zone.Opponent &&
@@ -386,7 +373,8 @@ namespace Reborn.Presentation
                     {
                         hud.BeginEquipChoice(match.Player.Support(supportSlot),
                             match.Player.Monster(monsterSlot), rule,
-                            () => CommitSetEquip(supportSlot, monsterSlot));
+                            () => CommitSetEquip(supportSlot, monsterSlot),
+                            null,true);
                     }
                     else hud.Message = reason;
                 }
@@ -478,6 +466,7 @@ namespace Reborn.Presentation
                 view.SetSelected(fusionSelection.Contains(view.HandIndex));
                 view.SetFusionOrder(fusionSelection.IndexOf(view.HandIndex) + 1);
             }
+            ApplyKeyboardFocus();
         }
 
         private void InspectKnownCard(CardView card)
@@ -511,17 +500,25 @@ namespace Reborn.Presentation
             if (equipSelected)
             {
                 int selectedIndex = selected[0];
-                if (!match.CanEquipFromHand(DuelSide.Player, selectedIndex,
-                    zone.Index, out var equipRule, out var equipReason))
+                bool canApply = match.CanEquipFromHand(DuelSide.Player,
+                    selectedIndex, zone.Index, out var equipRule,
+                    out var equipReason);
+                bool canSet = match.CanPlay(DuelSide.Player,
+                    new[] {selectedIndex}, FieldLane.Support, zone.Index,
+                    GuardianStar.None, out var setReason);
+                if (!canApply && !canSet)
                 {
-                    hud.Message = equipReason;
+                    hud.Message = equipReason + " / " + setReason;
                     return;
                 }
                 var equip = match.Player.Hand[selectedIndex];
                 var target = match.Player.Monster(zone.Index);
                 int targetSlot = zone.Index;
-                hud.BeginEquipChoice(equip, target, equipRule,
-                    () => CommitEquipFromHand(selectedIndex, targetSlot));
+                hud.BeginEquipChoice(equip, target, canApply ? equipRule : null,
+                    canApply ? (Func<bool>)(() =>
+                        CommitEquipFromHand(selectedIndex, targetSlot)) : null,
+                    canSet ? (Func<bool>)(() =>
+                        CommitSetEquipOverMonster(selectedIndex,targetSlot)) : null);
                 return;
             }
             bool ritual = onField && selected.Count == 1 &&
@@ -553,6 +550,47 @@ namespace Reborn.Presentation
             // The wizard is presentation only; no card has been consumed yet.
             hud.BeginPlacementChoices(outcome, ritual,
                 () => CommitMatchCard(zone));
+        }
+
+        /// <summary>
+        /// A Face Down Equip stacked over monster column N is stored in
+        /// support slot N. It is never prematurely applied. The user may
+        /// activate it on a later turn by selecting that stack then the monster.
+        /// </summary>
+        private bool CommitSetEquipOverMonster(int handIndex, int monsterSlot)
+        {
+            if (match == null || match.Phase != MatchPhase.Main ||
+                handIndex < 0 || handIndex >= match.Player.Hand.Count ||
+                match.Player.Monster(monsterSlot) == null)
+                return false;
+            var card = match.Player.Hand[handIndex];
+            if (card.Kind != CardKind.Equip) return false;
+            if (!match.CanPlay(DuelSide.Player,new[] {handIndex},
+                FieldLane.Support,monsterSlot,GuardianStar.None,out var reason))
+            {
+                hud.Message = reason;
+                return false;
+            }
+            var from = FindHandView(handIndex);
+            var zone = KeyboardZone(false,FieldLane.Support,monsterSlot);
+            if (zone != null)
+                arena.StagePlacement(FieldLane.Support,monsterSlot,
+                    from != null ? from.transform.position : zone.transform.position,
+                    hud.AnimationsEnabled);
+            if (!match.TryPlay(DuelSide.Player,new[] {handIndex},
+                FieldLane.Support,monsterSlot,BattlePosition.Defense,
+                GuardianStar.None,true,out reason))
+            {
+                arena.ClearStagedPlacement();
+                hud.Message = reason;
+                return false;
+            }
+            hud.Announce("Equip " + card.Name +
+                " setado Face Down sobre monstro da zona " + (monsterSlot+1) + ".");
+            hud.AfterHandPlacement();
+            hud.SelectedSupportSlot = monsterSlot;
+            UpdateLegalHighlights();
+            return true;
         }
 
         private bool CommitSetEquip(int supportSlot, int monsterSlot)
@@ -599,6 +637,23 @@ namespace Reborn.Presentation
             hud.SelectedFieldMonster = monsterSlot;
             UpdateLegalHighlights();
             return true;
+        }
+
+        private List<Vector3> SelectedMaterialOrigins(
+            IReadOnlyList<int> indices, ZoneView zone, bool useField)
+        {
+            var origins = new List<Vector3>();
+            if (zone == null) return origins;
+            if (useField)
+                origins.Add(zone.transform.position + Vector3.up*0.32f);
+            if (indices != null)
+                foreach (int index in indices)
+                {
+                    var sourceView = FindHandView(index);
+                    if (sourceView != null)
+                        origins.Add(sourceView.transform.position);
+                }
+            return origins;
         }
 
         private bool CommitMatchCard(ZoneView zone)
@@ -663,6 +718,9 @@ namespace Reborn.Presentation
             var position = hud.UseDefense ? BattlePosition.Defense : BattlePosition.Attack;
             var source = FindHandView(hud.SelectedHandIndex);
             var origin = source != null ? source.transform.position : zone.transform.position;
+            // Capture hand material positions BEFORE Match.Changed destroys
+            // and recreates the 3D cards on a successful fusion.
+            var materialOrigins = SelectedMaterialOrigins(selected,zone,onField);
 
             if (onField)
             {
@@ -679,6 +737,9 @@ namespace Reborn.Presentation
                 {
                     arena.PlayFieldCombinationEffect(DuelSide.Player, zone.Index,
                         fused, hud.AnimationsEnabled);
+                    if (fused)
+                        arena.PlayFusionMaterialTrails(materialOrigins,
+                            FieldLane.Monster, zone.Index, hud.AnimationsEnabled);
                     hud.Announce(fused ? "Fusao no campo: " + fieldResult.Name :
                         "Sem receita de fusao: " + fieldResult.Name +
                         " substituiu o monstro anterior.");
@@ -706,8 +767,12 @@ namespace Reborn.Presentation
                             match.Events[evt].Side == DuelSide.Player)
                             actuallyFused = true;
                     if (actuallyFused && zone.Lane == FieldLane.Monster)
+                    {
                         arena.PlayFieldCombinationEffect(DuelSide.Player,
                             zone.Index, true, hud.AnimationsEnabled);
+                        arena.PlayFusionMaterialTrails(materialOrigins,
+                            FieldLane.Monster, zone.Index, hud.AnimationsEnabled);
+                    }
                     bool activatedInstant = zone.Lane == FieldLane.Support &&
                         !hud.PlaceFaceDown && result.Kind == CardKind.Spell &&
                         match.HasVerifiedSpell(result);
@@ -764,6 +829,18 @@ namespace Reborn.Presentation
                 var foundCard = hit.collider.GetComponentInParent<CardView>();
                 if (foundCard != null && foundCard.HandIndex == ignoredHand && ignoredHand >= 0)
                     continue;
+                // A set Equip visually overlaps its monster but remains a
+                // support card in the authoritative rules engine. Map clicks
+                // on that visible stack back to its true support slot.
+                if (foundCard != null &&
+                    foundCard.gameObject.name.StartsWith("Player_EquipOverlay_") &&
+                    int.TryParse(foundCard.gameObject.name.Substring(
+                        "Player_EquipOverlay_".Length),out int equipSlot))
+                {
+                    card = foundCard;
+                    zone = KeyboardZone(false,FieldLane.Support,equipSlot);
+                    return;
+                }
                 if (card == null && foundCard != null) card = foundCard;
                 if (zone == null)
                 {
@@ -872,8 +949,11 @@ namespace Reborn.Presentation
                         (hud.UseSecondaryStar ? card.StarB : card.StarA);
                     bool legal = !zone.Opponent && card != null &&
                         (equipSelected ?
-                            match.CanEquipFromHand(DuelSide.Player, selection[0],
-                                zone.Index, out _, out _) :
+                            (match.CanEquipFromHand(DuelSide.Player, selection[0],
+                                zone.Index, out _, out _) ||
+                             match.CanPlay(DuelSide.Player, new[] {selection[0]},
+                                FieldLane.Support, zone.Index,
+                                GuardianStar.None, out _)) :
                          ritualSelected && occupiedMonster ?
                             match.CanSummonRitual(DuelSide.Player, selection[0],
                                 zone.Index, star, out _, out _) :

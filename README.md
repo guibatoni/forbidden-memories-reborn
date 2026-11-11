@@ -1,3 +1,22 @@
+# Prototype 0.24 — Teclado completo, fusoes e invocacao classica
+
+O Reborn pode ser jogado por mouse ou teclado remapeavel. O jogador
+marca fusoes em ordem com CIMA, desmarca com BAIXO e pode fazer
+duplo clique para enviar uma carta ao primeiro slot realmente livre.
+Guardian Star, Face Up/Down e escolha visual de ATK/DEF acontecem
+ANTES de baixar a carta; Q/E gira a carta e Z confirma. X cancela
+sem consumir materiais.
+
+Equip pode ser aplicado diretamente sobre monstro compativel ou
+setado Face Down acima de seu monstro na mesma coluna (zona de
+suporte correspondente). A entrada em campo ganhou uma curva suave,
+e fusoes confirmadas geram rastros luminosos individuais de
+material. Nenhuma receita sem origem validada e inventada.
+
+[Guia do Prototype 0.24, tabela de teclas e verificacoes](Docs/PROTOTYPE_0_24.md).
+
+---
+
 # Prototype 0.23 — Equips da ISO e subtipos reais
 
 A tabela privada original do PS1 já incluía os alvos de Equip, mas

@@ -58,7 +58,7 @@ checks={
      "CommitEquipFromHand" in input_code,
   "cancelled modal does not consume a physical card":
      "CancelEquipChoice();" in modal and
-     "commit != null && !commit()" in modal and
+     "if (!commit())" in modal and
      "match.TryEquipFromHand" not in modal,
   "set equip interaction has independent activation path":
      "CommitSetEquip(" in input_code and
