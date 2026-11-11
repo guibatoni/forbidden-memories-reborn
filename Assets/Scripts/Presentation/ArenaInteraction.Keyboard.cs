@@ -403,7 +403,9 @@ namespace Reborn.Presentation
             }
             if (hud.CardInspectionOpen)
             {
-                if (Shortcut(keyboard,RebornKeyAction.Cancel) ||
+                if ((Mouse.current != null &&
+                     Mouse.current.rightButton.wasPressedThisFrame) ||
+                    Shortcut(keyboard,RebornKeyAction.Cancel) ||
                     Shortcut(keyboard,RebornKeyAction.InspectCard) ||
                     keyboard.escapeKey.wasPressedThisFrame)
                     hud.CloseCardInspection();
