@@ -144,6 +144,7 @@ namespace Reborn.Core
             var onField = state.Monster(monsterSlot);
             CardDefinition current = onField.Card;
             int survivor = -1;
+            bool finalResultIsFusion = false;
             foreach (int index in handIndices)
             {
                 var next = state.Hand[index];
@@ -152,6 +153,7 @@ namespace Reborn.Core
                     current = combined;
                     survivor = -1;
                     fused = true;
+                    finalResultIsFusion = true;
                     Emit(MatchEventKind.Fusion, side, current.Id,
                         FieldLane.Monster, monsterSlot);
                 }
@@ -159,6 +161,7 @@ namespace Reborn.Core
                 {
                     current = next;
                     survivor = index;
+                    finalResultIsFusion = false;
                     Emit(MatchEventKind.FusionFailed, side, next.Id,
                         FieldLane.Monster, monsterSlot);
                 }
@@ -184,7 +187,7 @@ namespace Reborn.Core
             // the last hand monster survives, the requested face remains valid.
             state.SetMonster(monsterSlot,
                 new MonsterOnField(current, position, star,
-                    fused ? false : faceDown, Turn));
+                    finalResultIsFusion ? false : faceDown, Turn));
             hasPlayed = true;
             result = current;
             Emit(MatchEventKind.Play, side, current.Id,
