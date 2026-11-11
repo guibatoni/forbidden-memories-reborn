@@ -11,7 +11,8 @@ namespace Reborn.Core
         RestoreLife,
         DirectDamage,
         DestroyEnemyMonsters,
-        DestroyAllFieldCards
+        DestroyAllFieldCards,
+        SetTerrain
     }
 
     public sealed class VerifiedSpellRule
@@ -69,6 +70,12 @@ namespace Reborn.Core
         public static VerifiedSpellCatalog OriginalPs1Core()
         {
             var result = new VerifiedSpellCatalog();
+            result.Add("330", VerifiedSpellOperation.SetTerrain);
+            result.Add("331", VerifiedSpellOperation.SetTerrain);
+            result.Add("332", VerifiedSpellOperation.SetTerrain);
+            result.Add("333", VerifiedSpellOperation.SetTerrain);
+            result.Add("334", VerifiedSpellOperation.SetTerrain);
+            result.Add("335", VerifiedSpellOperation.SetTerrain);
             result.Add("336", VerifiedSpellOperation.DestroyAllFieldCards);
             result.Add("337", VerifiedSpellOperation.DestroyEnemyMonsters);
             result.Add("338", VerifiedSpellOperation.RestoreLife, 200);
