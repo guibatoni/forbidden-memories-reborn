@@ -568,6 +568,74 @@ namespace Reborn.Presentation
             }
         }
 
+        /// <summary>Short, original visual for one field affecting both players.</summary>
+        public void PlayTerrainShift(string terrainId)
+        {
+            var visual = new GameObject("Global_Terrain_" + TerrainRules.Name(terrainId));
+            visual.transform.SetParent(root, false);
+            visual.transform.localPosition = new Vector3(0f, 0.34f, 0f);
+            var particles = visual.AddComponent<ParticleSystem>();
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = particles.main;
+            main.loop = false;
+            main.playOnAwake = false;
+            main.duration = 1.2f;
+            main.startLifetime = 1.15f;
+            main.startSpeed = 1.7f;
+            main.startSize = 0.15f;
+            main.maxParticles = 125;
+            main.startColor = terrainId == "330" ? new Color(0.26f,0.81f,0.49f) :
+                terrainId == "331" ? new Color(0.72f,0.60f,0.41f) :
+                terrainId == "332" ? new Color(0.67f,0.65f,0.97f) :
+                terrainId == "333" ? new Color(0.59f,0.83f,0.37f) :
+                terrainId == "334" ? new Color(0.23f,0.78f,0.98f) :
+                new Color(0.64f,0.36f,0.90f);
+            var shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 3.8f;
+            var emission = particles.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] {new ParticleSystem.Burst(0f, 100)});
+            particles.GetComponent<ParticleSystemRenderer>().sharedMaterial = cyan;
+            particles.Play();
+            Object.Destroy(visual, 2.8f);
+        }
+
+        /// <summary>Visual response on the *hidden* trap's own support slot.</summary>
+        public void PlayTrapBurst(DuelSide defenderSide, int supportSlot)
+        {
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent != (defenderSide == DuelSide.Opponent) ||
+                    zone.Lane != FieldLane.Support || zone.Index != supportSlot)
+                    continue;
+                var visual = new GameObject("Trap_Intercept");
+                visual.transform.SetParent(root, false);
+                visual.transform.position = zone.transform.position + Vector3.up * 0.40f;
+                var particles = visual.AddComponent<ParticleSystem>();
+                particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = particles.main;
+                main.loop = false;
+                main.playOnAwake = false;
+                main.duration = 0.42f;
+                main.startLifetime = 0.67f;
+                main.startSpeed = 2.1f;
+                main.startSize = 0.12f;
+                main.maxParticles = 76;
+                main.startColor = ArenaVisuals.Red;
+                var shape = particles.shape;
+                shape.shapeType = ParticleSystemShapeType.Hemisphere;
+                shape.radius = 0.43f;
+                var emission = particles.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new[] {new ParticleSystem.Burst(0f, 55)});
+                particles.GetComponent<ParticleSystemRenderer>().sharedMaterial = gold;
+                particles.Play();
+                Object.Destroy(visual, 1.7f);
+                return;
+            }
+        }
+
         public void Refresh(DuelSession session)
         {
             SetAttackAim(-1, -1);
