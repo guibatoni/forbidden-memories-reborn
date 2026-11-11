@@ -1,8 +1,16 @@
 name: Reborn Core smoke tests
+# Avoid duplicate push+PR builds. GitHub Actions is a verification gate,
+# not a job on every development commit.
 on:
   push:
-    branches: [main, feature/prototype-0.18-card-flow-starter-four, feature/prototype-0.18.1-hidden-attack-stance, feature/prototype-0.19-verified-spell-effects, feature/prototype-0.20-original-equips, feature/prototype-0.21-terrain-and-attack-traps, feature/prototype-0.22-reactive-traps, feature/prototype-0.23-complete-equip-import, feature/prototype-0.24-keyboard-fusion-flow, feature/prototype-0.24.1-keyboard-init-hotfix, feature/prototype-0.24.2-duel-qa-and-fusion-diagnostics, feature/prototype-0.24.3-editor-test-asmdef-fix]
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
