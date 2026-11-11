@@ -25,9 +25,9 @@ namespace Reborn.Presentation
         {
             if (equip == null || monster == null ||
                 (commit == null && setCommit == null) ||
-                (!prepared && match.PlayedThisTurn) ||
                 PlacementWizardOpen || EquipChoiceOpen ||
                 !DuelModeActive || match == null ||
+                (!prepared && match.PlayedThisTurn) ||
                 match.Phase == MatchPhase.Finished ||
                 match.CurrentSide != DuelSide.Player)
                 return;
