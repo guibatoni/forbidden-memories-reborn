@@ -6,7 +6,7 @@ namespace Reborn.Presentation
 {
     public sealed partial class ArenaHud
     {
-        private readonly RebornKeyBindings keyBindings = new RebornKeyBindings();
+        private RebornKeyBindings keyBindings;
         private RebornKeyAction? capturingKey;
         private bool keyboardSettingsOpen;
         private Vector2 keyboardSettingsScroll;
@@ -14,6 +14,15 @@ namespace Reborn.Presentation
 
         public RebornKeyBindings KeyBindings => keyBindings;
         public bool KeyboardSettingsOpen => keyboardSettingsOpen;
+
+        // Unity calls Awake after AddComponent finishes constructing ArenaHud.
+        // Reading PlayerPrefs here is legal; reading it in a field initializer
+        // throws UnityException and may leave other HUD fields uninitialized.
+        private void Awake()
+        {
+            keyBindings = new RebornKeyBindings();
+            keyBindings.LoadSaved();
+        }
 
         public void ToggleKeyboardSettings()
         {
