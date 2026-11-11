@@ -323,6 +323,30 @@ namespace Reborn.Presentation
         /// Completely procedural, original celebration of a resolved fusion.
         /// No duplicated cards, no camera movement and no gameplay mutation.
         /// </summary>
+        public void PlayFusionMaterialTrails(
+            IReadOnlyList<Vector3> materialOrigins,
+            FieldLane lane, int slot, bool animate)
+        {
+            if (!animate || materialOrigins == null ||
+                materialOrigins.Count < 2 || slot < 0 || slot >= DuelMatch.ZoneCount)
+                return;
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent || zone.Lane != lane || zone.Index != slot)
+                    continue;
+                Vector3 center = zone.transform.position + Vector3.up*0.59f;
+                for (int i=0;i<materialOrigins.Count;i++)
+                {
+                    var visual = new GameObject("Fusion_Material_Stream_" + (i+1));
+                    visual.transform.SetParent(root,false);
+                    visual.AddComponent<FusionMaterialTrail>().Begin(
+                        materialOrigins[i],center,0.09f*i,
+                        (i%2==0) ? cyan : gold);
+                }
+                return;
+            }
+        }
+
         public void PlayFieldCombinationEffect(DuelSide side, int monsterSlot,
             bool fused, bool animate)
         {
