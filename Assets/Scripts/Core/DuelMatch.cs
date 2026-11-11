@@ -6,7 +6,7 @@ namespace Reborn.Core
     public enum MatchEventKind
     {
         Reset, Draw, Play, Fusion, FusionFailed, RitualSummoned, BattleStarted, PositionChanged, SupportActivated, Attack,
-        Destroy, LifeChanged, TurnStarted, Graveyard, Equipped, Finished
+        Destroy, LifeChanged, TurnStarted, Graveyard, Equipped, TerrainChanged, TrapTriggered, Finished
     }
 
     public sealed class MatchEvent
@@ -170,6 +170,8 @@ namespace Reborn.Core
         public int Turn { get; private set; } = 1;
         public IReadOnlyList<MatchEvent> Events => history.AsReadOnly();
         public bool PlayedThisTurn => hasPlayed;
+        public string CurrentTerrainCardId { get; private set; } = "";
+        public string CurrentTerrainName => TerrainRules.Name(CurrentTerrainCardId);
 
         public DuelMatch(IReadOnlyList<CardDefinition> playerDeck,
             IReadOnlyList<CardDefinition> opponentDeck, FusionCatalog catalog = null,
@@ -495,7 +497,8 @@ namespace Reborn.Core
             var own = Side(side);
             var enemy = Side(Other(side));
             forecast = new CombatForecast(own.Monster(fromSlot),
-                targetSlot < 0 ? null : enemy.Monster(targetSlot));
+                targetSlot < 0 ? null : enemy.Monster(targetSlot),
+                CurrentTerrainCardId);
             return true;
         }
 
