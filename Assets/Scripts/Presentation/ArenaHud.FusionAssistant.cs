@@ -13,6 +13,7 @@ namespace Reborn.Presentation
     {
         private IReadOnlyList<AvailableFusion> fusionOptions;
         private Action<AvailableFusion> onFusionChosen;
+        public event Action<AvailableFusion> FusionRequested;
         private int selectedFusionOption;
         private Vector2 fusionScroll;
 
@@ -51,7 +52,8 @@ namespace Reborn.Presentation
             var chosen = fusionOptions[selectedFusionOption];
             var callback = onFusionChosen;
             CloseFusionAssistant(); // Unblock the placement wizard first.
-            callback?.Invoke(chosen);
+            if (callback != null) callback(chosen);
+            else FusionRequested?.Invoke(chosen);
         }
 
         private string FusionOptionLabel(AvailableFusion option)
