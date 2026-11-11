@@ -743,12 +743,13 @@ internal static class Program
         Check(duel.CountFieldFusionSteps(DuelSide.Player,new[]{0,1},0) == 1 &&
             duel.PreviewFieldResult(DuelSide.Player,new[]{0,1},0)?.Id ==
                 finalOriginal.Id &&
-            duel.Events.Count == previousEvents,
-            "0.25 exact field sequence preview includes one intermediate fusion without mutation");
+            duel.Events.Count == previousEvents &&
+            !duel.FinalFieldResultIsFusion(DuelSide.Player,new[]{0,1},0),
+            "0.25 preview distinguishes successful intermediate from final failed combination");
         Check(duel.TryPlayOnField(DuelSide.Player,new[]{0,1},0,
             BattlePosition.Defense,GuardianStar.None,true,
-            out var resolved,out var anyFusion,out _) &&
-            anyFusion && resolved.Id == finalOriginal.Id &&
+            out var resolved,out var finalFusion,out _) &&
+            !finalFusion && resolved.Id == finalOriginal.Id &&
             duel.Player.Monster(0).FaceDown &&
             duel.Player.Monster(0).Position == BattlePosition.Defense &&
             duel.Events.Any(e=>e.Kind==MatchEventKind.Fusion) &&
