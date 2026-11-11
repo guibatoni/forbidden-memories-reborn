@@ -43,6 +43,15 @@ namespace Reborn.Presentation
             equipGainDefense = 0;
         }
 
+        public void ConfirmEquipChoice()
+        {
+            if (!EquipChoiceOpen) return;
+            var commit = equipCommit;
+            CancelEquipChoice();
+            if (commit != null && !commit())
+                Announce("Equipamento recusado: estado da jogada mudou.");
+        }
+
         private void DrawEquipChoice()
         {
             if (!EquipChoiceOpen || selectedEquip == null || equipTarget == null) return;
@@ -69,10 +78,7 @@ namespace Reborn.Presentation
             if (GUI.Button(new Rect(x + 23f, y + h - 60f, buttonW, 39f),
                 "CONFIRMAR EQUIP", button))
             {
-                var commit = equipCommit;
-                CancelEquipChoice();
-                if (commit != null && !commit())
-                    Announce("Equipamento recusado: estado da jogada mudou.");
+                ConfirmEquipChoice();
             }
             if (GUI.Button(new Rect(x + 40f + buttonW, y + h - 60f, buttonW, 39f),
                 "CANCELAR SEM GASTAR CARTA", button))
