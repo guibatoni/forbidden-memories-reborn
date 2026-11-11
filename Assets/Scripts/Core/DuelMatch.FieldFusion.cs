@@ -167,6 +167,11 @@ namespace Reborn.Core
                 }
             }
 
+            // Report a "fusion" to the UI only when the *final* on-field
+            // result is a fusion. Earlier successful intermediate steps still
+            // have their own Fusion events in the log.
+            fused = finalResultIsFusion;
+
             var discarded = new List<CardDefinition>();
             foreach (int index in handIndices)
                 if (index != survivor) discarded.Add(state.Hand[index]);
