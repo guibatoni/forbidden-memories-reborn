@@ -637,6 +637,23 @@ namespace Reborn.Presentation
             return true;
         }
 
+        private List<Vector3> SelectedMaterialOrigins(
+            IReadOnlyList<int> indices, ZoneView zone, bool useField)
+        {
+            var origins = new List<Vector3>();
+            if (zone == null) return origins;
+            if (useField)
+                origins.Add(zone.transform.position + Vector3.up*0.32f);
+            if (indices != null)
+                foreach (int index in indices)
+                {
+                    var sourceView = FindHandView(index);
+                    if (sourceView != null)
+                        origins.Add(sourceView.transform.position);
+                }
+            return origins;
+        }
+
         private bool CommitMatchCard(ZoneView zone)
         {
             if (zone == null || zone.Opponent ||
@@ -699,6 +716,9 @@ namespace Reborn.Presentation
             var position = hud.UseDefense ? BattlePosition.Defense : BattlePosition.Attack;
             var source = FindHandView(hud.SelectedHandIndex);
             var origin = source != null ? source.transform.position : zone.transform.position;
+            // Capture hand material positions BEFORE Match.Changed destroys
+            // and recreates the 3D cards on a successful fusion.
+            var materialOrigins = SelectedMaterialOrigins(selected,zone,onField);
 
             if (onField)
             {
@@ -715,6 +735,9 @@ namespace Reborn.Presentation
                 {
                     arena.PlayFieldCombinationEffect(DuelSide.Player, zone.Index,
                         fused, hud.AnimationsEnabled);
+                    if (fused)
+                        arena.PlayFusionMaterialTrails(materialOrigins,
+                            FieldLane.Monster, zone.Index, hud.AnimationsEnabled);
                     hud.Announce(fused ? "Fusao no campo: " + fieldResult.Name :
                         "Sem receita de fusao: " + fieldResult.Name +
                         " substituiu o monstro anterior.");
@@ -742,8 +765,12 @@ namespace Reborn.Presentation
                             match.Events[evt].Side == DuelSide.Player)
                             actuallyFused = true;
                     if (actuallyFused && zone.Lane == FieldLane.Monster)
+                    {
                         arena.PlayFieldCombinationEffect(DuelSide.Player,
                             zone.Index, true, hud.AnimationsEnabled);
+                        arena.PlayFusionMaterialTrails(materialOrigins,
+                            FieldLane.Monster, zone.Index, hud.AnimationsEnabled);
+                    }
                     bool activatedInstant = zone.Lane == FieldLane.Support &&
                         !hud.PlaceFaceDown && result.Kind == CardKind.Spell &&
                         match.HasVerifiedSpell(result);
