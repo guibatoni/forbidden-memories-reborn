@@ -489,10 +489,93 @@ internal static class Program
             "0.21 a trap below attack power stays hidden and ordinary battle resolves");
     }
 
+    private static void CheckReactiveTraps()
+    {
+        var catalog=ReactiveTrapCatalog.OriginalPs1();
+        Check(catalog.Count==2 &&
+            catalog.Matches(Trap("687"),
+                ReactiveTrapOperation.ReflectDirectSpellDamage) &&
+            catalog.Matches(Trap("688"),
+                ReactiveTrapOperation.ReverseSpellHealing) &&
+            !catalog.Matches(Trap("689"),
+                ReactiveTrapOperation.ReflectDirectSpellDamage),
+            "0.22 reactive traps are exactly Goblin Fan and Simochi");
+
+        var game=new DuelMatch(
+            Deck(M("mine",1000,800), S("343"), S("339")),
+            Deck(Trap("687"),Trap("688"),M("foe",900,900)),
+            null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+            null,AttackTrapCatalog.OriginalPs1(),catalog);
+        Play(game,DuelSide.Player); End(game,DuelSide.Player);
+        Check(game.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,1,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.22 opponent prepares Goblin Fan in prior turn");
+        End(game,DuelSide.Opponent);
+        int events=game.Events.Count;
+        int grave=game.Opponent.Graveyard.Count;
+        Check(game.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            game.Player.Life==7950 && game.Opponent.Life==8000 &&
+            game.Opponent.Support(1)==null &&
+            game.Opponent.Graveyard.Count==grave+1 &&
+            game.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="687") &&
+            game.Events.Count>events,
+            "0.22 Goblin Fan redirects Sparks burn to original caster and consumes trap once");
+        End(game,DuelSide.Player);
+        Check(game.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,2,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.22 opponent sets Simochi independently");
+        End(game,DuelSide.Opponent);
+        Check(game.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            game.Player.Life==7450 && game.Opponent.Life==8000 &&
+            game.Opponent.Support(2)==null &&
+            game.Opponent.Graveyard.Any(c=>c.Id=="688") &&
+            game.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="688"),
+            "0.22 Simochi converts Red Medicine +500 into -500 LP to healing caster");
+
+        var unrelated=new DuelMatch(
+            Deck(M("mine",800,600),S("343")),
+            Deck(Trap("688"),M("foe",600,600)),
+            null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+            null,null,catalog);
+        Play(unrelated,DuelSide.Player);End(unrelated,DuelSide.Player);
+        Check(unrelated.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,0,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.22 unrelated Simochi is prepared");
+        End(unrelated,DuelSide.Opponent);
+        Check(unrelated.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,1,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            unrelated.Opponent.Life==7950 &&
+            unrelated.Opponent.Support(0)?.Id=="688",
+            "0.22 Simochi must not trigger on a burn spell");
+        var fake=new DuelMatch(Deck(S("343")),
+            Deck(Trap("689"),Trap("690")),
+            null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+            null,null,catalog);
+        // Synthetic placeholders #689/#690 cannot execute through 0.22
+        Check(!catalog.Matches(Trap("690"),
+                ReactiveTrapOperation.ReverseSpellHealing) &&
+            fake.Opponent.Support(0)==null,
+            "0.22 Reverse Trap/Fake Trap are never assigned invented effects");
+
+        var safe=new DuelMatch(Deck(S("343")),
+            Deck(Trap("687")),null,null,
+            VerifiedSpellCatalog.OriginalPs1Core(),null,null,catalog);
+        Check(safe.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            safe.Opponent.Life==7950 &&
+            safe.Player.Life==8000,
+            "0.22 no set opponent trap means ordinary burn behavior unchanged");
+    }
+
     private static void Main()
     {
         CheckOriginalStarterChoices();
         CheckTerrainAndTraps();
+        CheckReactiveTraps();
         CheckVerifiedEquipEngine();
         CheckVerifiedMagicEngine();
         var m = Match(M("mine",2000,1500),M("theirs",1200,800));
