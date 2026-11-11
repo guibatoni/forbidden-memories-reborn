@@ -18,7 +18,7 @@ checks={
     "clicking legal zone opens modal rather than committing":
         'hud.BeginPlacementChoices(outcome, ritual,' in input_code and
         '() => CommitMatchCard(zone)' in input_code,
-    "Guardian before facing before post-placement position":
+    "Guardian before facing before pre-commit position":
         'PlacementChoiceStep.Guardian' in wizard and
         'PlacementChoiceStep.Facing' in wizard and
         'PlacementChoiceStep.Position' in wizard,
@@ -28,14 +28,16 @@ checks={
         'PlacementWizardOpen' in hud and
         'if (hud.PlacementWizardOpen)' in input_code,
     "cancel has no effect on duel before commit":
-        'Posicionamento cancelado. Nenhuma carta foi utilizada' in wizard,
-    "real placement happens only after face decision":
-        'bool succeeded = callback != null && callback();' in wizard,
-    "monster position follows committed field play":
+        'Selecao cancelada: nenhuma carta foi baixada' in wizard,
+    "real placement happens only after monster rotation decision":
+        'bool succeeded = callback != null && callback();' in wizard and
+        'placementStep = PlacementChoiceStep.Position;' in wizard and
+        'GUIUtility.RotateAroundPivot' in wizard,
+    "monster position sent before committed field play":
         'hud.MarkPlacedMonster(zone.Index)' in input_code and
-        'match.TryChangePosition(DuelSide.Player,' in wizard,
+        'UseDefense = defense;' in wizard,
     "face-down ritual never activated as set":
-        'PlaceFaceDown = !placementIsRitual && faceDown;' in wizard,
+        'PlaceFaceDown = !placementIsRitual && secondary;' in wizard,
     "old side toggles replaced with contextual flow":
         '"1. Selecione cartas da mao' in hud and
         '"Guardian: segunda"' not in hud,
