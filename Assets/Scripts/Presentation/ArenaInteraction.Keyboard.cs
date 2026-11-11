@@ -303,7 +303,8 @@ namespace Reborn.Presentation
                     if (match.CanEquipFromSupport(DuelSide.Player,selected,
                         keyboardIndex,out var rule,out var reason))
                         hud.BeginEquipChoice(card,match.Player.Monster(keyboardIndex),
-                            rule,() => CommitSetEquip(selected,keyboardIndex));
+                            rule,() => CommitSetEquip(selected,keyboardIndex),
+                            null,true);
                     else hud.Message = reason;
                     return;
                 }
@@ -394,6 +395,8 @@ namespace Reborn.Presentation
                 if (Shortcut(keyboard,RebornKeyAction.Cancel) ||
                     keyboard.escapeKey.wasPressedThisFrame)
                     hud.CancelEquipChoice();
+                else if (Shortcut(keyboard,RebornKeyAction.DefensePosition))
+                    hud.ConfirmEquipSetChoice();
                 else if (Shortcut(keyboard,RebornKeyAction.Select))
                     hud.ConfirmEquipChoice();
                 return true;
