@@ -435,9 +435,14 @@ namespace Reborn.Presentation
             }
             if (Shortcut(keyboard,RebornKeyAction.InspectCard))
             {
-                var card = KeyboardFocusedCard();
-                if (card != null) hud.ToggleCardInspection(card);
-                else hud.Message = "Carta nao revelada ou espaco vazio.";
+                if (!keyboardActive && hoveredCard != null)
+                    InspectKnownCard(hoveredCard);
+                else
+                {
+                    var card = KeyboardFocusedCard();
+                    if (card != null) hud.ToggleCardInspection(card);
+                    else hud.Message = "Carta nao revelada ou espaco vazio.";
+                }
                 keyboardActive = true;
                 return true;
             }
