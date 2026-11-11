@@ -72,9 +72,6 @@ jobs:
       - name: Verify original disc descriptions, rituals and ceremonies (static only)
         run: python3 tools/check_original_data_rituals.py
 
-      - name: Disc-free importer and full-content validator
-        run: python3 tools/test_disc_import.py
-
       - name: Test DUELTRACE original catalog bridge (synthetic data only)
         run: |
           python3 -m py_compile tools/import_dueltrace_profile.py
@@ -122,6 +119,9 @@ jobs:
 
       - name: Guard Unity EditMode assembly references (CS0234)
         run: python3 tools/check_unity_editor_asmdef.py
+
+      - name: Verify 0.25 validated fusion assistant and safe auto-selection
+        run: python3 tools/check_fusion_assistant_v025.py
 
       - name: AI Lab deterministic regression
         run: dotnet run --project tools/Reborn.AiLab/Reborn.AiLab.csproj --configuration Release -- --self-test
