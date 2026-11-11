@@ -182,6 +182,59 @@ namespace Reborn.Presentation
             return false;
         }
 
+        private void ChooseFusionOption(AvailableFusion selected)
+        {
+            if (selected == null || match == null || hud.InputLocked ||
+                match.Phase != MatchPhase.Main ||
+                match.CurrentSide != DuelSide.Player || match.PlayedThisTurn)
+                return;
+            // A previously displayed result may become stale after a duel
+            // event. Compare it with a fresh, read-only legal option set.
+            AvailableFusion legal = null;
+            foreach (var choice in match.FindAvailableFusions(DuelSide.Player))
+            {
+                if (choice.FieldSlot == selected.FieldSlot &&
+                    choice.FirstHandIndex == selected.FirstHandIndex &&
+                    choice.SecondHandIndex == selected.SecondHandIndex &&
+                    choice.Result.Id == selected.Result.Id)
+                {
+                    legal = choice;
+                    break;
+                }
+            }
+            if (legal == null)
+            {
+                hud.Message = "O campo mudou: revise as fusoes disponiveis.";
+                return;
+            }
+            fusionSelection.Clear();
+            fusionSelection.Add(legal.FirstHandIndex);
+            if (!legal.UsesField)
+                fusionSelection.Add(legal.SecondHandIndex);
+            hud.ConfigurePlacement(match.Player.Hand[legal.FirstHandIndex]);
+            hud.SelectedHandIndex = legal.FirstHandIndex;
+            hud.FusionCount = fusionSelection.Count;
+            hud.FieldFusionPreview = legal.Result;
+            keyboardHandArmed = true;
+            lastClickHandIndex = -1;
+            if (legal.UsesField)
+            {
+                var zone = KeyboardZone(false, FieldLane.Monster, legal.FieldSlot);
+                if (zone != null)
+                {
+                    SetKeyboardFocus(KeyboardLocation.OwnMonster,legal.FieldSlot);
+                    PlaceMatchCard(zone);
+                }
+            }
+            else
+            {
+                SetKeyboardFocus(KeyboardLocation.Hand,legal.FirstHandIndex);
+                TryAutoPlaceSelected();
+            }
+            if (!hud.PlacementWizardOpen)
+                hud.Message = "Receita selecionada. Escolha uma zona legal para jogar.";
+        }
+
         private void SetKeyboardFocus(KeyboardLocation location, int index)
         {
             keyboardActive = true;
