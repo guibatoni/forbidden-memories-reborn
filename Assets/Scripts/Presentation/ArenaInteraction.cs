@@ -268,7 +268,10 @@ namespace Reborn.Presentation
                 var prediction = ritualPreview ?
                     match.PreviewRitual(DuelSide.Player, hud.SelectedHandIndex) :
                     match.PreviewFieldResult(DuelSide.Player, fusionSelection, zone.Index);
-                if (prediction != null && prediction.Kind == CardKind.Monster)
+                if (prediction != null && prediction.Kind == CardKind.Monster &&
+                    (ritualPreview ||
+                     match.CountFieldFusionSteps(DuelSide.Player,
+                         fusionSelection,zone.Index) > 0))
                     hud.FieldFusionPreview = prediction;
             }
             if (mouse.rightButton.wasPressedThisFrame && !overHud)
@@ -552,9 +555,17 @@ namespace Reborn.Presentation
                 hud.Message = reason;
                 return;
             }
-            // The wizard is presentation only; no card has been consumed yet.
+            // A legal field replacement without a recipe is NOT a fusion.
+            // Warn before destroying the old monster, but preserve deliberate
+            // PS1 field substitutions through explicit confirmation.
+            bool replacesWithoutFusion = onField && !ritual &&
+                match.CountFieldFusionSteps(DuelSide.Player,
+                    selected, zone.Index) == 0;
+            if (replacesWithoutFusion)
+                hud.Message = "Sem receita: a jogada substituira o monstro " +
+                    "no campo. Confirme conscientemente.";
             hud.BeginPlacementChoices(outcome, ritual,
-                () => CommitMatchCard(zone));
+                () => CommitMatchCard(zone), replacesWithoutFusion);
         }
 
         /// <summary>
