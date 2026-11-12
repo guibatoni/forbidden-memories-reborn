@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.29 (development)
+
+Added a **Windows Unity Editor EditMode batch test runner**, including automatic
+editor-version detection, NUnit XML validation and compiler-error logs. The
+existing Core CI still runs without installing Unity and remains separate.
+
+[Run real Unity tests and inspect reports](Docs/PROTOTYPE_0_29.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.28 (development)
 
 Opponent-side procedural fusion trails now follow the correct board and the
