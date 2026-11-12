@@ -79,6 +79,47 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void ChainedSelectionStaysReadOnlyAndKeepsFullOrderedMaterials()
+        {
+            var a = Monster("chain-a");
+            var b = Monster("chain-b");
+            var c = Monster("chain-c");
+            var ab = Monster("chain-ab", 1800);
+            var abc = Monster("chain-abc", 2500);
+            var recipes = new FusionCatalog();
+            recipes.Add(a.Id, b.Id, ab);
+            recipes.Add(ab.Id, c.Id, abc);
+            var duel = new DuelMatch(Deck(a,b,c),Deck(Monster("rival")),recipes);
+            int initialEvents = duel.Events.Count;
+            int initialHand = duel.Player.Hand.Count;
+            var go = new GameObject("Test_Reborn_ChainedFusion");
+            try
+            {
+                var hud = go.AddComponent<ArenaHud>();
+                hud.InitializeMatch(duel);
+                hud.SetDuelMode(true);
+                AvailableFusion chosen = null;
+                hud.FusionRequested += option => chosen = option;
+                hud.OpenFusionAssistant(null);
+                hud.MoveFusionAssistantChoice(1); // pair -> three materials
+                hud.ConfirmFusionAssistantChoice();
+                Assert.IsFalse(hud.FusionAssistantOpen);
+                Assert.IsFalse(hud.InputLocked);
+                Assert.IsNotNull(chosen);
+                CollectionAssert.AreEqual(new[]{0,1,2}, chosen.HandIndices);
+                Assert.AreEqual(abc.Id, chosen.Result.Id);
+                Assert.AreEqual(2, chosen.FusionSteps);
+                Assert.AreEqual(initialHand,duel.Player.Hand.Count);
+                Assert.AreEqual(initialEvents,duel.Events.Count);
+                Assert.IsFalse(duel.PlayedThisTurn);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
         public void NoRecipeModalIsInformativeButNeverFabricatesOptions()
         {
             var duel = new DuelMatch(Deck(Monster("A"),Monster("B")),
