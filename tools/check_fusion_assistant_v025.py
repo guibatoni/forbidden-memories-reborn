@@ -29,8 +29,8 @@ checks={
     "state.Take(" not in engine and "Emit(" not in engine,
  "Available recipes respect current turn and placement state":
     "hasPlayed || fusions.Count == 0" in engine and
-    "CanPlay(side, new [] {a, b}" in engine and
-    "CanPlayOnField(side, new [] {hand}" in engine,
+    "CanPlay(side, path, FieldLane.Monster" in engine and
+    "CanPlayOnField(side, path, slot" in engine,
  "UI offers an honest zero-recipe diagnostic":
     "match.FusionRecipeCount == 0" in dialog and
     "DIAGNOSTICAR_FUSOES.ps1" in dialog,
