@@ -126,6 +126,14 @@ mas **não mais a cada push das branches de desenvolvimento**.
 O cancelamento de execuções obsoletas e a remoção de um teste
 duplicado reduzem fila e gastos sem remover regressões.
 
+**Nota para quem baixou o projeto do GitHub:** o arquivo
+`tools/VALIDAR_REBORN.ps1` está na branch de desenvolvimento
+`feature/prototype-0.25.1-editor-csharp-hotfix` e ainda não está na
+`main` (que mantém a versão anterior). Ao baixar um ZIP, selecione a
+branch correta; execute o comando a partir da raiz desse ZIP, não de
+uma cópia antiga. A validação local também executa agora a checagem
+preventiva do erro de compilação Unity `CS0819`.
+
 ### 7. Matriz de testes
 
 **Core .NET**: pares válidos, falta de receitas, permissões de turno,
