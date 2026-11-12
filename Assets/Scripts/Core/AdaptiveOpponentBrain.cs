@@ -163,6 +163,22 @@ namespace Reborn.Core
                         EvaluatePlacement(match, new[] { i, j }, result, ref chosen, ref bestScore);
                 }
             }
+            // Learning 2.0 can consider real, ordered chains longer than a
+            // pair. The legacy policy deliberately remains unchanged for
+            // controlled before/after AI Lab comparisons.
+            if (Version == AiBrainVersion.Learning2)
+            {
+                foreach (var option in match.FindAvailableFusions(DuelSide.Opponent))
+                {
+                    if (option.UsesField || option.HandIndices.Count < 3)
+                        continue;
+                    var indices = new int[option.HandIndices.Count];
+                    for (int n = 0; n < indices.Length; ++n)
+                        indices[n] = option.HandIndices[n];
+                    EvaluatePlacementV2(match, indices, option.Result,
+                        ref chosen, ref bestScore);
+                }
+            }
             return chosen != null;
         }
 
@@ -327,6 +343,13 @@ namespace Reborn.Core
                             score += kills * 420;
                         if (indices.Length > 1)
                             score += Tactic == AiTactic.FusionFocused ? 750 : 120;
+                        // A strong chain may deserve several cards, but do not
+                        // consume an entire hand for a marginal ATK gain.
+                        // Pair-only decisions retain their previous scores.
+                        int extraMaterials = Math.Max(0, indices.Length - 2);
+                        score -= extraMaterials *
+                            (Tactic == AiTactic.FusionFocused ? 120 :
+                                Tactic == AiTactic.Defensive ? 480 : 350);
 
                         // Seeded tie-break randomness for variety, but strong
                         // tactical differences dominate the small noise.
