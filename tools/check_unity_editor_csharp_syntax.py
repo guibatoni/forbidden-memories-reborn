@@ -24,6 +24,16 @@ for issue in issues:
 if issues:
     raise SystemExit(f"Found {len(issues)} invalid implicit-typed multi-declarators")
 
+validator_text = (ROOT / "tools" / "VALIDAR_REBORN.ps1").read_text(encoding="utf-8")
+assert re.search(r'^\s*"check_unity_editor_csharp_syntax\.py"\s*,?\s*
+assert 'var a = Monster("A");' in fusion_test
+assert 'var b = Monster("B");' in fusion_test
+print(f"PASS: {tested} Unity Editor C# test files checked against CS0819 pattern")
+print("Note: Unity Editor compilation remains a separate local validation gate.")
+,
+                 validator_text, re.MULTILINE), \
+    "Local Windows validator must run the CS0819 regression check"
+
 fusion_test = (tests_dir / "FusionAssistantTests.cs").read_text(encoding="utf-8")
 assert 'var a = Monster("A");' in fusion_test
 assert 'var b = Monster("B");' in fusion_test
