@@ -23,7 +23,8 @@ namespace Reborn.Presentation
         {
             if (match == null || !DuelModeActive ||
                 match.CurrentSide != DuelSide.Player ||
-                match.Phase != MatchPhase.Main || InputLocked) return;
+                match.Phase != MatchPhase.Main || InputLocked ||
+                CardInspectionOpen) return;
             fusionOptions = match.FindAvailableFusions(DuelSide.Player);
             onFusionChosen = choose;
             selectedFusionOption = 0;
@@ -43,6 +44,13 @@ namespace Reborn.Presentation
             selectedFusionOption =
                 (selectedFusionOption + fusionOptions.Count +
                     (delta < 0 ? -1 : 1)) % fusionOptions.Count;
+            // Keyboard selection must remain visible in the scroll viewport.
+            float viewport = Mathf.Max(83f,
+                Mathf.Min(665f, Screen.height - 25f) - 253f);
+            float top = selectedFusionOption * 65f;
+            if (top < fusionScroll.y) fusionScroll.y = top;
+            else if (top + 65f > fusionScroll.y + viewport)
+                fusionScroll.y = top + 65f - viewport;
         }
 
         public void ConfirmFusionAssistantChoice()
@@ -60,24 +68,22 @@ namespace Reborn.Presentation
         {
             if (match == null) return "Fusao indisponivel";
             var hand = match.Player.Hand;
-            if (option.FirstHandIndex < 0 ||
-                option.FirstHandIndex >= hand.Count) return "Carta da mao invalida";
-            var first = hand[option.FirstHandIndex];
+            string label = "";
             if (option.UsesField)
             {
                 var field = match.Player.Monster(option.FieldSlot);
                 if (field == null) return "Monstro do campo nao encontrado";
-                return "CAMPO " + (option.FieldSlot + 1) + ": " +
-                    field.Card.Name + " + MAO " +
-                    (option.FirstHandIndex + 1) + ": " + first.Name +
-                    "  =  " + option.Result.Name;
+                label = "CAMPO " + (option.FieldSlot + 1) + ": " + field.Card.Name;
             }
-            if (option.SecondHandIndex < 0 ||
-                option.SecondHandIndex >= hand.Count) return "Material invalido";
-            return "MAO " + (option.FirstHandIndex + 1) + ": " + first.Name +
-                " + MAO " + (option.SecondHandIndex + 1) +
-                ": " + hand[option.SecondHandIndex].Name +
-                "  =  " + option.Result.Name;
+            for (int i = 0; i < option.HandIndices.Count; ++i)
+            {
+                int index = option.HandIndices[i];
+                if (index < 0 || index >= hand.Count) return "Carta da mao invalida";
+                if (i > 0 || option.UsesField) label += " + ";
+                label += "MAO " + (index + 1) + ": " + hand[index].Name;
+            }
+            return label + " = " + option.Result.Name +
+                "  [" + option.FusionSteps + " fusoes]";
         }
 
         private void DrawFusionAssistantLauncher()
@@ -116,8 +122,8 @@ namespace Reborn.Presentation
             int count = fusionOptions.Count;
             GUI.Label(new Rect(x+20f,y+75f,width-40f,58f),
                 "Receitas do perfil: " + match.FusionRecipeCount +
-                "   |   Pares jogaveis agora: " + count +
-                "\nSelecione uma receita. Nao ha fusoes inventadas por tipo ou nome.",
+                "   |   Caminhos jogaveis agora: " + count +
+                "\n2-5 cartas da mao ou monstro proprio no campo + ate 5 cartas.",
                 small);
             float listingHeight = Mathf.Max(83f,height-253f);
             if (count > 0)
@@ -156,14 +162,14 @@ namespace Reborn.Presentation
                     "As 722 cartas so formam o catalogo visual. " +
                     "Execute DIAGNOSTICAR_FUSOES.ps1 e reimporte a propria ISO " +
                     "com IMPORTAR_ORIGINAL.ps1 para obter fusoes verificadas." :
-                    "Nenhuma fusao de duas cartas da mao ou de monstro " +
-                    "do campo + mao pode ser jogada agora.\n\n" +
+                    "Nenhuma cadeia verificada de 2-5 cartas da mao ou " +
+                    "monstro no campo + ate 5 cartas pode ser jogada agora.\n\n" +
                     "Tente outra mao ou escolha seus materiais manualmente.",
                     body);
             }
             GUI.Label(new Rect(x+22f,y+height-99f,width-45f,35f),
-                "Setas ↑/↓: navegar   Z: escolher   X/F: fechar. " +
-                "Escolher inicia a selecao; nao consome carta.",small);
+                "Setas: navegar   Z: escolher   X/F: fechar. " +
+                "A sequencia e preparada sem gastar cartas.",small);
             float bw=(width-58f)*0.5f;
             GUI.enabled=count>0;
             if (GUI.Button(new Rect(x+22f,y+height-58f,bw,36f),
