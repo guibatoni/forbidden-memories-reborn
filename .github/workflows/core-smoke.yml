@@ -123,6 +123,9 @@ jobs:
       - name: Verify 0.25 validated fusion assistant and safe auto-selection
         run: python3 tools/check_fusion_assistant_v025.py
 
+      - name: Verify v0.26 complete ordered fusion chains (static only)
+        run: python3 tools/check_fusion_chains_v026.py
+
       - name: Prevent Unity C# test syntax error CS0819
         run: python3 tools/check_unity_editor_csharp_syntax.py
 
