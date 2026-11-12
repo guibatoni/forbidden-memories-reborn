@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using Reborn.Core;
 using UnityEngine;
 
@@ -48,6 +49,16 @@ namespace Reborn.Presentation
             yield return new WaitForSeconds(Mathf.Max(0.10f, seconds * hud.OpponentPace));
         }
 
+        private IEnumerator PauseForPlacement()
+        {
+            // Staggered fusion trails and the ceremony must finish before the
+            // next action. Fast pace shortens deliberation, not VFX duration.
+            float seconds = hud.AnimationsEnabled
+                ? Mathf.Max(1.12f, 1.20f * hud.OpponentPace)
+                : Mathf.Max(0.10f, 0.45f * hud.OpponentPace);
+            yield return new WaitForSeconds(seconds);
+        }
+
         private IEnumerator PlayFieldCombination(DuelMatch game,
             int handIndex, int zone, CardDefinition preview)
         {
@@ -65,6 +76,18 @@ namespace Reborn.Presentation
             {
                 arena.PlayFieldCombinationEffect(DuelSide.Opponent, zone, fused,
                     hud.AnimationsEnabled);
+                if (fused)
+                {
+                    // Pure light streams; no concealed card identity is shown.
+                    var sources = new List<Vector3>
+                    {
+                        new Vector3((zone - 2) * 2.4f, 0.80f, 2f),
+                        new Vector3(0f, 0.55f, 6.9f)
+                    };
+                    arena.PlayFusionMaterialTrails(sources,
+                        FieldLane.Monster, zone, hud.AnimationsEnabled,
+                        DuelSide.Opponent);
+                }
                 hud.Announce(fused ? "Fusao da IA: " + outcome.Name :
                     "IA substituiu seu monstro por " + outcome.Name + ".");
             }
@@ -73,7 +96,7 @@ namespace Reborn.Presentation
                 arena.ClearStagedPlacement();
                 hud.Announce("Combinacao recusada: " + reason);
             }
-            yield return Pause(1.20f);
+            yield return PauseForPlacement();
         }
 
         private IEnumerator PerformTurn(DuelMatch game)
@@ -149,8 +172,18 @@ namespace Reborn.Presentation
                     // Only animate real engine-confirmed fusions. Never use
                     // the number of selected cards to invent an effect.
                     if (verifiedFusionSteps > 0)
+                    {
                         arena.PlayFieldCombinationEffect(DuelSide.Opponent,
                             zone, true, hud.AnimationsEnabled);
+                        var origins = new List<Vector3>();
+                        for (int i = 0; i < plan.HandIndices.Count; ++i)
+                            origins.Add(new Vector3(
+                                (i - (plan.HandIndices.Count - 1) * 0.5f) * 0.72f,
+                                0.55f, 6.9f));
+                        arena.PlayFusionMaterialTrails(origins,
+                            FieldLane.Monster, zone, hud.AnimationsEnabled,
+                            DuelSide.Opponent);
+                    }
                     hud.Announce(plan.Position == BattlePosition.Defense
                         ? "Oponente setou um monstro virado para baixo na zona " +
                             (zone + 1) + "."
@@ -163,7 +196,7 @@ namespace Reborn.Presentation
                     arena.ClearStagedPlacement();
                     hud.Announce("Jogada recusada: " + reason);
                 }
-                yield return Pause(1.20f);
+                yield return PauseForPlacement();
             }
             else if (game.TryChooseFieldCombination(DuelSide.Opponent, true,
                 out int fusionHand, out int fusionSlot, out var fusionPreview))
@@ -192,7 +225,7 @@ namespace Reborn.Presentation
                     arena.ClearStagedPlacement();
                     hud.Announce("Suporte recusado: " + supportReason);
                 }
-                yield return Pause(1.00f);
+                yield return PauseForPlacement();
             }
             else if (game.TryChooseFieldCombination(DuelSide.Opponent, false,
                 out int replacementHand, out int replacementSlot, out var replacementPreview))
