@@ -26,7 +26,8 @@ namespace Reborn.Tests
         [Test]
         public void FusionModalDoesNotSpendCardsAndUnblocksBeforeCallback()
         {
-            var a = Monster("A"), b = Monster("B");
+            var a = Monster("A");
+            var b = Monster("B");
             var result = Monster("FUSED", 2200);
             var recipes = new FusionCatalog();
             recipes.Add(a.Id,b.Id,result);
