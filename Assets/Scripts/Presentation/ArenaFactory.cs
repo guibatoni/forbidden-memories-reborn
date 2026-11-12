@@ -325,23 +325,27 @@ namespace Reborn.Presentation
         /// </summary>
         public void PlayFusionMaterialTrails(
             IReadOnlyList<Vector3> materialOrigins,
-            FieldLane lane, int slot, bool animate)
+            FieldLane lane, int slot, bool animate,
+            DuelSide side = DuelSide.Player)
         {
             if (!animate || materialOrigins == null ||
                 materialOrigins.Count < 2 || slot < 0 || slot >= DuelMatch.ZoneCount)
                 return;
             foreach (var zone in Zones)
             {
-                if (zone.Opponent || zone.Lane != lane || zone.Index != slot)
+                if (zone.Opponent != (side == DuelSide.Opponent) ||
+                    zone.Lane != lane || zone.Index != slot)
                     continue;
                 Vector3 center = zone.transform.position + Vector3.up*0.59f;
                 for (int i=0;i<materialOrigins.Count;i++)
                 {
-                    var visual = new GameObject("Fusion_Material_Stream_" + (i+1));
+                    var visual = new GameObject("Fusion_Material_Stream_" + side + "_" + (i+1));
                     visual.transform.SetParent(root,false);
                     visual.AddComponent<FusionMaterialTrail>().Begin(
                         materialOrigins[i],center,0.09f*i,
-                        (i%2==0) ? cyan : gold);
+                        side == DuelSide.Player ?
+                            ((i%2==0) ? cyan : gold) :
+                            ((i%2==0) ? gold : cyan));
                 }
                 return;
             }
