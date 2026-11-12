@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.26 (development)
+
+Multi-step verified fusion recommendations (2–5 hand materials or own field
+monster + up to 5 hand materials), full ordered selection, keyboard-scrolling
+modal and deterministic Core/Unity EditMode regression coverage. Built on 0.25.1.
+
+[0.26 feature notes and validation](Docs/PROTOTYPE_0_26.md).
+
+---
+
 # Prototype 0.25 — Assistente de fusões reais e estabilidade
 
 O Reborn agora inclui um **assistente de fusões verificadas [F]**.
