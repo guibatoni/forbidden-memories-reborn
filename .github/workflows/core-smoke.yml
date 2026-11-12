@@ -132,6 +132,9 @@ jobs:
       - name: Check 0.28 opponent fusion streams and minimum animation pacing
         run: python3 tools/check_opponent_vfx_v028.py
 
+      - name: Guard local Unity batch runner and NUnit results (static)
+        run: python3 tools/check_unity_batch_v029.py
+
       - name: Prevent Unity C# test syntax error CS0819
         run: python3 tools/check_unity_editor_csharp_syntax.py
 
