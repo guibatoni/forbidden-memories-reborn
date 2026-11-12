@@ -723,6 +723,73 @@ internal static class Program
             "0.25 missing imported recipes never generate invented fusion advice");
     }
 
+    private static void CheckVerifiedFusionChains()
+    {
+        // Only supplied synthetic recipes are considered, never guessed.
+        var a = M("chain-a", 500, 500);
+        var b = M("chain-b", 600, 600);
+        var c = M("chain-c", 700, 700);
+        var d = M("chain-d", 800, 800);
+        var ab = M("chain-ab", 1200, 1000);
+        var abc = M("chain-abc", 1800, 1400);
+        var abcd = M("chain-abcd", 2600, 2000);
+        var catalog = new FusionCatalog();
+        catalog.Add(a.Id, b.Id, ab);
+        catalog.Add(ab.Id, c.Id, abc);
+        catalog.Add(abc.Id, d.Id, abcd);
+        var match = new DuelMatch(Deck(a,b,c,d), Deck(M("enemy",1000,1000)), catalog);
+        int beforeEvents = match.Events.Count;
+        int beforeHand = match.Player.Hand.Count;
+        var available = match.FindAvailableFusions(DuelSide.Player);
+        Check(available.Count == 3 &&
+            available[0].MaterialCount == 2 &&
+            available[1].MaterialCount == 3 &&
+            available[2].MaterialCount == 4 &&
+            available[2].FusionSteps == 3 &&
+            available[2].HandIndices.SequenceEqual(new[]{0,1,2,3}) &&
+            available[2].Result.Id == abcd.Id &&
+            match.Events.Count == beforeEvents &&
+            match.Player.Hand.Count == beforeHand,
+            "0.26 verified 2/3/4-material hand chains and pure preview");
+
+        var four = available[2];
+        Check(match.TryPlay(DuelSide.Player,four.HandIndices,FieldLane.Monster,0,
+            BattlePosition.Attack,abcd.StarA,out _) &&
+            match.Player.Monster(0).Card.Id == abcd.Id &&
+            match.Events.Count(e=>e.Kind==MatchEventKind.Fusion)==3,
+            "0.26 ordered suggestion commits three real hand fusions");
+
+        var fieldRules = new FusionCatalog();
+        var field = M("on-field",1000,1000);
+        var fa = M("field-a", 1500, 1100);
+        var fab = M("field-ab",2000,1400);
+        var fabc = M("field-abc",2800,1900);
+        fieldRules.Add(field.Id,a.Id,fa);
+        fieldRules.Add(fa.Id,b.Id,fab);
+        fieldRules.Add(fab.Id,c.Id,fabc);
+        var duel = new DuelMatch(Deck(field,a,b,c),Deck(M("other",1000,1000)),
+            fieldRules);
+        Play(duel,DuelSide.Player);
+        End(duel,DuelSide.Player);
+        Play(duel,DuelSide.Opponent);
+        End(duel,DuelSide.Opponent);
+        int fieldEvents = duel.Events.Count;
+        var suggestions = duel.FindAvailableFusions(DuelSide.Player);
+        var longest = suggestions.Single(x=>x.UsesField && x.HandIndices.Count==3);
+        Check(longest.FieldSlot == 0 && longest.FusionSteps == 3 &&
+            longest.HandIndices.SequenceEqual(new[]{0,1,2}) &&
+            longest.Result.Id == fabc.Id &&
+            duel.Events.Count == fieldEvents,
+            "0.26 field-first verified triple chain is read-only and ordered");
+        Check(duel.TryPlayOnField(DuelSide.Player,longest.HandIndices,
+            longest.FieldSlot,BattlePosition.Defense,fabc.StarA,true,
+            out var played,out var fused,out _) &&
+            fused && played.Id == fabc.Id &&
+            duel.Player.Monster(0).Card.Id == fabc.Id &&
+            !duel.Player.Monster(0).FaceDown,
+            "0.26 field chain follows real placement and reveal rules");
+    }
+
     private static void CheckIntermediateFieldFusionConcealment()
     {
         // One successful intermediate recipe, followed by an incompatible
@@ -761,6 +828,7 @@ internal static class Program
     {
         CheckOriginalStarterChoices();
         CheckAvailableFusionAssistant();
+        CheckVerifiedFusionChains();
         CheckIntermediateFieldFusionConcealment();
         CheckNewFusionAndAutoSlotRules();
         CheckTerrainAndTraps();
