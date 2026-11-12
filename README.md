@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.28 (development)
+
+Opponent-side procedural fusion trails now follow the correct board and the
+turn director waits for visual ceremonies to finish before progressing.
+No hidden hand content or original disc assets are included.
+
+[0.28 visual update and Unity verification](Docs/PROTOTYPE_0_28.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.27 (development)
 
 Learning 2.0 opponent AI now evaluates fully verified 3–5-card fusion chains,
