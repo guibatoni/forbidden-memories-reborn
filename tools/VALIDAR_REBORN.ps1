@@ -14,6 +14,7 @@ if (-not $python) { throw "Python 3 nao encontrado. Verificacao local incompleta
 
 $checks = @(
     "check_unity_editor_asmdef.py",
+    "check_unity_editor_csharp_syntax.py",
     "check_keyboard_init_v0241.py",
     "check_duel_qa_v0242.py",
     "check_keyboard_fusion_v024.py",
