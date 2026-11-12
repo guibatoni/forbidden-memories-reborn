@@ -129,6 +129,9 @@ jobs:
       - name: Verify v0.27 adaptive fusion decisions and opponent VFX (static)
         run: python3 tools/check_ai_fusion_v027.py
 
+      - name: Check 0.28 opponent fusion streams and minimum animation pacing
+        run: python3 tools/check_opponent_vfx_v028.py
+
       - name: Prevent Unity C# test syntax error CS0819
         run: python3 tools/check_unity_editor_csharp_syntax.py
 
