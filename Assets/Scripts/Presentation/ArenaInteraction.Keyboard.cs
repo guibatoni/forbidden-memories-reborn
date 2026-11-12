@@ -203,8 +203,8 @@ namespace Reborn.Presentation
             {
                 if (choice.FieldSlot == selected.FieldSlot &&
                     choice.FirstHandIndex == selected.FirstHandIndex &&
-                    choice.SecondHandIndex == selected.SecondHandIndex &&
-                    choice.Result.Id == selected.Result.Id)
+                    choice.Result.Id == selected.Result.Id &&
+                    SameHandOrder(choice.HandIndices,selected.HandIndices))
                 {
                     legal = choice;
                     break;
@@ -216,9 +216,7 @@ namespace Reborn.Presentation
                 return;
             }
             fusionSelection.Clear();
-            fusionSelection.Add(legal.FirstHandIndex);
-            if (!legal.UsesField)
-                fusionSelection.Add(legal.SecondHandIndex);
+            fusionSelection.AddRange(legal.HandIndices);
             hud.ConfigurePlacement(match.Player.Hand[legal.FirstHandIndex]);
             hud.SelectedHandIndex = legal.FirstHandIndex;
             hud.FusionCount = fusionSelection.Count;
@@ -241,6 +239,16 @@ namespace Reborn.Presentation
             }
             if (!hud.PlacementWizardOpen)
                 hud.Message = "Receita selecionada. Escolha uma zona legal para jogar.";
+        }
+
+        // Always recheck the full ordered chain, not only its first pair.
+        private static bool SameHandOrder(IReadOnlyList<int> a,
+            IReadOnlyList<int> b)
+        {
+            if (a == null || b == null || a.Count != b.Count) return false;
+            for (int i = 0; i < a.Count; ++i)
+                if (a[i] != b[i]) return false;
+            return true;
         }
 
         private void SetKeyboardFocus(KeyboardLocation location, int index)
@@ -419,13 +427,6 @@ namespace Reborn.Presentation
                 hud.CaptureKeyboardSetting(keyboard);
                 return true;
             }
-            // F1 is a dedicated rescue shortcut even after the user rebinds
-            // the configured keys. Mouse settings button stays available.
-            if (keyboard.f1Key.wasPressedThisFrame)
-            {
-                hud.ToggleKeyboardSettings();
-                return true;
-            }
             if (hud.FusionAssistantOpen)
             {
                 if (Shortcut(keyboard,RebornKeyAction.Cancel) ||
@@ -440,6 +441,13 @@ namespace Reborn.Presentation
                     hud.MoveFusionAssistantChoice(1);
                 else if (Shortcut(keyboard,RebornKeyAction.Select))
                     hud.ConfirmFusionAssistantChoice();
+                return true;
+            }
+            // F1 is a dedicated rescue shortcut even after the user rebinds
+            // the configured keys. Mouse settings button stays available.
+            if (keyboard.f1Key.wasPressedThisFrame)
+            {
+                hud.ToggleKeyboardSettings();
                 return true;
             }
             if (hud.StarterSelectionRequired)
