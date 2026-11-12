@@ -126,6 +126,9 @@ jobs:
       - name: Verify v0.26 complete ordered fusion chains (static only)
         run: python3 tools/check_fusion_chains_v026.py
 
+      - name: Verify v0.27 adaptive fusion decisions and opponent VFX (static)
+        run: python3 tools/check_ai_fusion_v027.py
+
       - name: Prevent Unity C# test syntax error CS0819
         run: python3 tools/check_unity_editor_csharp_syntax.py
 
