@@ -723,6 +723,50 @@ internal static class Program
             "0.25 missing imported recipes never generate invented fusion advice");
     }
 
+    private static void CheckAdaptiveVerifiedFusionChains()
+    {
+        // Learning 2.0 may choose a strong, fully verified three-card chain.
+        // Legacy remains pair-only to preserve controlled AI comparisons.
+        var a = M("ai-chain-a", 150, 150);
+        var b = M("ai-chain-b", 170, 170);
+        var c = M("ai-chain-c", 190, 190);
+        var ab = M("ai-chain-ab", 1100, 850);
+        var abc = M("ai-chain-abc", 6500, 5500);
+        var recipes = new FusionCatalog();
+        recipes.Add(a.Id,b.Id,ab);
+        recipes.Add(ab.Id,c.Id,abc);
+        var duel = new DuelMatch(Deck(M("player-defender",700,600)),
+            Deck(a,b,c),recipes);
+        Play(duel,DuelSide.Player);
+        End(duel,DuelSide.Player);
+        var legacy = new AdaptiveOpponentBrain(new Random(162),
+            AiBrainVersion.Legacy);
+        legacy.StartDuel(new AiLearningState("test:legacy-fusion"));
+        Check(legacy.TryChoosePlacement(duel,out var oldPlan) &&
+            oldPlan.HandIndices.Count <= 2,
+            "0.27 legacy AI remains pair-only for regression comparisons");
+
+        var learning = new AdaptiveOpponentBrain(new Random(162),
+            AiBrainVersion.Learning2);
+        learning.StartDuel(new AiLearningState("test:learning-fusion"));
+        int eventsBefore = duel.Events.Count;
+        int handBefore = duel.Opponent.Hand.Count;
+        Check(learning.TryChoosePlacement(duel,out var chosen) &&
+            chosen.Result.Id == abc.Id &&
+            chosen.HandIndices.SequenceEqual(new[]{0,1,2}) &&
+            duel.CanPlay(DuelSide.Opponent,chosen.HandIndices,
+                FieldLane.Monster,chosen.Slot,chosen.Star,out _) &&
+            duel.Events.Count == eventsBefore &&
+            duel.Opponent.Hand.Count == handBefore &&
+            !duel.PlayedThisTurn,
+            "0.27 Learning 2.0 picks a verified three-card chain without mutating duel");
+        Check(duel.TryPlay(DuelSide.Opponent,chosen.HandIndices,
+            FieldLane.Monster,chosen.Slot,chosen.Position,chosen.Star,out _) &&
+            duel.Opponent.Monster(chosen.Slot).Card.Id == abc.Id &&
+            duel.Events.Count(e=>e.Kind==MatchEventKind.Fusion)==2,
+            "0.27 opponent executes selected chain through authoritative duel engine");
+    }
+
     private static void CheckVerifiedFusionChains()
     {
         // Only supplied synthetic recipes are considered, never guessed.
@@ -829,6 +873,7 @@ internal static class Program
         CheckOriginalStarterChoices();
         CheckAvailableFusionAssistant();
         CheckVerifiedFusionChains();
+        CheckAdaptiveVerifiedFusionChains();
         CheckIntermediateFieldFusionConcealment();
         CheckNewFusionAndAutoSlotRules();
         CheckTerrainAndTraps();

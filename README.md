@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.27 (development)
+
+Learning 2.0 opponent AI now evaluates fully verified 3–5-card fusion chains,
+accounts for additional material cost and announces only engine-confirmed
+fusion events with a presentation effect. Legacy benchmark policy is retained.
+
+[0.27 gameplay, tests and local Unity validation](Docs/PROTOTYPE_0_27.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.26 (development)
 
 Multi-step verified fusion recommendations (2–5 hand materials or own field

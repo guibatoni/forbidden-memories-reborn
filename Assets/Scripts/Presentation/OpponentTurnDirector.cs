@@ -136,14 +136,28 @@ namespace Reborn.Presentation
                 // A carta sai visualmente do lado adversario e vai para a zona fixa.
                 arena.StageMatchPlacement(DuelSide.Opponent, FieldLane.Monster, zone,
                     new Vector3(0f, 0.46f, 6.9f), hud.AnimationsEnabled);
+                int beforePlacementEvents = game.Events.Count;
                 if (game.TryPlay(DuelSide.Opponent, plan.HandIndices, FieldLane.Monster,
                     zone, plan.Position, plan.Star,
                     plan.Position == BattlePosition.Defense, out var reason))
+                {
+                    int verifiedFusionSteps = 0;
+                    for (int e = beforePlacementEvents; e < game.Events.Count; ++e)
+                        if (game.Events[e].Side == DuelSide.Opponent &&
+                            game.Events[e].Kind == MatchEventKind.Fusion)
+                            verifiedFusionSteps++;
+                    // Only animate real engine-confirmed fusions. Never use
+                    // the number of selected cards to invent an effect.
+                    if (verifiedFusionSteps > 0)
+                        arena.PlayFieldCombinationEffect(DuelSide.Opponent,
+                            zone, true, hud.AnimationsEnabled);
                     hud.Announce(plan.Position == BattlePosition.Defense
-                        ? "Oponente setou um monstro virado para baixo na zona " + (zone + 1) + "."
-                        : "Oponente " + (plan.IsFusion ? "fundiu e invocou " : "invocou ") +
+                        ? "Oponente setou um monstro virado para baixo na zona " +
+                            (zone + 1) + "."
+                        : "Oponente " + (verifiedFusionSteps > 0 ? "fundiu e invocou " : "invocou ") +
                             monster.Name + " na zona " + (zone + 1) +
                             " (" + plan.Position + ", " + plan.Star + ").");
+                }
                 else
                 {
                     arena.ClearStagedPlacement();
