@@ -21,7 +21,8 @@ $checks = @(
     "check_fusion_assistant_v025.py",
     "check_fusion_chains_v026.py",
     "check_ai_fusion_v027.py",
-    "check_opponent_vfx_v028.py"
+    "check_opponent_vfx_v028.py",
+    "check_unity_batch_v029.py"
 )
 foreach ($check in $checks) {
     Write-Host ("Validando: " + $check) -ForegroundColor Cyan
