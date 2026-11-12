@@ -1,11 +1,11 @@
-# Reborn v0.25 - local read-only verification, no remote Actions required.
+# Reborn v0.26 - local read-only verification, no remote Actions required.
 # Works with Python 3.10+ and .NET 8; does not need Node.js or a PS1 disc.
 # Run from the Unity project root:
 # powershell -ExecutionPolicy Bypass -File .\tools\VALIDAR_REBORN.ps1
 param([switch]$ExigirFusoes)
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-Write-Host "REBORN 0.25 - VALIDACAO LOCAL" -ForegroundColor Cyan
+Write-Host "REBORN 0.26 - VALIDACAO LOCAL" -ForegroundColor Cyan
 Write-Host "Projeto: $root"
 
 $python = Get-Command "py" -ErrorAction SilentlyContinue
@@ -18,7 +18,8 @@ $checks = @(
     "check_keyboard_init_v0241.py",
     "check_duel_qa_v0242.py",
     "check_keyboard_fusion_v024.py",
-    "check_fusion_assistant_v025.py"
+    "check_fusion_assistant_v025.py",
+    "check_fusion_chains_v026.py"
 )
 foreach ($check in $checks) {
     Write-Host ("Validando: " + $check) -ForegroundColor Cyan
