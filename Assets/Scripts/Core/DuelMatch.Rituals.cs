@@ -17,7 +17,9 @@ namespace Reborn.Core
                 for (int slot = 0; slot < ZoneCount; slot++)
                 {
                     var monster = owner.Monster(slot);
-                    if (taken.Contains(slot) || monster == null || monster.FaceDown ||
+                    // Retail Duel_CheckRitual only tests DUEL_CARD_FLAG_OCCUPIED:
+                    // a face-down monster is a valid tribute (0.30).
+                    if (taken.Contains(slot) || monster == null ||
                         monster.Card.Id != recipe.TributeIds[needed]) continue;
                     matchSlot = slot;
                     break;
@@ -30,8 +32,8 @@ namespace Reborn.Core
         }
 
         /// <summary>
-        /// The PS1 requires all three named tributes already face up on the
-        /// player's own board. The ritual result is generated, NOT played from
+        /// The PS1 requires all three named tributes on the player's own board,
+        /// face-up or face-down (retail checks only that the zone is occupied). The ritual result is generated, NOT played from
         /// the hand or selected through a level-sum tribute calculation.
         /// The selected result slot must be one of the three tribute slots.
         /// Read-only: no turn, hand, LP or event changes.
@@ -52,7 +54,7 @@ namespace Reborn.Core
                 return Reject(out reason, "Ritual sem receita extraida e validada");
             if (!FindRitualTributes(side, recipe, out var slots))
                 return Reject(out reason,
-                    "Ritual requer tres monstros especificos virados para cima no campo");
+                    "Ritual requer tres monstros especificos no seu campo");
             bool isSacrificeZone = false;
             foreach (int slot in slots) if (slot == resultSlot) isSacrificeZone = true;
             if (!isSacrificeZone)

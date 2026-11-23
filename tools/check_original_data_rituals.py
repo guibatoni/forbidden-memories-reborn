@@ -52,8 +52,9 @@ checks = {
         "!seen.Add(tribute)" not in catalog,
     "ritual execution picks three distinct physical field slots":
         "new HashSet<int>()" in ritual and "taken.Add(matchSlot)" in ritual,
-    "ritual requires own face-up field monsters":
-        "monster.FaceDown" in ritual and
+    # 0.30: retail Duel_CheckRitual tests only DUEL_CARD_FLAG_OCCUPIED.
+    "ritual requires own field monsters, face-down allowed (retail)":
+        "monster.FaceDown" not in ritual and
         "monster.Card.Id != recipe.TributeIds[needed]" in ritual,
     "ritual is one legal hand action and produces no hand monster":
         "hasPlayed = true;" in ritual and "state.Take(handIndex)" in ritual and

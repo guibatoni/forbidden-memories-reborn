@@ -1171,7 +1171,7 @@ internal static class Program
             supportOnlyAi.Opponent.SupportIsFaceDown(fallbackSlot),
             "support-only opponent sets a card instead of skipping turn");
 
-        // PS1-specific ritual: three exact, face-up on-field monsters;
+        // PS1-specific ritual: three exact on-field monsters (any face);
         // the ritual result does not have to be in the 40-card deck or hand.
         var ritualBook = new RitualCatalog();
         var summonedByRitual = M("ritual-result", 3200, 2500,

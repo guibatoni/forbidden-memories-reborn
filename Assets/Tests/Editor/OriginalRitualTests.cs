@@ -65,20 +65,18 @@ namespace Reborn.Tests
         }
 
         [Test]
-        public void FaceDownTributeMustBeRevealedBeforeRitual()
+        public void FaceDownTributeIsAcceptedLikeRetail()
         {
-            var game = ReadyForRitual(out _, true);
-            int eventsBefore = game.Events.Count;
-            Assert.IsNull(game.PreviewRitual(DuelSide.Player,0));
-            Assert.IsFalse(game.TrySummonRitual(DuelSide.Player,0,1,
-                BattlePosition.Attack,GuardianStar.None,out _,out _));
-            Assert.AreEqual(eventsBefore,game.Events.Count);
+            // Retail Duel_CheckRitual only requires an occupied zone holding
+            // the named card; face-down tributes are valid.
+            var game = ReadyForRitual(out var expected, true);
             Assert.IsTrue(game.Player.Monster(0).FaceDown);
-            Assert.IsTrue(game.TryChangePosition(DuelSide.Player,0,
-                BattlePosition.Defense,out _));
-            // Face-up defense is acceptable, as only facedown is disallowed.
-            Assert.IsTrue(game.CanSummonRitual(DuelSide.Player,0,1,
-                GuardianStar.None,out _,out _));
+            Assert.AreEqual(expected,game.PreviewRitual(DuelSide.Player,0));
+            Assert.IsTrue(game.TrySummonRitual(DuelSide.Player,0,1,
+                BattlePosition.Attack,GuardianStar.None,out var result,out _));
+            Assert.AreEqual(expected,result);
+            Assert.IsNull(game.Player.Monster(0));
+            Assert.AreEqual(4,game.Player.Graveyard.Count);
         }
 
         [Test]

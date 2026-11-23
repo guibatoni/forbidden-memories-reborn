@@ -14,6 +14,7 @@ game = read("Assets/Scripts/Presentation/RebornGame.cs")
 editor = read("Assets/Tests/Editor/KeyboardInitializationTests.cs")
 constructor = keys.split("public RebornKeyBindings()", 1)[1].split("public void LoadSaved()",1)[0]
 awake = hud.split("private void Awake()",1)[1].split("public void ToggleKeyboardSettings()",1)[0]
+ensure = hud.split("private RebornKeyBindings EnsureKeyBindings()",1)[1].split("private void Awake()",1)[0]
 checks = {
     "HUD does not construct keyboard controls in an instance field initializer":
         "private RebornKeyBindings keyBindings;" in hud and
@@ -23,9 +24,13 @@ checks = {
         "PlayerPrefs.Set" not in constructor and
         "PlayerPrefs.Delete" not in constructor and
         "keys[action] = Default(action)" in constructor,
-    "only Unity Awake constructs and loads saved mappings":
-        "keyBindings = new RebornKeyBindings();" in awake and
-        "keyBindings.LoadSaved();" in awake,
+    # 0.30: Edit Mode AddComponent skips Awake, so construction is lazy in
+    # EnsureKeyBindings (a method, never a constructor/field initializer).
+    "only Awake/lazy accessor constructs and loads saved mappings":
+        "EnsureKeyBindings();" in awake and
+        "keyBindings = new RebornKeyBindings();" in ensure and
+        "keyBindings.LoadSaved();" in ensure and
+        "public RebornKeyBindings KeyBindings => EnsureKeyBindings();" in hud,
     "load accesses PlayerPrefs in an explicit lifecycle method":
         "public void LoadSaved()" in keys and
         "PlayerPrefs.GetString(" in keys.split("public void LoadSaved()",1)[1] and
@@ -42,8 +47,8 @@ checks = {
         "PlayerPrefs.Save();" in keys and
         "PlayerPrefs.DeleteKey(" in keys,
     "reset and preview remain safe after initialization":
-        "keyBindings.ResetDefaults();" in hud and
-        "keyBindings.Get(action)" in hud,
+        "EnsureKeyBindings().ResetDefaults();" in hud and
+        "EnsureKeyBindings().Get(action)" in hud,
 }
 for name, ok in checks.items():
     print(("OK " if ok else "FAIL ") + name)

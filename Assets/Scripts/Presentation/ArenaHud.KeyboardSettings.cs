@@ -12,16 +12,29 @@ namespace Reborn.Presentation
         private Vector2 keyboardSettingsScroll;
         private string keyboardStatus = "";
 
-        public RebornKeyBindings KeyBindings => keyBindings;
+        // Lazy: Unity does not call Awake for AddComponent in Edit Mode, and a
+        // caller may read the bindings before Awake runs. Building them here
+        // (never in a constructor or field initializer) keeps PlayerPrefs
+        // access legal and guarantees a non-null, loaded instance.
+        public RebornKeyBindings KeyBindings => EnsureKeyBindings();
         public bool KeyboardSettingsOpen => keyboardSettingsOpen;
 
-        // Unity calls Awake after AddComponent finishes constructing ArenaHud.
-        // Reading PlayerPrefs here is legal; reading it in a field initializer
-        // throws UnityException and may leave other HUD fields uninitialized.
+        private RebornKeyBindings EnsureKeyBindings()
+        {
+            if (keyBindings == null)
+            {
+                keyBindings = new RebornKeyBindings();
+                keyBindings.LoadSaved();
+            }
+            return keyBindings;
+        }
+
+        // Unity calls Awake after AddComponent finishes constructing ArenaHud
+        // (Play Mode). Reading PlayerPrefs here is legal; reading it in a field
+        // initializer throws UnityException.
         private void Awake()
         {
-            keyBindings = new RebornKeyBindings();
-            keyBindings.LoadSaved();
+            EnsureKeyBindings();
         }
 
         public void ToggleKeyboardSettings()
@@ -55,7 +68,7 @@ namespace Reborn.Presentation
                     keyboardStatus = "Edicao da tecla cancelada.";
                     return;
                 }
-                if (keyBindings.TrySet(capturingKey.Value, control.keyCode,
+                if (EnsureKeyBindings().TrySet(capturingKey.Value, control.keyCode,
                     out string message))
                     capturingKey = null;
                 keyboardStatus = message;
@@ -107,7 +120,7 @@ namespace Reborn.Presentation
                     RebornKeyBindings.Label(action),body);
                 bool capture = capturingKey == action;
                 string label = capture ? "PRESSIONE UMA TECLA" :
-                    keyBindings.Get(action).ToString();
+                    EnsureKeyBindings().Get(action).ToString();
                 if (GUI.Button(new Rect(contentWidth*0.64f,yy+5f,
                     contentWidth*0.35f,32f),label,button))
                 {
@@ -124,7 +137,7 @@ namespace Reborn.Presentation
             if (GUI.Button(new Rect(x+22f,y+height-66f,half,42f),
                 "RESTAURAR PADRAO",button))
             {
-                keyBindings.ResetDefaults();
+                EnsureKeyBindings().ResetDefaults();
                 capturingKey = null;
                 keyboardStatus = "Configuracoes de fabrica restauradas.";
             }

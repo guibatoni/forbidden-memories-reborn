@@ -666,7 +666,7 @@ namespace Reborn.Tests
             Play(match, DuelSide.Opponent);
             End(match, DuelSide.Opponent);
             Assert.IsFalse(match.CanActivateSupport(DuelSide.Player, 2, out var reason));
-            StringAssert.Contains("nao validado", reason);
+            StringAssert.Contains("nao verificado", reason);
             Assert.IsTrue(match.Player.SupportIsFaceDown(2));
         }
 
