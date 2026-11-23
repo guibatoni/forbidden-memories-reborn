@@ -70,8 +70,16 @@ $argsUnity = @(
     "-testPlatform", "EditMode", "-assemblyNames", "Reborn.Core.Tests",
     "-testResults", $results, "-logFile", $log
 )
-& $UnityExe @argsUnity
-$exitCode = $LASTEXITCODE
+# Unity.exe is a GUI-subsystem program: "& $UnityExe" returns at once and
+# leaves $LASTEXITCODE empty. Start-Process -Wait blocks until the batchmode
+# run (import + compile + tests) really ends and returns its exit code.
+$quotedArgs = $argsUnity | ForEach-Object {
+    if ($_ -match '\s') { '"' + $_ + '"' } else { $_ }
+}
+Write-Host "Executando Unity em batchmode (a primeira importacao pode levar varios minutos)..."
+$process = Start-Process -FilePath $UnityExe -ArgumentList $quotedArgs `
+    -Wait -PassThru -NoNewWindow
+$exitCode = $process.ExitCode
 
 if (-not (Test-Path -LiteralPath $results -PathType Leaf)) {
     if (Test-Path -LiteralPath $log) {
