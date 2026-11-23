@@ -594,11 +594,11 @@ internal static class Program
             BattlePosition.Defense,GuardianStar.None,true,out _) &&
             duel.Player.Monster(0).Card.Id==combined.Id &&
             duel.Player.Monster(0).Position==BattlePosition.Defense &&
-            duel.Player.Monster(0).FaceDown &&
+            !duel.Player.Monster(0).FaceDown &&
             duel.Player.Hand.Count==3 &&
             duel.Player.Monster(1)==null &&
             duel.Events.Any(e=>e.Kind==MatchEventKind.Fusion),
-            "0.24 two materials fuse in a single confirmed turn and respect preselected DEF/FaceDown");
+            "0.24 two materials fuse in one turn, keep DEF and are revealed (PS1 state 8)");
 
         var slots = new DuelMatch(Deck(alpha,beta,M("next",1000,1000)),
             Deck(M("rival",800,800)),recipes);
@@ -688,7 +688,7 @@ internal static class Program
             new[] {choices[0].FirstHandIndex,choices[0].SecondHandIndex},
             FieldLane.Monster,0,BattlePosition.Defense,GuardianStar.None,true,
             out var reason) && handMatch.Player.Monster(0).Card.Id == result.Id &&
-            handMatch.Player.Monster(0).FaceDown &&
+            !handMatch.Player.Monster(0).FaceDown &&
             handMatch.Player.Monster(0).Position == BattlePosition.Defense &&
             handMatch.FindAvailableFusions(DuelSide.Player).Count == 0,
             "0.25 selecting a suggested hand fusion performs exactly one real placement");
@@ -837,7 +837,7 @@ internal static class Program
     private static void CheckIntermediateFieldFusionConcealment()
     {
         // One successful intermediate recipe, followed by an incompatible
-        // material. The LAST physical card must obey the final chosen face.
+        // material. 0.30: the PS1 reveals the last card of any chain.
         var original = M("field-a", 1100, 900);
         var ingredient = M("hand-b", 500, 500);
         var finalOriginal = M("hand-last", 1400, 1200);
@@ -861,11 +861,11 @@ internal static class Program
             BattlePosition.Defense,GuardianStar.None,true,
             out var resolved,out var finalFusion,out _) &&
             !finalFusion && resolved.Id == finalOriginal.Id &&
-            duel.Player.Monster(0).FaceDown &&
+            !duel.Player.Monster(0).FaceDown &&
             duel.Player.Monster(0).Position == BattlePosition.Defense &&
             duel.Events.Any(e=>e.Kind==MatchEventKind.Fusion) &&
             duel.Events.Any(e=>e.Kind==MatchEventKind.FusionFailed),
-            "0.25 final hand survivor remains Face Down after intermediate field fusion");
+            "0.25 final hand survivor of a field chain is revealed in DEF (PS1 state 8)");
     }
 
     private static void CheckOriginalChainRules()
@@ -1069,7 +1069,7 @@ internal static class Program
             0,BattlePosition.Defense,GuardianStar.None,true,
             out var failResult,out bool wasFusion,out _) &&
             !wasFusion && failResult.Id == "new" &&
-            failedField.Player.Monster(0).FaceDown &&
+            !failedField.Player.Monster(0).FaceDown &&
             failedField.Player.Graveyard.Count == 1,
             "failed monster fusion replaces old field material without inventing a result");
         Check(failedField.Player.Hand.Count == 4 &&

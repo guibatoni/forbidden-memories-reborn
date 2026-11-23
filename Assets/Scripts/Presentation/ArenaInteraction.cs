@@ -567,8 +567,14 @@ namespace Reborn.Presentation
             if (replacesWithoutFusion)
                 hud.Message = "Sem receita: a jogada substituira o monstro " +
                     "no campo. Confirme conscientemente.";
+            // PS1 state 8: any chain of 2+ materials (a field chain always is)
+            // ends face-up, so the wizard skips the Face step.
+            bool chainRevealsResult = !ritual && (onField || selected.Count > 1);
+            bool keepsFieldMonster = fieldChain != null &&
+                fieldChain.SurvivorPosition == 0;
             hud.BeginPlacementChoices(outcome, ritual,
-                () => CommitMatchCard(zone), replacesWithoutFusion);
+                () => CommitMatchCard(zone), replacesWithoutFusion,
+                chainRevealsResult, keepsFieldMonster);
         }
 
         /// <summary>

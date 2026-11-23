@@ -477,7 +477,7 @@ namespace Reborn.Tests
         }
 
         [Test]
-        public void UnsupportedFieldEquipIsRejectedButMonsterReplacementIsLegal()
+        public void UnverifiedFieldEquipIsDiscardedWithoutEffectAndReplacementIsLegal()
         {
             var match = new DuelMatch(
                 Deck(Monster("old", 2600, 2100),
@@ -488,19 +488,22 @@ namespace Reborn.Tests
             Play(match, DuelSide.Opponent);
             End(match, DuelSide.Opponent);
             long events = match.Events.Count;
-            Assert.IsFalse(match.CanPlayOnField(DuelSide.Player, new[] { 0 },
-                0, GuardianStar.None, out _, out _));
-            Assert.IsFalse(match.TryPlayOnField(DuelSide.Player, new[] { 0 },
-                0, BattlePosition.Attack, GuardianStar.None, false,
-                out _, out _, out _));
+            // 0.30 (PS1 state 7): an unverified Equip finds no recipe and no
+            // compatibility, so it is thrown away and "old" stays unchanged.
+            var chain = match.PreviewFieldChain(DuelSide.Player, new[] { 0 }, 0);
+            Assert.AreEqual("old", chain.Result.Id);
+            Assert.AreEqual(0, chain.SurvivorPosition);
+            Assert.AreEqual(0, chain.PendingAttackGain);
             Assert.AreEqual(events, match.Events.Count);
-            Assert.AreEqual("old", match.Player.Monster(0).Card.Id);
+            // The replacement path (monster over monster, no recipe).
             Assert.IsTrue(match.TryPlayOnField(DuelSide.Player, new[] { 1 },
                 0, BattlePosition.Defense, GuardianStar.None, true,
                 out var result, out bool fused, out _));
             Assert.IsFalse(fused);
             Assert.AreEqual("replacement", result.Id);
-            Assert.IsTrue(match.Player.Monster(0).FaceDown);
+            Assert.AreEqual(BattlePosition.Defense, match.Player.Monster(0).Position);
+            Assert.IsFalse(match.Player.Monster(0).FaceDown,
+                "PS1 reveals the last card of a material chain");
             Assert.AreEqual("old", match.Player.Graveyard[0].Id);
         }
 

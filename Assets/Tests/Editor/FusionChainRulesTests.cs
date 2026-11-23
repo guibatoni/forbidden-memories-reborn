@@ -273,5 +273,49 @@ namespace Reborn.Tests
             CollectionAssert.AreEquivalent(new[] { "A", "B" },
                 match.Player.Graveyard.Select(c => c.Id).ToArray());
         }
+
+        // ---------- PS1 placement state 8: chains are revealed ----------
+
+        [Test]
+        public void SingleHandMonsterCanStillBeSetFaceDown()
+        {
+            var match = Duel(new FusionCatalog(), Monster("A", 1000, 1000));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0 }, FieldLane.Monster,
+                0, BattlePosition.Defense, GuardianStar.None, true, out var reason), reason);
+            Assert.IsTrue(match.Player.Monster(0).FaceDown);
+        }
+
+        [Test]
+        public void HandChainResultIsRevealedEvenWhenFaceDownWasRequested()
+        {
+            var a = Monster("A", 1000, 1000);
+            var b = Monster("B", 1100, 900);
+            var match = Duel(new FusionCatalog(), a, b);
+            Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0, 1 }, FieldLane.Monster,
+                0, BattlePosition.Defense, GuardianStar.None, true, out var reason), reason);
+            Assert.AreEqual("B", match.Player.Monster(0).Card.Id);
+            Assert.AreEqual(BattlePosition.Defense, match.Player.Monster(0).Position);
+            Assert.IsFalse(match.Player.Monster(0).FaceDown);
+        }
+
+        [Test]
+        public void HiddenFieldMonsterThatSurvivesAChainIsRevealed()
+        {
+            var a = Monster("A", 1000, 1000);
+            var match = Duel(new FusionCatalog(), a, Card("S", CardKind.Spell));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0 }, FieldLane.Monster,
+                0, BattlePosition.Defense, GuardianStar.None, true, out var reason), reason);
+            Assert.IsTrue(match.TryEndTurn(DuelSide.Player, out reason), reason);
+            Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] { 0 }, FieldLane.Monster,
+                0, BattlePosition.Attack, GuardianStar.None, out reason), reason);
+            Assert.IsTrue(match.TryEndTurn(DuelSide.Opponent, out reason), reason);
+            Assert.IsTrue(match.Player.Monster(0).FaceDown);
+            Assert.IsTrue(match.TryPlayOnField(DuelSide.Player, new[] { 0 }, 0,
+                BattlePosition.Attack, GuardianStar.None, true,
+                out _, out _, out reason), reason);
+            Assert.AreEqual("A", match.Player.Monster(0).Card.Id);
+            Assert.AreEqual(BattlePosition.Defense, match.Player.Monster(0).Position);
+            Assert.IsFalse(match.Player.Monster(0).FaceDown);
+        }
     }
 }

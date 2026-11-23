@@ -40,7 +40,9 @@ checks = {
         "if (index != survivor) discarded.Add(" in field and
         "if (!fieldSurvives)" in field,
     "final verified fusion face-up, later failed survivor preserves requested face":
-        "finalResultIsFusion ? false : faceDown" in field and
+        # 0.30: PS1 placement state 8 reveals every chain result.
+        "new MonsterOnField(current, position, star,\n                    false, Turn)" in field and
+        "onField.Reveal();" in field and
         "bool finalResultIsFusion = chain.FinalIsFusion;" in field,
     "failure replaces earlier result": "current = next;" in resolver and
         "FusionStepKind.DiscardedCurrent" in resolver and

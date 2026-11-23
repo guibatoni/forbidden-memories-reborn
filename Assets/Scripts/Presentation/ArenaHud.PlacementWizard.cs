@@ -11,20 +11,25 @@ namespace Reborn.Presentation
     /// </summary>
     public sealed partial class ArenaHud
     {
-        private enum PlacementChoiceStep { None, Guardian, Facing, Position }
+        private enum PlacementChoiceStep { None, Guardian, Facing, Position, KeepConfirm }
         private PlacementChoiceStep placementStep;
         private CardDefinition placementPreview;
         private Func<bool> placementCommit;
         private bool placementIsRitual;
         private bool placementOverwritesField;
         private bool placementSecondaryChoice;
+        // 0.30: a chain of 2+ materials always ends face-up (PS1 state 8),
+        // so the Face Up / Face Down step is skipped for its monster result.
+        private bool placementRevealed;
+        private bool placementKeepsFieldMonster;
 
         public bool PlacementWizardOpen => placementStep != PlacementChoiceStep.None;
         public bool PlacementPositionPreviewOpen =>
             placementStep == PlacementChoiceStep.Position;
 
         public void BeginPlacementChoices(CardDefinition result, bool ritual,
-            Func<bool> commit, bool overwritesField = false)
+            Func<bool> commit, bool overwritesField = false,
+            bool chainRevealsResult = false, bool keepsFieldMonster = false)
         {
             if (result == null || commit == null || PlacementWizardOpen ||
                 match == null || match.Phase != MatchPhase.Main ||
@@ -38,11 +43,20 @@ namespace Reborn.Presentation
             PlaceFaceDown = false;
             UseSecondaryStar = false;
             placementSecondaryChoice = false;
+            placementRevealed = chainRevealsResult && result.Kind == CardKind.Monster;
+            placementKeepsFieldMonster = keepsFieldMonster;
+            if (keepsFieldMonster)
+            {
+                // The field monster stays: no star, face or stance to choose.
+                placementStep = PlacementChoiceStep.KeepConfirm;
+                return;
+            }
             bool twoStars = result.Kind == CardKind.Monster &&
                 result.StarA != GuardianStar.None &&
                 result.StarB != GuardianStar.None &&
                 result.StarA != result.StarB;
             placementStep = twoStars ? PlacementChoiceStep.Guardian :
+                placementRevealed ? PlacementChoiceStep.Position :
                 PlacementChoiceStep.Facing;
             if (!twoStars && !CanPlaceFaceUp())
                 placementSecondaryChoice = true;
@@ -56,6 +70,8 @@ namespace Reborn.Presentation
             placementPreview = null;
             placementIsRitual = false;
             placementOverwritesField = false;
+            placementRevealed = false;
+            placementKeepsFieldMonster = false;
             Announce("Selecao cancelada: nenhuma carta foi baixada.");
         }
 
@@ -91,6 +107,13 @@ namespace Reborn.Presentation
             {
                 case PlacementChoiceStep.Guardian:
                     UseSecondaryStar = secondary;
+                    if (placementRevealed)
+                    {
+                        PlaceFaceDown = false;
+                        UseDefense = false;
+                        placementStep = PlacementChoiceStep.Position;
+                        break;
+                    }
                     placementStep = PlacementChoiceStep.Facing;
                     placementSecondaryChoice = !CanPlaceFaceUp();
                     break;
@@ -112,6 +135,7 @@ namespace Reborn.Presentation
                     else CommitPlacement();
                     break;
                 case PlacementChoiceStep.Position:
+                case PlacementChoiceStep.KeepConfirm:
                     CommitPlacement();
                     break;
             }
@@ -127,6 +151,8 @@ namespace Reborn.Presentation
             placementPreview = null;
             placementIsRitual = false;
             placementOverwritesField = false;
+            placementRevealed = false;
+            placementKeepsFieldMonster = false;
             bool succeeded = callback != null && callback();
             if (!succeeded)
                 Announce("Posicionamento recusado; sua carta continua na mao.");
@@ -177,6 +203,26 @@ namespace Reborn.Presentation
             Panel(new Rect(left,top,w,h), new Color(0.025f,0.043f,0.090f));
             Panel(new Rect(left+14f,top+13f,w-28f,4f),
                 new Color(0.88f,0.65f,0.29f));
+            if (placementStep == PlacementChoiceStep.KeepConfirm)
+            {
+                GUI.Label(new Rect(left+22f,top+25f,w-44f,43f),
+                    "O MONSTRO PERMANECE NO CAMPO", heading);
+                GUI.Label(new Rect(left+22f,top+73f,w-44f,60f),
+                    placementPreview.Name + "  #" + placementPreview.Id +
+                    "\nEquips verificados sao aplicados; cartas sem combinacao " +
+                    "vao para o cemiterio. Posicao atual mantida.", body);
+                DrawRotatingCard(new Rect(left+w*0.5f-125f,top+140f,250f,
+                    Mathf.Min(220f,h-260f)));
+                GUI.Label(new Rect(left+22f,top+h-95f,w-44f,24f),
+                    "Z confirma. X cancela sem gastar carta.",small);
+                if (GUI.Button(new Rect(left+22f,top+h-60f,w*0.54f-27f,39f),
+                    "CONFIRMAR [Z]",button))
+                    CommitPlacement();
+                if (GUI.Button(new Rect(left+w*0.54f+5f,top+h-60f,
+                    w*0.46f-27f,39f),"CANCELAR [X]",button))
+                    CancelPlacementChoices();
+                return;
+            }
             string title = placementStep == PlacementChoiceStep.Guardian ?
                 "ESCOLHA A GUARDIAN STAR" :
                 placementStep == PlacementChoiceStep.Facing ?
@@ -199,6 +245,7 @@ namespace Reborn.Presentation
                         "ATAQUE  |  CARTA VERTICAL") +
                     "   |   Q = ATK   E = DEF",body);
                 GUI.Label(new Rect(left+22f,top+h-95f,w-44f,24f),
+                    (placementRevealed ? "Cadeia de materiais: o resultado entra virado para cima. " : "") +
                     "Z confirma. X cancela sem gastar carta. Clique na carta para girar.",small);
                 if (GUI.Button(new Rect(left+22f,top+h-60f,w*0.54f-27f,39f),
                     "CONFIRMAR A CARTA [Z]",button))

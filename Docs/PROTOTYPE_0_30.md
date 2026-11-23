@@ -41,6 +41,23 @@ Equip compatibility and bonuses come only from `VerifiedEquipCatalog`
 Unverified Equips are discarded like any other unmatched non-monster; no
 effect is ever invented.
 
+## Chain results are revealed (placement state 8)
+
+At the end of the same routine (state 8), when the final card of a material
+chain is a monster, the game clears `DUEL_CARD_FLAG_FACE_DOWN` (0x1000) on it.
+A single hand card skips that state (flag 0x4000 set at start), so it can
+still be set face-down. Therefore:
+
+- a hand chain of 2+ cards (fused, equipped or failed) always ends face-up;
+- a field chain always ends face-up, including a hidden field monster that
+  survives because only support cards were consumed;
+- ATK/DEF is still chosen by the player.
+
+Earlier prototypes let a fused or failed chain stay face-down; three smoke
+checks and one EditMode test that asserted that are updated. The placement
+wizard skips the Face Up / Face Down step for chains and shows a single
+confirmation when the field monster stays in place.
+
 ## Technical changes
 
 - `Core/FusionChainResolver.cs` — new pure resolver (no Unity, no state).
@@ -63,7 +80,7 @@ effect is ever invented.
 | Python importer tests (`tools/test_*.py`) | Run locally: all pass |
 | .NET Core smoke (`tools/Reborn.Core.Smoke`) | **Not run** here (no .NET SDK in the session). Runs in CI. |
 | Unity Editor compilation | **Not run** — run `tools/TESTAR_UNITY_REBORN.ps1` |
-| Unity EditMode (`FusionChainRulesTests`, 13 tests) | **Not run** — same script |
+| Unity EditMode (`FusionChainRulesTests`, 16 tests + 1 updated in `DuelMatchTests`) | **Not run** — same script |
 | PlayMode / visual check | **Not done** |
 
 Open question kept conservative: whether the PS1 lets a chain Equip a

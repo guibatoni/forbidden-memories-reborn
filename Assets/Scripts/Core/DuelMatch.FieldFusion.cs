@@ -169,15 +169,18 @@ namespace Reborn.Core
             if (fieldSurvives)
             {
                 // Only Equips were consumed or non-monsters thrown away: the
-                // same monster stays, keeping position, star, face and bonuses.
+                // same monster stays, keeping position, star and bonuses. As
+                // the last card of a material chain it is revealed (state 8).
                 ApplyPendingEquips(onField, chain);
+                onField.Reveal();
             }
             else
             {
-                // An actual field fusion is face-up. In a failed combination where
-                // the last hand monster survives, the requested face remains valid.
+                // A field chain always has two or more materials, so the PS1
+                // reveals its final monster (placement state 8) whether the last
+                // pair fused or failed. The requested face is ignored here.
                 var placed = new MonsterOnField(current, position, star,
-                    finalResultIsFusion ? false : faceDown, Turn);
+                    false, Turn);
                 ApplyPendingEquips(placed, chain);
                 state.SetMonster(monsterSlot, placed);
             }

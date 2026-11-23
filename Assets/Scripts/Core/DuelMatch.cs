@@ -318,6 +318,10 @@ namespace Reborn.Core
             }
             if (lane == FieldLane.Monster)
             {
+                // PS1 placement state 8: a monster that ends a chain of two or
+                // more materials (fused, equipped or failed) is revealed; only a
+                // single hand card can be set face-down.
+                if (indices.Count > 1) faceDown = false;
                 var placed = new MonsterOnField(result, position, star, faceDown, Turn);
                 // Equips consumed inside the chain stay on the summoned monster.
                 ApplyPendingEquips(placed, chain);
