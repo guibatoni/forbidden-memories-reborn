@@ -868,8 +868,64 @@ internal static class Program
             "0.25 final hand survivor remains Face Down after intermediate field fusion");
     }
 
+    private static void CheckOriginalChainRules()
+    {
+        // 0.30: PS1 placement order (fusion > in-chain Equip > failure that
+        // keeps a monster over an unmatched non-monster). Synthetic recipes;
+        // "657" is the verified universal Megamorph (+1000/+1000).
+        var a = M("chain-a",1200,1000);
+        var b = M("chain-b",1100,900);
+        var f = M("chain-f",2500,2000);
+        var recipes = new FusionCatalog();
+        recipes.Add(a.Id,b.Id,f);
+        var megamorph = new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+        var equips = VerifiedEquipCatalog.OriginalPs1Foundation();
+
+        var keep = FusionChainResolver.Resolve(new[]{a,S("chain-spell")},recipes,equips);
+        Check(keep.Result.Id == a.Id && keep.SurvivorPosition == 0 &&
+            keep.Steps[0].Kind == FusionStepKind.DiscardedNext,
+            "0.30 monster survives an unmatched spell (PS1 state 7)");
+        var replace = FusionChainResolver.Resolve(new[]{a,M("chain-x",900,900)},recipes,equips);
+        Check(replace.Result.Id == "chain-x" && replace.SurvivorPosition == 1,
+            "0.30 unmatched monster pair keeps the later monster");
+        var equipped = FusionChainResolver.Resolve(new[]{megamorph,a},recipes,equips);
+        Check(equipped.Result.Id == a.Id && equipped.PendingAttackGain == 1000 &&
+            equipped.SuccessfulFusions == 0 && equipped.HasProductiveStep,
+            "0.30 verified Equip selected before a monster equips it in-chain");
+        var reset = FusionChainResolver.Resolve(new[]{a,megamorph,b},recipes,equips);
+        Check(reset.Result.Id == f.Id && reset.PendingAttackGain == 0,
+            "0.30 a later fusion replaces the card and drops earlier Equip gains");
+
+        var hand = new DuelMatch(Deck(a,megamorph),Deck(M("chain-op",900,900)),
+            recipes,null,null,equips);
+        Check(hand.TryPlay(DuelSide.Player,new[]{0,1},FieldLane.Monster,0,
+                BattlePosition.Attack,GuardianStar.None,out _) &&
+            hand.Player.Monster(0).Card.Id == a.Id &&
+            hand.Player.Monster(0).EffectiveAttack == 2200 &&
+            hand.Player.Graveyard.Count == 1 &&
+            hand.Player.Graveyard[0].Id == "657",
+            "0.30 hand monster + Megamorph summons the equipped monster");
+
+        var field = new DuelMatch(Deck(a,S("chain-junk")),Deck(M("chain-op",900,900)),
+            recipes,null,null,equips);
+        Play(field,DuelSide.Player);End(field,DuelSide.Player);
+        Play(field,DuelSide.Opponent);End(field,DuelSide.Opponent);
+        var stays = field.Player.Monster(0);
+        Check(field.TryPlayOnField(DuelSide.Player,new[]{0},0,
+                BattlePosition.Defense,GuardianStar.None,true,
+                out var kept,out bool keptFusion,out _) &&
+            !keptFusion && kept.Id == a.Id &&
+            ReferenceEquals(stays,field.Player.Monster(0)) &&
+            field.Player.Monster(0).Position == BattlePosition.Attack &&
+            field.Player.Graveyard.Count == 1 &&
+            field.Player.Graveyard[0].Id == "chain-junk" &&
+            field.PlayedThisTurn,
+            "0.30 field monster stays in place when a spell finds no recipe");
+    }
+
     private static void Main()
     {
+        CheckOriginalChainRules();
         CheckOriginalStarterChoices();
         CheckAvailableFusionAssistant();
         CheckVerifiedFusionChains();
@@ -987,6 +1043,8 @@ internal static class Program
 
         // A failed recipe replaces the older field monster with the last
         // selected hand monster; unsupported Equip effects never run.
+        // 0.30 (PS1 placement state 7): an unmatched non-monster is thrown
+        // away and the field monster stays, with no bonus and no effect.
         var failedField = new DuelMatch(
             Deck(M("old", 2400, 1800), S("unverifiedEquip"),
                 M("new", 1300, 900)), Deck(M("op", 1000, 1000)));
@@ -995,11 +1053,13 @@ internal static class Program
         Play(failedField,DuelSide.Opponent);
         End(failedField,DuelSide.Opponent);
         int failedBefore = failedField.Events.Count;
-        Check(!failedField.CanPlayOnField(DuelSide.Player,new[]{0},
-            0,GuardianStar.None,out _,out _) &&
-            !failedField.TryPlayOnField(DuelSide.Player,new[]{0},
-                0,BattlePosition.Attack,GuardianStar.None,false,
-                out _,out _,out _),
+        var supportChain = failedField.PreviewFieldChain(DuelSide.Player,
+            new[]{0},0);
+        Check(supportChain != null && supportChain.Result.Id == "old" &&
+            supportChain.SurvivorPosition == 0 &&
+            supportChain.PendingAttackGain == 0 &&
+            !supportChain.HasProductiveStep &&
+            failedField.PreviewFieldResult(DuelSide.Player,new[]{0},0)?.Id == "old",
             "unverified equip on occupied monster cannot fabricate an effect");
         Check(failedField.Events.Count == failedBefore &&
             failedField.Player.Monster(0).Card.Id == "old" &&

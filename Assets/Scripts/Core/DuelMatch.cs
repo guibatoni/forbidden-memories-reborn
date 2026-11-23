@@ -244,18 +244,8 @@ namespace Reborn.Core
 
         public CardDefinition PreviewResult(DuelSide side, IReadOnlyList<int> indices)
         {
-            if (indices == null || indices.Count == 0 || indices.Count > HandLimit) return null;
-            var hand = Side(side).Hand;
-            var seen = new HashSet<int>();
-            CardDefinition result = null;
-            foreach (var index in indices)
-            {
-                if (index < 0 || index >= hand.Count || !seen.Add(index)) return null;
-                if (result == null) result = hand[index];
-                else if (!fusions.TryFuse(result, hand[index], out var fused)) result = hand[index];
-                else result = fused;
-            }
-            return result;
+            // Same resolver as TryPlay: fusion, in-chain Equip, PS1 failure rule.
+            return PreviewHandChain(side, indices)?.Result;
         }
 
         public bool CanPlay(DuelSide side, IReadOnlyList<int> handIndices,
@@ -266,17 +256,10 @@ namespace Reborn.Core
             if (handIndices == null || handIndices.Count == 0 || handIndices.Count > HandLimit)
                 return Reject(out reason, "Selecione entre 1 e 5 cartas");
             var state = Side(side);
-            var selected = new HashSet<int>();
-            CardDefinition outcome = null;
-            foreach (int index in handIndices)
-            {
-                if (index < 0 || index >= state.Hand.Count || !selected.Add(index))
-                    return Reject(out reason, "Indices duplicados ou invalidos");
-                var card = state.Hand[index];
-                if (outcome == null) outcome = card;
-                else if (!fusions.TryFuse(outcome, card, out var fused)) outcome = card;
-                else outcome = fused;
-            }
+            var chain = PreviewHandChain(side, handIndices);
+            if (chain == null)
+                return Reject(out reason, "Indices duplicados ou invalidos");
+            var outcome = chain.Result;
             var expectedLane = DuelActionRules.RequiredLane(outcome.Kind);
             if (expectedLane != lane) return Reject(out reason, "Tipo de zona incompativel");
             if (slot < 0 || slot >= ZoneCount) return Reject(out reason, "Zona invalida");
@@ -285,6 +268,8 @@ namespace Reborn.Core
                 return Reject(out reason, "Zona ocupada");
             if (lane == FieldLane.Monster && !GuardianStarRules.IsAvailable(outcome, star))
                 return Reject(out reason, "Guardian Star invalida para esta carta");
+            if (lane == FieldLane.Monster && !PendingEquipsFit(null, outcome, chain))
+                return Reject(out reason, "Bonus de equipamento fora do limite de atributos");
             reason = ""; return true;
         }
 
@@ -315,29 +300,10 @@ namespace Reborn.Core
             var state = Side(side);
             // Only physical hand cards can go to the graveyard. Intermediate
             // fusion results are virtual and must never be buried as materials.
-            CardDefinition result = null;
-            int survivingOriginalIndex = -1;
-            foreach (var index in indices)
-            {
-                var card = state.Hand[index];
-                if (result == null)
-                {
-                    result = card; survivingOriginalIndex = index;
-                    continue;
-                }
-                if (fusions.TryFuse(result, card, out var fused))
-                {
-                    result = fused;
-                    survivingOriginalIndex = -1;
-                    Emit(MatchEventKind.Fusion, side, result.Id, lane, slot);
-                }
-                else
-                {
-                    result = card;
-                    survivingOriginalIndex = index;
-                    Emit(MatchEventKind.FusionFailed, side, card.Id, lane, slot);
-                }
-            }
+            var chain = PreviewHandChain(side, indices);
+            CardDefinition result = chain.Result;
+            int survivingOriginalIndex = HandIndexAt(indices, chain.SurvivorPosition, 0);
+            EmitChainSteps(side, chain, lane, slot);
             var spent = new List<CardDefinition>();
             foreach (var index in indices)
                 if (index != survivingOriginalIndex) spent.Add(state.Hand[index]);
@@ -351,7 +317,12 @@ namespace Reborn.Core
                 Emit(MatchEventKind.Graveyard, side, material.Id);
             }
             if (lane == FieldLane.Monster)
-                state.SetMonster(slot, new MonsterOnField(result, position, star, faceDown, Turn));
+            {
+                var placed = new MonsterOnField(result, position, star, faceDown, Turn);
+                // Equips consumed inside the chain stay on the summoned monster.
+                ApplyPendingEquips(placed, chain);
+                state.SetMonster(slot, placed);
+            }
             else if (!resolveInstantSpell)
                 state.SetSupport(slot, result, faceDown, Turn);
             hasPlayed = true;

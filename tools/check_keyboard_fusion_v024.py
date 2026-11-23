@@ -53,7 +53,7 @@ checks={
     "PlaceMatchCard(zone);" in keyboard and
     "match.TryPlay(" not in keyboard,
  "true ordered fusion counted from exact catalog":
-    "fusions.TryFuse(last, next" in engine and
+    "chain.SuccessfulFusions" in engine and
     "FusionRecipeCount => fusions.Count" in engine and
     "CountHandFusionSteps" in keyboard,
  "monster position decided before actual hand commit":

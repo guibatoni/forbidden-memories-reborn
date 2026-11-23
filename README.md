@@ -1,3 +1,13 @@
+# Forbidden Memories Reborn — Prototype 0.30 (development)
+
+Fusion chains now resolve like the PS1 placement routine: a monster survives an
+unmatched Spell/Trap, verified Equips apply inside a chain (hand or field), and
+the field monster stays in place when only support cards were consumed.
+
+[0.30 root cause, rules and validation status](Docs/PROTOTYPE_0_30.md).
+
+---
+
 # Forbidden Memories Reborn — Prototype 0.29 (development)
 
 Added a **Windows Unity Editor EditMode batch test runner**, including automatic

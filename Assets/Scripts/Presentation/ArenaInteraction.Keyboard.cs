@@ -102,6 +102,8 @@ namespace Reborn.Presentation
             hud.FusionCount = fusionSelection.Count;
             int fusions = match.CountHandFusionSteps(DuelSide.Player, fusionSelection);
             var result = match.PreviewResult(DuelSide.Player, fusionSelection);
+            var equipChain = fusionSelection.Count > 1 ?
+                match.PreviewHandChain(DuelSide.Player, fusionSelection) : null;
             hud.FieldFusionPreview = fusions > 0 ? result : null;
             hud.Message = match.FusionRecipeCount == 0 &&
                 fusionSelection.Count > 1 ?
@@ -111,6 +113,8 @@ namespace Reborn.Presentation
                 "Materiais " + fusionSelection.Count + "/5: ") +
                 card.Name + (fusions > 0 && result != null
                     ? " | FUSOES " + fusions + " -> " + result.Name
+                    : equipChain != null && equipChain.EquipsApplied > 0
+                    ? " | EQUIP +" + equipChain.PendingAttackGain + " -> " + result.Name
                     : fusionSelection.Count > 1 ? " | sem receita nesta ordem" : "") +
                 ". Duplo clique ou Z novamente joga no primeiro slot livre.";
             return true;
@@ -155,8 +159,8 @@ namespace Reborn.Presentation
             var order = (IReadOnlyList<int>)new List<int>(fusionSelection);
             var result = match.PreviewResult(DuelSide.Player, order);
             if (result == null) return false;
-            if (order.Count > 1 &&
-                match.CountHandFusionSteps(DuelSide.Player, order) == 0)
+            var chain = match.PreviewHandChain(DuelSide.Player, order);
+            if (order.Count > 1 && (chain == null || !chain.HasProductiveStep))
             {
                 hud.Message = "As cartas marcadas nao possuem fusao nesta ordem. " +
                     "Revise a receita ou jogue manualmente para uma troca " +

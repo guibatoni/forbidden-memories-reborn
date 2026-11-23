@@ -558,9 +558,12 @@ namespace Reborn.Presentation
             // A legal field replacement without a recipe is NOT a fusion.
             // Warn before destroying the old monster, but preserve deliberate
             // PS1 field substitutions through explicit confirmation.
-            bool replacesWithoutFusion = onField && !ritual &&
-                !match.FinalFieldResultIsFusion(DuelSide.Player,
-                    selected, zone.Index);
+            var fieldChain = onField && !ritual ?
+                match.PreviewFieldChain(DuelSide.Player, selected, zone.Index) : null;
+            // The field monster survives when the chain only consumes Equips
+            // or throws non-monsters away: that is not a replacement.
+            bool replacesWithoutFusion = fieldChain != null &&
+                !fieldChain.FinalIsFusion && fieldChain.SurvivorPosition != 0;
             if (replacesWithoutFusion)
                 hud.Message = "Sem receita: a jogada substituira o monstro " +
                     "no campo. Confirme conscientemente.";
@@ -746,6 +749,11 @@ namespace Reborn.Presentation
                     hud.Message = previewReason;
                     return false; // Never animate or consume cards for invalid effects.
                 }
+                var fieldChain = match.PreviewFieldChain(DuelSide.Player,
+                    selected, zone.Index);
+                bool fieldMonsterStays = fieldChain != null &&
+                    fieldChain.SurvivorPosition == 0;
+                int equipGain = fieldChain != null ? fieldChain.PendingAttackGain : 0;
                 arena.StagePlacement(zone.Lane, zone.Index, origin, hud.AnimationsEnabled);
                 if (match.TryPlayOnField(DuelSide.Player, selected, zone.Index,
                     position, star, hud.PlaceFaceDown,
@@ -757,6 +765,11 @@ namespace Reborn.Presentation
                         arena.PlayFusionMaterialTrails(materialOrigins,
                             FieldLane.Monster, zone.Index, hud.AnimationsEnabled);
                     hud.Announce(fused ? "Fusao no campo: " + fieldResult.Name :
+                        fieldMonsterStays ?
+                            (equipGain > 0 ?
+                                fieldResult.Name + " equipado: +" + equipGain + " ATK/DEF." :
+                                "Sem combinacao: " + fieldResult.Name +
+                                " permanece; a carta de suporte foi descartada.") :
                         "Sem receita de fusao: " + fieldResult.Name +
                         " substituiu o monstro anterior.");
                     hud.AfterHandPlacement();

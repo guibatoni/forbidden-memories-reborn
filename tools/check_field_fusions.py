@@ -14,12 +14,16 @@ factory = read("Assets/Scripts/Presentation/ArenaFactory.cs")
 opponent = read("Assets/Scripts/Presentation/OpponentTurnDirector.cs")
 simple = read("Assets/Scripts/Core/SimpleOpponentAi.cs")
 smoke = read("tools/Reborn.Core.Smoke/Program.cs")
+chain = read("Assets/Scripts/Core/DuelMatch.FusionChain.cs")
+resolver = read("Assets/Scripts/Core/FusionChainResolver.cs")
 
 checks = {
     "core split preserves cross-assembly API": "public sealed partial class DuelMatch" in core and
         "public sealed partial class DuelMatch" in field,
-    "field material is the first fusion operand": "result = onField.Card;" in field and
-        "fusions.TryFuse(result, next" in field,
+    # 0.30: field and hand chains share FusionChainResolver (PS1 placement
+    # routine); the field card is material #1 of the resolved sequence.
+    "field material is the first fusion operand": "CollectHandMaterials(Side(side), onField.Card, indices)" in chain and
+        "chain = PreviewFieldChain(side, indices, monsterSlot);" in field,
     "five hand materials permitted": "indices.Count > HandLimit" in field,
     "field preview is pure": "public CardDefinition PreviewFieldResult(" in field and
         "return ResolveFieldSequence(" in field,
@@ -30,16 +34,24 @@ checks = {
     "no invented equipment effects": "result.Kind != CardKind.Monster" in field and
         "Combinacao com suporte nao validada" in field,
     "wrong Guardian Star rejected": "GuardianStarRules.IsAvailable(result, star)" in field,
-    "invalid sequence rejects repeated hand indexes": "new HashSet<int>()" in field and
-        "!seen.Add(index)" in field,
+    "invalid sequence rejects repeated hand indexes": "new HashSet<int>()" in chain and
+        "!seen.Add(index)" in chain,
     "originals are buried but virtual results are not": "state.Bury(onField.Card);" in field and
-        "if (index != survivor) discarded.Add(" in field,
+        "if (index != survivor) discarded.Add(" in field and
+        "if (!fieldSurvives)" in field,
     "final verified fusion face-up, later failed survivor preserves requested face":
         "finalResultIsFusion ? false : faceDown" in field and
-        "finalResultIsFusion = false;" in field,
-    "failure replaces earlier result": "current = next;" in field and
-        "MatchEventKind.FusionFailed" in field,
-    "real fusion uses validated recipes only": "fusions.TryFuse(current, next" in field,
+        "bool finalResultIsFusion = chain.FinalIsFusion;" in field,
+    "failure replaces earlier result": "current = next;" in resolver and
+        "FusionStepKind.DiscardedCurrent" in resolver and
+        "MatchEventKind.FusionFailed" in chain,
+    "monster survives a failed pair with a non-monster (PS1 state 7)":
+        "current.Kind == CardKind.Monster && next.Kind != CardKind.Monster" in resolver and
+        "FusionStepKind.DiscardedNext" in resolver,
+    "verified equips resolve inside the chain (PS1 state 5)":
+        "equips.CanApply(next, current, out var onCurrent)" in resolver and
+        "equips.CanApply(current, next, out var onNext)" in resolver,
+    "real fusion uses validated recipes only": "fusions.TryFuse(current, next, out var product)" in resolver,
     "player can click occupied own field slot": "match.Player.Monster(zone.Index) != null" in input_code and
         "PlaceMatchCard(zone);" in input_code,
     "player can drag to occupied own field slot": "PlaceMatchCard(releasedZone);" in input_code,

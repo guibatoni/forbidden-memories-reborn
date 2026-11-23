@@ -55,7 +55,7 @@ checks={
     "TryAutoPlaceSelected()" in mouse,
  "Auto-placement refuses no-recipe multi-material discards":
     "order.Count > 1" in keyboard and
-    "match.CountHandFusionSteps(DuelSide.Player, order) == 0" in keyboard,
+    "(chain == null || !chain.HasProductiveStep)" in keyboard,
  "Field replacement remains legal but is visually labeled, not a fusion":
     "CountFieldFusionSteps" in preview and
     "replacesWithoutFusion" in mouse and
