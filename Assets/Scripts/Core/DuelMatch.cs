@@ -98,6 +98,9 @@ namespace Reborn.Core
             deck = new Queue<CardDefinition>(original);
         }
         public int Life { get; internal set; } = 8000;
+        /// <summary>Retail duel_state_init sets max_life_points to the
+        /// starting LP; healing stops there (DuelEffect_ApplyLifePointRecovery).</summary>
+        public int MaxLife { get; internal set; } = 8000;
         public int DeckCount => deck.Count;
         public IReadOnlyList<CardDefinition> Hand => hand.AsReadOnly();
         public IReadOnlyList<CardDefinition> Graveyard => graveyard.AsReadOnly();
@@ -490,8 +493,10 @@ namespace Reborn.Core
             // Hidden traps are evaluated only when the real attack commits,
             // never during a preview. No guardian bonus or LP damage is leaked
             // when a trap cancels an attack before combat.
+            // Retail compares the trap threshold with Duel_CalcCardStats:
+            // ATK + Equip + terrain, without the Guardian Star bonus.
             if (TryTriggerAttackTrap(side, fromSlot, targetSlot,
-                forecast.EffectiveAttack))
+                forecast.AttackerBase))
             {
                 reason = "";
                 return true;

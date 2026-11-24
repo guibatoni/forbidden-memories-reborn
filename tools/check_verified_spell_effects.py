@@ -47,8 +47,9 @@ checks = {
         "owner.SetSupport(slot, null);" in effects and
         "MatchEventKind.SupportActivated" in effects and
         "MatchEventKind.Graveyard" in effects,
-    "life gain uses positive delta and no int overflow":
-        "Math.Min((long)rule.Amount" in effects and
+    # 0.30: retail caps recovery at max_life_points (= starting LP).
+    "life gain is capped at max LP (retail) with a non-negative delta":
+        "Math.Max(0, side.MaxLife - side.Life)" in effects and
         "MatchEventKind.LifeChanged" in effects,
     "raigeki targets opposing monsters only":
         "DestroyMonster(Other(user), i);" in effects,
@@ -67,7 +68,7 @@ checks = {
         "evt.Lane ?? FieldLane.Monster" in game,
     "core regressions test set and instant variants":
         "0.19 previously set Sparks activates later" in smoke and
-        "0.19 face-up Mooyan Curry heals 200" in smoke,
+        "0.30 Mooyan Curry at full LP is spent without exceeding max LP" in smoke,
     "nunit checks unverified text cannot execute":
         "UnverifiedEffectTextCannotActivateOrConsumeCards" in unity,
 }

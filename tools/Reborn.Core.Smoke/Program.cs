@@ -140,14 +140,14 @@ internal static class Program
             null, null, spells);
         Check(healing.TryPlay(DuelSide.Player, new[]{0}, FieldLane.Support,0,
             BattlePosition.Attack,GuardianStar.None,false,out var why) &&
-            healing.Player.Life == 8200 &&
+            healing.Player.Life == 8000 &&
             healing.Player.Support(0) == null &&
             healing.Player.Graveyard.Count == 1 &&
             healing.Player.Graveyard[0].Id == "338" &&
             healing.Events.Any(e=>e.Kind==MatchEventKind.SupportActivated &&
                 e.CardId=="338") &&
-            healing.Events.Any(e=>e.Kind==MatchEventKind.LifeChanged &&
-                e.Value==200), "0.19 face-up Mooyan Curry heals 200 and goes to graveyard");
+            !healing.Events.Any(e=>e.Kind==MatchEventKind.LifeChanged),
+            "0.30 Mooyan Curry at full LP is spent without exceeding max LP (retail)");
         Check(!healing.TryPlay(DuelSide.Player,new[]{0},FieldLane.Monster,1,
             BattlePosition.Attack,GuardianStar.None,out _),
             "0.19 instant spell still consumes exactly one mandatory play");

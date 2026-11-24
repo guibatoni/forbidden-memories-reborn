@@ -149,6 +149,37 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void AttackTrapThresholdIgnoresGuardianStarBonusLikeRetail()
+        {
+            // Retail compares Duel_CalcCardStats (ATK + Equip + terrain) with
+            // the threshold: 1600 + Mars>Jupiter bonus is 2100 in battle,
+            // but Invisible Wire (2000) still springs on the 1600 base.
+            var game = new DuelMatch(
+                Deck(Monster("attacker",1600,900,GuardianStar.Mars,GuardianStar.Sun)),
+                Deck(Support("684",CardKind.Trap),
+                    Monster("target",1200,1000,GuardianStar.Jupiter,GuardianStar.Moon)),
+                null,null,null,null,AttackTrapCatalog.OriginalPs1());
+            Play(game,DuelSide.Player,0,BattlePosition.Attack,GuardianStar.Mars);
+            End(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Defense,GuardianStar.None,
+                true,out var reason),reason);
+            End(game,DuelSide.Opponent);
+            Begin(game,DuelSide.Player); End(game,DuelSide.Player);
+            Play(game,DuelSide.Opponent,0,BattlePosition.Defense,GuardianStar.Jupiter);
+            End(game,DuelSide.Opponent);
+            Begin(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPreviewAttack(DuelSide.Player,0,0,
+                out var forecast,out reason),reason);
+            Assert.AreEqual(2100,forecast.EffectiveAttack);
+            Assert.IsTrue(game.TryAttack(DuelSide.Player,0,0,out reason),reason);
+            Assert.IsNull(game.Player.Monster(0));
+            Assert.IsNotNull(game.Opponent.Monster(0));
+            Assert.IsTrue(game.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="684"));
+        }
+
+        [Test]
         public void HiddenTrapsUseLowestEligibleThresholdWithoutRevealingOthers()
         {
             var game = new DuelMatch(
@@ -247,12 +278,36 @@ namespace Reborn.Tests
             Assert.IsTrue(duel.TryPlay(DuelSide.Player, new[]{0},
                 FieldLane.Support, 1, BattlePosition.Attack,
                 GuardianStar.None, false, out var reason), reason);
-            Assert.AreEqual(8500, duel.Player.Life);
+            // Retail heals up to max_life_points (= starting 8000): at full
+            // LP the card is spent and nothing is restored.
+            Assert.AreEqual(8000, duel.Player.Life);
             Assert.IsNull(duel.Player.Support(1));
             Assert.AreEqual("339", duel.Player.Graveyard.Last().Id);
-            Assert.IsTrue(duel.Events.Any(e => e.Kind ==
-                MatchEventKind.LifeChanged && e.Value == 500));
+            Assert.IsFalse(duel.Events.Any(e => e.Kind ==
+                MatchEventKind.LifeChanged));
             Assert.IsTrue(duel.PlayedThisTurn);
+        }
+
+        [Test]
+        public void HealingStopsAtStartingLifeLikeRetail()
+        {
+            var duel = new DuelMatch(
+                Deck(Monster("mine", 1000, 1000), Support("342")),
+                Deck(Support("343"), Monster("enemy", 1000, 1000)),
+                null, null, VerifiedSpellCatalog.OriginalPs1Core());
+            Play(duel, DuelSide.Player);
+            End(duel, DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent, new[]{0},
+                FieldLane.Support, 0, BattlePosition.Attack,
+                GuardianStar.None, false, out var reason), reason);
+            Assert.AreEqual(7950, duel.Player.Life);
+            End(duel, DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player, new[]{0},
+                FieldLane.Support, 0, BattlePosition.Attack,
+                GuardianStar.None, false, out reason), reason);
+            Assert.AreEqual(8000, duel.Player.Life, "Dian Keto stops at max LP");
+            Assert.IsTrue(duel.Events.Any(e => e.Kind ==
+                MatchEventKind.LifeChanged && e.Value == 50));
         }
 
         [Test]

@@ -58,6 +58,23 @@ checks and one EditMode test that asserted that are updated. The placement
 wizard skips the Face Up / Face Down step for chains and shows a single
 confirmation when the field monster stays in place.
 
+## Rules audit against the decompiled retail code
+
+| System | Retail reference | Result |
+|---|---|---|
+| Guardian Star cycles and +500 | `duel_calc_guardian_star_matchup.c`, `duel_scene_battle.c` | Matches (signed bonus on attacker only = winner +500) |
+| Battle damage / destruction | `func_8001EFD4`, battle state 5 | Matches (1-point difference quirk not reproduced) |
+| Terrain table (20 types x 6) | `gDuel_aTerrainBoost` | Matches, ATK and DEF |
+| LP recovery 338-342 (200..5000) | `DuelEffect_ApplyLifePointRecovery` | **Fixed**: healing now stops at max LP (= starting 8000) |
+| Direct damage 343-347 (50..1000) | `DuelEffect_ApplyDirectDamage` | Matches |
+| Goblin Fan 687 / Simochi 688 | same handlers | Matches (same amount reflected/reversed) |
+| Dark Hole 336 | `DuelEffect_ApplyBoardDestruction` | Matches (monsters + supports, both sides) |
+| Raigeki 337 | `DuelEffect_ApplyRaigeki` | Matches (opponent monsters) |
+| Attack traps 681-686 | `duel_trap_resolution.c` | Lowest eligible threshold matches; **fixed**: threshold now uses ATK+Equip+terrain without the Guardian Star bonus (`Duel_CalcCardStats`) |
+| Ritual tributes | retail `Duel_CheckRitual` | **Fixed**: face-down tributes are valid (only "occupied" is tested) |
+
+Not implemented (kept inactive as unverified): Dragon Capture Jar 329, Fake Trap 690.
+
 ## Technical changes
 
 - `Core/FusionChainResolver.cs` — new pure resolver (no Unity, no state).

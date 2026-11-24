@@ -53,8 +53,10 @@ namespace Reborn.Core
                         break;
                     }
                     var side = Side(user);
-                    int healed = (int)Math.Min((long)rule.Amount,
-                        (long)int.MaxValue - side.Life);
+                    // Retail caps recovery at max_life_points (= starting LP):
+                    // a heal at full LP restores nothing.
+                    int healed = Math.Min(rule.Amount,
+                        Math.Max(0, side.MaxLife - side.Life));
                     if (healed > 0)
                     {
                         side.Life += healed;
