@@ -44,3 +44,6 @@ Assets/StreamingAssets/RebornContent/*.json
 # Generated .NET AI Lab builds and local benchmark outputs.
 [Bb]in/
 ai-lab/
+
+__pycache__/
+*.pyc

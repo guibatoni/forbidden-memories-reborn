@@ -20,7 +20,18 @@ namespace Reborn.Presentation
         public int FusionCount { get; set; }
         public bool OpponentBusy { get; private set; }
         public bool PlayerAttackBusy { get; private set; }
-        public bool InputLocked => OpponentBusy || PlayerAttackBusy;
+        private bool missingOriginalContent;
+        private bool demoAcknowledged;
+        public bool ContentImportRequired => missingOriginalContent && !demoAcknowledged;
+        public bool InputLocked => OpponentBusy || PlayerAttackBusy || ContentImportRequired || PlacementWizardOpen || EquipChoiceOpen || StarterSelectionRequired ||
+            KeyboardSettingsOpen || FusionAssistantOpen;
+
+        /// <summary>No arbitrary placeholder gameplay before explicit demo opt-in.</summary>
+        public void ConfigureContentAvailability(bool originalLoaded)
+        {
+            missingOriginalContent = !originalLoaded;
+            demoAcknowledged = false;
+        }
         public event Action<int, int> PlayerAttackRequested;
         public void SetPlayerAttackBusy(bool active) { PlayerAttackBusy = active; }
         private int opponentPaceIndex; // 0 detalhado, 1 normal, 2 rapido
@@ -59,6 +70,7 @@ namespace Reborn.Presentation
         private bool showStory;
         private Vector2 storyScroll;
         public CardDefinition HoveredCard { get; set; }
+        public CardDefinition FieldFusionPreview { get; set; }
         public bool CardPreviewEnabled { get; private set; } = true;
         private GUIStyle heading;
         private GUIStyle body;
@@ -92,10 +104,16 @@ namespace Reborn.Presentation
         public void SetDuelMode(bool active)
         {
             if (match == null) return;
+            CancelPlacementChoices();
+            CancelEquipChoice();
+            CloseKeyboardSettings();
+            CloseFusionAssistant();
             DuelModeActive = active;
             OpponentBusy = false;
             PlayerAttackBusy = false;
             recentActions.Clear();
+            CloseCardInspection();
+            FieldFusionPreview = null;
             SelectedHandIndex = -1;
             HoveredCard = null;
             SelectedAttacker = -1;
@@ -104,17 +122,23 @@ namespace Reborn.Presentation
             SelectedSupportSlot = -1;
             FusionCount = 0;
             AttackMode = false;
-            Message = active ? "MODO DUELO 0.14.3: interface de cartas 2.5D, motor experimental." :
+            Message = active ? "MODO DUELO 0.25: F mostra fusoes validas; Q=ATK e E=DEF." :
                 "Sandbox visual 0.3 restaurado.";
             ModeChanged?.Invoke(active);
         }
 
         public void ResetMatch(DuelMatch model)
         {
+            CancelPlacementChoices();
+            CancelEquipChoice();
+            CloseKeyboardSettings();
+            CloseFusionAssistant();
             match = model;
             OpponentBusy = false;
             PlayerAttackBusy = false;
             recentActions.Clear();
+            CloseCardInspection();
+            FieldFusionPreview = null;
             SelectedHandIndex = -1;
             HoveredCard = null;
             SelectedAttacker = -1;
@@ -150,8 +174,16 @@ namespace Reborn.Presentation
         {
             float x = pointer.x;
             float y = Screen.height - pointer.y;
-            return showStory || (x < 264f && y < (DuelModeActive ? 543f : 315f)) ||
-                (x > Screen.width - 220f && y < 638f);
+            return ContentImportRequired || StarterSelectionRequired || PlacementWizardOpen ||
+                EquipChoiceOpen || KeyboardSettingsOpen || FusionAssistantOpen ||
+                CardInspectionOpen || showStory ||
+                (x < 264f && (y < (DuelModeActive ? 543f : 315f) ||
+                    (DuelModeActive && y > Screen.height - 118f &&
+                     y < Screen.height - 68f))) ||
+                (DuelModeActive && Screen.height < 651f &&
+                    x > (Screen.width - 251f)*0.5f &&
+                    x < (Screen.width + 251f)*0.5f && y < 62f) ||
+                (x > Screen.width - 225f && (y < 638f || y > Screen.height - 55f));
         }
 
         private GUIStyle Style(int size, Color color, FontStyle weight = FontStyle.Normal)
@@ -192,10 +224,47 @@ namespace Reborn.Presentation
         {
             if (session == null) return;
             InitStyles();
+            if (KeyboardSettingsOpen)
+            {
+                DrawKeyboardSettings();
+                return;
+            }
+            if (ContentImportRequired)
+            {
+                DrawMissingOriginalContent();
+                return;
+            }
+            if (StarterSelectionRequired)
+            {
+                DrawStarterDeckChoice();
+                return;
+            }
+            if (EquipChoiceOpen)
+            {
+                DrawEquipChoice();
+                return;
+            }
+            if (PlacementWizardOpen)
+            {
+                DrawPlacementChoices();
+                return;
+            }
+            if (FusionAssistantOpen)
+            {
+                DrawFusionAssistant();
+                return;
+            }
+            if (CardInspectionOpen)
+            {
+                DrawPinnedCardInspection();
+                return;
+            }
             if (DuelModeActive && match != null)
             {
                 DrawMatchHud();
                 DrawCardInspection();
+                DrawFusionAssistantLauncher();
+                DrawKeyboardSettingsLauncher();
                 return;
             }
             float right = Screen.width - 208f;
@@ -264,10 +333,45 @@ namespace Reborn.Presentation
             {
                 Panel(new Rect(12,Screen.height-153,263,130),new Color(0.015f,0.027f,0.06f,0.87f));
                 GUI.Label(new Rect(23,Screen.height-146,240,116),
-                    "Clique em carta > clique em zona\nArraste carta ate a zona\nBotao direito: girar camera\nRoda do mouse: zoom\nTecla R: camera inicial\nESC: cancelar selecao",small);
+                    "Clique em carta > clique em zona\nArraste carta ate a zona\nBotao direito: inspecionar carta\nRoda do mouse: zoom\nTecla R: camera inicial\nESC: cancelar selecao",small);
             }
             DrawCardInspection();
             if (showStory && story != null) DrawStory();
+        }
+
+        /// <summary>
+        /// Do not silently label fictional p01-p08 cards as the retail catalog.
+        /// The game remains playable in an explicitly acknowledged demo mode.
+        /// </summary>
+        private void DrawMissingOriginalContent()
+        {
+            Panel(new Rect(0f, 0f, Screen.width, Screen.height),
+                new Color(0.009f, 0.015f, 0.035f, 0.985f));
+            float w = Mathf.Min(700f, Screen.width - 28f);
+            float h = Mathf.Min(450f, Screen.height - 22f);
+            float x = (Screen.width - w) * 0.5f;
+            float y = (Screen.height - h) * 0.5f;
+            Panel(new Rect(x,y,w,h),new Color(0.035f, 0.053f, 0.105f, 0.99f));
+            Panel(new Rect(x+15f,y+14f,w-30f,5f),new Color(0.90f,0.68f,0.31f));
+            GUI.Label(new Rect(x+25f,y+32f,w-50f,55f),
+                "CATALOGO ORIGINAL AINDA NAO CARREGADO",heading);
+            var info = "O Reborn encontrou apenas as cartas ficticias de demonstracao.\n" +
+                "Nenhuma carta p01-p08 pertence ao catalogo original do PS1.\n\n" +
+                "1. Pare o modo Play no Unity.\n" +
+                "2. Na pasta do projeto, execute no PowerShell:\n" +
+                "   .\\tools\\IMPORTAR_DO_DUELTRACE.ps1 -ArtesLocais\n" +
+                "3. Aguarde a validacao das 722 cartas e reinicie o Play.\n\n" +
+                "O Unity tambem tenta ler automaticamente um unico perfil\n" +
+                "Original validado do DUELTRACE instalado neste Windows.";
+            GUI.Label(new Rect(x+25f,y+92f,w-50f,250f),info,body);
+            GUI.Label(new Rect(x+25f,y+h-94f,w-50f,48f),
+                "Diagnostico: " + importStatus,small);
+            if (GUI.Button(new Rect(x+25f,y+h-45f,w-50f,33f),
+                "Continuar apenas no modo DEMONSTRACAO",button))
+            {
+                demoAcknowledged = true;
+                Announce("DEMONSTRACAO: cartas ficticias p01-p08. Importe o catalogo Original.");
+            }
         }
 
         private void DrawMatchHud()
@@ -275,7 +379,7 @@ namespace Reborn.Presentation
             float right = Screen.width - 208f;
             bool finished = match.Phase == MatchPhase.Finished;
             Panel(new Rect(12,12,251,305),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.14.3",heading);
+            GUI.Label(new Rect(23,17,222,33),"REBORN | 0.25",heading);
             GUI.Label(new Rect(23,55,224,26),"Seus LP: " + match.Player.Life,body);
             GUI.Label(new Rect(23,81,224,26),"Oponente LP: " + match.Opponent.Life,body);
             GUI.Label(new Rect(23,107,224,25),"Deck: " + match.Player.DeckCount +
@@ -284,8 +388,25 @@ namespace Reborn.Presentation
                 (match.Phase == MatchPhase.Battle ? "Batalha" : "Principal");
             GUI.Label(new Rect(23,130,224,25),"Turno: " + match.Turn +
                 "   Fase: " + phaseName,small);
-            GUI.Label(new Rect(23,156,230,24),"Selecao fusao: " + FusionCount + "/5",small);
-            if (SelectedHandIndex >= 0 && SelectedHandIndex < match.Player.Hand.Count)
+            GUI.Label(new Rect(23,294,224,27),
+                "Terreno: " + match.CurrentTerrainName, small);
+            GUI.Label(new Rect(23,156,230,24),"Materiais: " + FusionCount + "/5  |  Fusoes: " +
+                match.FusionRecipeCount,small);
+            if (FieldFusionPreview != null && match.Phase == MatchPhase.Main)
+            {
+                GUI.Label(new Rect(23,183,227,44),
+                    (SelectedHandIndex >= 0 &&
+                     SelectedHandIndex < match.Player.Hand.Count &&
+                     match.Player.Hand[SelectedHandIndex].Kind == CardKind.Ritual ?
+                     "RITUAL: " : "FUSAO: ") + FieldFusionPreview.Name,body);
+                GUI.Label(new Rect(23,226,227,24),
+                    "ATK " + FieldFusionPreview.Attack +
+                    "  DEF " + FieldFusionPreview.Defense,small);
+                GUI.Label(new Rect(23,249,227,50),
+                    "Guardian: " + FieldFusionPreview.StarA +
+                    " / " + FieldFusionPreview.StarB,small);
+            }
+            else if (SelectedHandIndex >= 0 && SelectedHandIndex < match.Player.Hand.Count)
             {
                 var card = match.Player.Hand[SelectedHandIndex];
                 GUI.Label(new Rect(23,183,227,44),card.Name,body);
@@ -340,7 +461,7 @@ namespace Reborn.Presentation
                 }
             }
             Panel(new Rect(right,12,196,612),new Color(0.015f,0.027f,0.06f,0.94f));
-            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.14.3",heading);
+            GUI.Label(new Rect(right+12,20,180,32),"DUELO 0.25",heading);
             if (finished)
             {
                 GUI.Label(new Rect(right+13,54,175,30),"Duelo encerrado",small);
@@ -400,18 +521,13 @@ namespace Reborn.Presentation
                         "SUA BATALHA" : "SUA JOGADA") : "Turno da IA",small);
                 GUI.Label(new Rect(right+13,77,175,19),AiInsight,small);
                 GUI.Label(new Rect(right+12,101,177,23),
-                    "1 Face > 2 ATK/DEF > 3 Guardian",small);
-                bool canPlace = player && !InputLocked && match.Phase == MatchPhase.Main;
-                GUI.enabled = canPlace;
-                if (GUI.Button(new Rect(right+12,128,170,33),
-                    PlaceFaceDown ? "Face: PARA BAIXO" : "Face: PARA CIMA",button))
-                    PlaceFaceDown = !PlaceFaceDown;
-                if (GUI.Button(new Rect(right+12,168,170,33),
-                    UseDefense ? "Colocar: DEF" : "Colocar: ATK",button))
-                    UseDefense = !UseDefense;
-                if (GUI.Button(new Rect(right+12,208,170,33),
-                    UseSecondaryStar ? "Guardian: segunda" : "Guardian: primeira",button))
-                    UseSecondaryStar = !UseSecondaryStar;
+                    "JOGADA PASSO A PASSO",small);
+                GUI.Label(new Rect(right+12,131,177,106),
+                    "1. Selecione cartas da mao\n" +
+                    "2. Escolha uma zona\n" +
+                    "3. Guardian Star (tela)\n" +
+                    "4. Face-up / Face-down (tela)\n" +
+                    "5. ATK/DEF antes de jogar",small);
                 GUI.enabled = player && !InputLocked;
 
                 if (SelectedFieldMonster >= 0 && match.Player.Monster(SelectedFieldMonster) != null)
@@ -419,6 +535,11 @@ namespace Reborn.Presentation
                     var monster = match.Player.Monster(SelectedFieldMonster);
                     var next = monster.Position == BattlePosition.Attack ?
                         BattlePosition.Defense : BattlePosition.Attack;
+                    if (!monster.FaceDown && monster.EquipCount > 0)
+                        GUI.Label(new Rect(right+12,211,177,39),
+                            "ATK " + monster.EffectiveAttack +
+                            " / DEF " + monster.EffectiveDefense +
+                            "  (+" + monster.EquipAttackBonus + " Equip)",small);
                     GUI.enabled = player && !InputLocked &&
                         match.CanChangePosition(DuelSide.Player,SelectedFieldMonster,next,out _);
                     if (GUI.Button(new Rect(right+12,250,170,36),
@@ -428,19 +549,35 @@ namespace Reborn.Presentation
                 }
                 else if (SelectedSupportSlot >= 0)
                 {
-                    if (GUI.Button(new Rect(right+12,250,170,36),
-                        "Ativar suporte setado",button))
-                        TryActivateSelectedSupport();
+                    var chosenSupport = match.Player.Support(SelectedSupportSlot);
+                    if (chosenSupport != null &&
+                        chosenSupport.Kind == CardKind.Equip)
+                    {
+                        GUI.Label(new Rect(right+12,244,176,59),
+                            "EQUIP setado: clique no seu monstro revelado para escolher o alvo.",small);
+                    }
+                    else
+                    {
+                        GUI.enabled = player && !InputLocked &&
+                            match.CanActivateSupport(DuelSide.Player,
+                                SelectedSupportSlot, out _);
+                        if (GUI.Button(new Rect(right+12,250,170,36),
+                            GUI.enabled ? "Ativar magia setada" : "Efeito indisponivel",button))
+                            TryActivateSelectedSupport();
+                        GUI.enabled = player && !InputLocked;
+                    }
                 }
                 else GUI.Label(new Rect(right+13,247,174,37),
                     "Selecione um monstro no campo para mudar ATK/DEF",small);
 
+                GUI.enabled = player && !InputLocked && match.PlayedThisTurn;
                 if (GUI.Button(new Rect(right+12,296,170,39),
-                    match.Phase == MatchPhase.Main ? "Passar sem baixar" : "Passar turno",button))
+                    match.PlayedThisTurn ? "Passar turno [Espaco]" :
+                    "Baixe uma carta primeiro",button))
                     TryPassPlayerTurn();
                 GUI.enabled = true;
                 GUI.Label(new Rect(right+12,342,177,53),
-                    "ATACAR: seu monstro > alvo\nDIRETO: clique na area rival",small);
+                    "Q/E: ATK/DEF  ESPACO: passar\nATACAR: monstro > alvo",small);
                 if (GUI.Button(new Rect(right+12,404,170,33),"Novo duelo",button))
                     NewMatchRequested?.Invoke();
                 if (GUI.Button(new Rect(right+12,446,170,33),"Voltar ao Sandbox",button))
@@ -479,7 +616,7 @@ namespace Reborn.Presentation
             if (!CardPreviewEnabled) return;
             // Combat forecast takes precedence over enlarged card inspection.
             if (DuelModeActive && AttackMode && SelectedAttacker >= 0) return;
-            CardDefinition card = HoveredCard;
+            CardDefinition card = FieldFusionPreview ?? HoveredCard;
             if (card == null && SelectedHandIndex >= 0)
             {
                 if (DuelModeActive && match != null && SelectedHandIndex < match.Player.Hand.Count)

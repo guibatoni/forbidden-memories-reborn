@@ -2,7 +2,9 @@
   "name": "Reborn.Core.Tests",
   "rootNamespace": "Reborn.Tests",
   "references": [
-    "Reborn.Core"
+    "Reborn.Core",
+    "Reborn.Presentation",
+    "Unity.InputSystem"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

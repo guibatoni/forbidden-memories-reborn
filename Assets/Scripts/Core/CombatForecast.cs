@@ -17,6 +17,10 @@ namespace Reborn.Core
         public bool IsDirect => DefenderCard == null;
         public int AttackerBase { get; }
         public int DefenderBase { get; }
+        public int AttackerEquipBonus { get; }
+        public int DefenderEquipBonus { get; }
+        public int AttackerTerrainBonus { get; }
+        public int DefenderTerrainBonus { get; }
         public int AttackerGuardianBonus { get; }
         public int DefenderGuardianBonus { get; }
         public int EffectiveAttack => AttackerBase + AttackerGuardianBonus;
@@ -26,12 +30,15 @@ namespace Reborn.Core
         public int DamageToAttacker { get; }
         public int DamageToDefender { get; }
 
-        internal CombatForecast(MonsterOnField attacker, MonsterOnField defender)
+        internal CombatForecast(MonsterOnField attacker, MonsterOnField defender,
+            string terrainCardId = "")
         {
             if (attacker == null) throw new ArgumentNullException(nameof(attacker));
             AttackerCard = attacker.Card;
             AttackerStar = attacker.Star;
-            AttackerBase = attacker.Card.Attack;
+            AttackerTerrainBonus = TerrainRules.Bonus(terrainCardId, attacker.Card);
+            AttackerBase = Math.Max(0, attacker.EffectiveAttack + AttackerTerrainBonus);
+            AttackerEquipBonus = attacker.EquipAttackBonus;
             if (defender == null)
             {
                 DamageToDefender = AttackerBase;
@@ -41,8 +48,12 @@ namespace Reborn.Core
             DefenderCard = defender.Card;
             DefenderStar = defender.Star;
             DefenderPosition = defender.Position;
-            DefenderBase = defender.Position == BattlePosition.Attack
-                ? defender.Card.Attack : defender.Card.Defense;
+            DefenderTerrainBonus = TerrainRules.Bonus(terrainCardId, defender.Card);
+            DefenderBase = Math.Max(0, (defender.Position == BattlePosition.Attack
+                ? defender.EffectiveAttack : defender.EffectiveDefense) +
+                DefenderTerrainBonus);
+            DefenderEquipBonus = defender.Position == BattlePosition.Attack
+                ? defender.EquipAttackBonus : defender.EquipDefenseBonus;
             AttackerGuardianBonus = GuardianStarRules.Bonus(attacker.Star, defender.Star);
             DefenderGuardianBonus = GuardianStarRules.Bonus(defender.Star, attacker.Star);
 

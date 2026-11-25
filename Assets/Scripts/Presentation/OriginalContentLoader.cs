@@ -23,6 +23,7 @@ namespace Reborn.Presentation
             public OpponentData[] opponents;
             public StoryData story;
             public FusionData[] fusions;
+            public RitualData[] rituals;
         }
         [Serializable] private sealed class SourceData
         {
@@ -38,6 +39,10 @@ namespace Reborn.Presentation
             public int attack;
             public int defense;
             public string description;
+            public string effectText;
+            public string effectSource;
+            public string effectStatus;
+            public string typeLabel;
             public string guardianStarA;
             public string guardianStarB;
         }
@@ -45,6 +50,13 @@ namespace Reborn.Presentation
         {
             public int materialA;
             public int materialB;
+            public int result;
+            public bool verified;
+        }
+        [Serializable] private sealed class RitualData
+        {
+            public int ritualCard;
+            public int[] tributes;
             public int result;
             public bool verified;
         }
@@ -92,8 +104,11 @@ namespace Reborn.Presentation
             try
             {
                 var parsed = JsonUtility.FromJson<ExportFile>(File.ReadAllText(ExpectedPath));
-                if (parsed == null || parsed.schema != 1 || parsed.cards == null || parsed.cards.Length == 0)
-                    throw new InvalidDataException("Schema 1 e lista de cartas sao obrigatorios");
+                if (parsed == null || parsed.schema != 1 || parsed.cards == null ||
+                    parsed.cards.Length != 722)
+                    throw new InvalidDataException(
+                        "O catalogo Original precisa conter exatamente 722 cartas; " +
+                        "importacoes parciais nao podem ativar baralhos de demonstração");
                 if (parsed.source == null || string.IsNullOrWhiteSpace(parsed.source.edition) ||
                     !(parsed.source.edition == "original-ps1" ||
                       parsed.source.edition.StartsWith("original-ps1-",StringComparison.Ordinal)))
@@ -103,10 +118,13 @@ namespace Reborn.Presentation
                     throw new InvalidDataException("discSha256 deve ser SHA-256 de 64 caracteres hexadecimais");
 
                 var cards = new List<CardDefinition>(parsed.cards.Length);
+                var seenCardIds = new HashSet<int>();
                 foreach (var entry in parsed.cards)
                 {
-                    if (entry.id < 1 || entry.id > 722)
-                        throw new InvalidDataException("ID fora do conjunto original de 1 a 722: " + entry.id);
+                    if (entry == null || entry.id < 1 || entry.id > 722 ||
+                        !seenCardIds.Add(entry.id) || string.IsNullOrWhiteSpace(entry.name))
+                        throw new InvalidDataException(
+                            "Carta com ID duplicado, invalido ou sem nome no export Original");
                     if (!Enum.TryParse(entry.kind, true, out CardKind kind))
                         throw new InvalidDataException($"Tipo de carta desconhecido: {entry.kind} / #{entry.id}");
                     GuardianStar a = ParseStar(entry.guardianStarA);
@@ -114,7 +132,9 @@ namespace Reborn.Presentation
                     if ((a == GuardianStar.None) != (b == GuardianStar.None))
                         throw new InvalidDataException("Guardian Stars devem vir em par: #" + entry.id);
                     cards.Add(new CardDefinition(entry.id.ToString("000"),entry.name,kind,
-                        entry.attack,entry.defense,entry.description,a,b));
+                        entry.attack,entry.defense,entry.description,a,b,
+                        entry.effectText,entry.effectSource,entry.effectStatus,
+                        entry.typeLabel));
                 }
                 // Only fusions explicitly flagged as verified are accepted.
                 // The flag is source metadata, not proof of binary equivalence.
@@ -140,6 +160,40 @@ namespace Reborn.Presentation
                         fusions.Add(aId,bId,result);
                     }
                 }
+                var rituals = new RitualCatalog();
+                if (parsed.rituals != null)
+                {
+                    foreach (var entry in parsed.rituals)
+                    {
+                        if (entry == null || !entry.verified ||
+                            entry.ritualCard < 1 || entry.ritualCard > 722 ||
+                            entry.result < 1 || entry.result > 722 ||
+                            entry.tributes == null || entry.tributes.Length != 3)
+                            throw new InvalidDataException("Receita de ritual PS1 incompleta");
+
+                        string ritualId = entry.ritualCard.ToString("000");
+                        string resultId = entry.result.ToString("000");
+                        if (!lookup.TryGetValue(ritualId, out var ritualCard) ||
+                            ritualCard.Kind != CardKind.Ritual ||
+                            !lookup.TryGetValue(resultId, out var summon) ||
+                            summon.Kind != CardKind.Monster)
+                            throw new InvalidDataException("Ritual com tipos incompatíveis");
+
+                        var materials = new string[3];
+                        for (int i = 0; i < 3; i++)
+                        {
+                            int tribute = entry.tributes[i];
+                            if (tribute < 1 || tribute > 722)
+                                throw new InvalidDataException("ID de tributo fora do PS1");
+                            string id = tribute.ToString("000");
+                            if (!lookup.TryGetValue(id, out var card) ||
+                                card.Kind != CardKind.Monster)
+                                throw new InvalidDataException("Tributo nao e monstro: " + id);
+                            materials[i] = id;
+                        }
+                        rituals.Add(ritualId, materials, summon);
+                    }
+                }
                 var opponents = new List<OpponentDefinition>();
                 if (parsed.opponents != null)
                     foreach (var entry in parsed.opponents)
@@ -162,12 +216,13 @@ namespace Reborn.Presentation
                     script = new CampaignScript(parsed.story.startNodeId,nodes,opponents);
                 }
                 bundle = new GameContentBundle(parsed.source.edition,parsed.source.language,sha,
-                    cards,opponents,script,fusions);
+                    cards,opponents,script,fusions,rituals);
                 // Importacao de JSON nao garante que os bytes conferem com a ISO informada.
                 status = $"Importado (nao validado contra a ISO): {cards.Count}/722 cartas, " +
                     $"{bundle.MissingDescriptions} descricoes vazias, {opponents.Count} oponentes, " +
                     $"{(script == null ? 0 : script.Nodes.Count)} eventos, " +
-                    $"{fusions.Count} receitas importadas.";
+                    $"{fusions.Count} receitas importadas, {rituals.Count} rituais, " +
+                    $"{cards.FindAll(c => c.HasEffectText).Count} textos de efeito informativos.";
                 return true;
             }
             catch (Exception ex)

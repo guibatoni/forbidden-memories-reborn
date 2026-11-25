@@ -12,7 +12,7 @@ namespace Reborn.Tests
         private static IReadOnlyList<CardDefinition> Deck(params CardDefinition[] first)
         {
             var cards = new List<CardDefinition>(first);
-            for (int i = 1; i < 40; i++) cards.Add(M("f" + i, 900));
+            for (int i = first.Length; i < 40; i++) cards.Add(M("f" + i, 900));
             return cards;
         }
 
@@ -23,6 +23,8 @@ namespace Reborn.Tests
             var brain = new AdaptiveOpponentBrain(new Random(123));
             brain.StartDuel(new AiLearningState("demo"));
             Assert.IsFalse(brain.TryChoosePlacement(duel, out _));
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,0,BattlePosition.Attack,GuardianStar.None,out _));
             Assert.IsTrue(duel.TryEndTurn(DuelSide.Player, out _));
             int oldEvents = duel.Events.Count;
             Assert.IsTrue(brain.TryChoosePlacement(duel, out var plan));
@@ -54,7 +56,8 @@ namespace Reborn.Tests
         public void MultistepSearchClearsWallWithWeakerMonsterBeforeDirectAttack()
         {
             var match = new DuelMatch(
-                Deck(new CardDefinition("defender", "defender", CardKind.Monster, 200, 1800, "")),
+                Deck(new CardDefinition("defender", "defender", CardKind.Monster, 200, 1800, ""),
+                    new CardDefinition("turn2", "support", CardKind.Spell, 0, 0, "")),
                 Deck(M("low", 2100), M("high", 3200)));
             Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0 },
                 FieldLane.Monster, 0, BattlePosition.Defense,
@@ -64,6 +67,8 @@ namespace Reborn.Tests
                 FieldLane.Monster, 0, BattlePosition.Attack,
                 GuardianStar.None, out _));
             Assert.IsTrue(match.TryEndTurn(DuelSide.Opponent, out _));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Defense,GuardianStar.None,true,out _));
             Assert.IsTrue(match.TryEndTurn(DuelSide.Player, out _));
             Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] { 0 },
                 FieldLane.Monster, 1, BattlePosition.Attack,

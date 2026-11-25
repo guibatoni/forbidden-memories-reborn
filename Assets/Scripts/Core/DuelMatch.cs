@@ -5,8 +5,8 @@ namespace Reborn.Core
 {
     public enum MatchEventKind
     {
-        Reset, Draw, Play, Fusion, FusionFailed, BattleStarted, PositionChanged, SupportActivated, Attack,
-        Destroy, LifeChanged, TurnStarted, Graveyard, Finished
+        Reset, Draw, Play, Fusion, FusionFailed, RitualSummoned, BattleStarted, PositionChanged, SupportActivated, Attack,
+        Destroy, LifeChanged, TurnStarted, Graveyard, Equipped, TerrainChanged, TrapTriggered, Finished
     }
 
     public sealed class MatchEvent
@@ -43,6 +43,28 @@ namespace Reborn.Core
         public bool PositionChangedThisTurn { get; internal set; }
         public bool FaceDown { get; private set; }
         public int TurnPlaced { get; }
+        public int EquipAttackBonus { get; private set; }
+        public int EquipDefenseBonus { get; private set; }
+        public int EquipCount { get; private set; }
+        public int EffectiveAttack => checked(Card.Attack + EquipAttackBonus);
+        public int EffectiveDefense => checked(Card.Defense + EquipDefenseBonus);
+
+        internal bool CanApplyEquip(int attack, int defense)
+        {
+            return attack > 0 && defense > 0 &&
+                (long)Card.Attack + EquipAttackBonus + attack <= int.MaxValue &&
+                (long)Card.Defense + EquipDefenseBonus + defense <= int.MaxValue &&
+                EquipCount < int.MaxValue;
+        }
+
+        internal void ApplyEquip(int attack, int defense)
+        {
+            if (!CanApplyEquip(attack, defense))
+                throw new InvalidOperationException("Bonus de equip fora de faixa");
+            EquipAttackBonus += attack;
+            EquipDefenseBonus += defense;
+            EquipCount++;
+        }
 
         internal MonsterOnField(CardDefinition card, BattlePosition position, GuardianStar star,
             bool faceDown = false, int turnPlaced = -1)
@@ -52,8 +74,10 @@ namespace Reborn.Core
         }
         internal void SetPosition(BattlePosition position)
         {
+            // Changing ATK/DEF rotates the set card, but does NOT expose it.
+            // FaceDown changes only in Reveal(), called by actual combat.
             Position = position;
-            FaceDown = false;
+            // The player may change positions repeatedly until this monster attacks.
             PositionChangedThisTurn = true;
         }
         internal void Reveal() { FaceDown = false; }
@@ -74,6 +98,9 @@ namespace Reborn.Core
             deck = new Queue<CardDefinition>(original);
         }
         public int Life { get; internal set; } = 8000;
+        /// <summary>Retail duel_state_init sets max_life_points to the
+        /// starting LP; healing stops there (DuelEffect_ApplyLifePointRecovery).</summary>
+        public int MaxLife { get; internal set; } = 8000;
         public int DeckCount => deck.Count;
         public IReadOnlyList<CardDefinition> Hand => hand.AsReadOnly();
         public IReadOnlyList<CardDefinition> Graveyard => graveyard.AsReadOnly();
@@ -121,7 +148,7 @@ namespace Reborn.Core
     /// decks remain pending verified ISO extraction. Guarding these unknowns prevents
     /// fake mechanics or placeholder data from entering the production engine.
     /// </summary>
-    public sealed class DuelMatch
+    public sealed partial class DuelMatch
     {
         public const int DeckSize = 40;
         public const int ZoneCount = 5;
@@ -129,6 +156,11 @@ namespace Reborn.Core
         private readonly MatchSide player;
         private readonly MatchSide opponent;
         private readonly FusionCatalog fusions;
+        private readonly RitualCatalog rituals;
+        private readonly VerifiedSpellCatalog verifiedSpells;
+        private readonly VerifiedEquipCatalog verifiedEquips;
+        private readonly AttackTrapCatalog attackTraps;
+        private readonly ReactiveTrapCatalog reactiveTraps;
         private readonly List<MatchEvent> history = new List<MatchEvent>();
         private long sequence;
         private bool hasPlayed;
@@ -143,15 +175,27 @@ namespace Reborn.Core
         public int Turn { get; private set; } = 1;
         public IReadOnlyList<MatchEvent> Events => history.AsReadOnly();
         public bool PlayedThisTurn => hasPlayed;
+        public string CurrentTerrainCardId { get; private set; } = "";
+        public string CurrentTerrainName => TerrainRules.Name(CurrentTerrainCardId);
 
         public DuelMatch(IReadOnlyList<CardDefinition> playerDeck,
-            IReadOnlyList<CardDefinition> opponentDeck, FusionCatalog catalog = null)
+            IReadOnlyList<CardDefinition> opponentDeck, FusionCatalog catalog = null,
+            RitualCatalog ritualCatalog = null,
+            VerifiedSpellCatalog spellCatalog = null,
+            VerifiedEquipCatalog equipCatalog = null,
+            AttackTrapCatalog trapCatalog = null,
+            ReactiveTrapCatalog reactionCatalog = null)
         {
             CheckDeck(playerDeck, nameof(playerDeck));
             CheckDeck(opponentDeck, nameof(opponentDeck));
             player = new MatchSide(playerDeck);
             opponent = new MatchSide(opponentDeck);
             fusions = catalog ?? new FusionCatalog();
+            rituals = ritualCatalog ?? new RitualCatalog();
+            verifiedSpells = spellCatalog ?? new VerifiedSpellCatalog();
+            verifiedEquips = equipCatalog ?? new VerifiedEquipCatalog();
+            attackTraps = trapCatalog ?? new AttackTrapCatalog();
+            reactiveTraps = reactionCatalog ?? new ReactiveTrapCatalog();
             Emit(MatchEventKind.Reset, DuelSide.Player);
             DrawToHand(player, DuelSide.Player, false);
             DrawToHand(opponent, DuelSide.Opponent, false);
@@ -203,18 +247,8 @@ namespace Reborn.Core
 
         public CardDefinition PreviewResult(DuelSide side, IReadOnlyList<int> indices)
         {
-            if (indices == null || indices.Count == 0 || indices.Count > HandLimit) return null;
-            var hand = Side(side).Hand;
-            var seen = new HashSet<int>();
-            CardDefinition result = null;
-            foreach (var index in indices)
-            {
-                if (index < 0 || index >= hand.Count || !seen.Add(index)) return null;
-                if (result == null) result = hand[index];
-                else if (!fusions.TryFuse(result, hand[index], out var fused)) result = hand[index];
-                else result = fused;
-            }
-            return result;
+            // Same resolver as TryPlay: fusion, in-chain Equip, PS1 failure rule.
+            return PreviewHandChain(side, indices)?.Result;
         }
 
         public bool CanPlay(DuelSide side, IReadOnlyList<int> handIndices,
@@ -225,17 +259,10 @@ namespace Reborn.Core
             if (handIndices == null || handIndices.Count == 0 || handIndices.Count > HandLimit)
                 return Reject(out reason, "Selecione entre 1 e 5 cartas");
             var state = Side(side);
-            var selected = new HashSet<int>();
-            CardDefinition outcome = null;
-            foreach (int index in handIndices)
-            {
-                if (index < 0 || index >= state.Hand.Count || !selected.Add(index))
-                    return Reject(out reason, "Indices duplicados ou invalidos");
-                var card = state.Hand[index];
-                if (outcome == null) outcome = card;
-                else if (!fusions.TryFuse(outcome, card, out var fused)) outcome = card;
-                else outcome = fused;
-            }
+            var chain = PreviewHandChain(side, handIndices);
+            if (chain == null)
+                return Reject(out reason, "Indices duplicados ou invalidos");
+            var outcome = chain.Result;
             var expectedLane = DuelActionRules.RequiredLane(outcome.Kind);
             if (expectedLane != lane) return Reject(out reason, "Tipo de zona incompativel");
             if (slot < 0 || slot >= ZoneCount) return Reject(out reason, "Zona invalida");
@@ -244,6 +271,8 @@ namespace Reborn.Core
                 return Reject(out reason, "Zona ocupada");
             if (lane == FieldLane.Monster && !GuardianStarRules.IsAvailable(outcome, star))
                 return Reject(out reason, "Guardian Star invalida para esta carta");
+            if (lane == FieldLane.Monster && !PendingEquipsFit(null, outcome, chain))
+                return Reject(out reason, "Bonus de equipamento fora do limite de atributos");
             reason = ""; return true;
         }
 
@@ -258,32 +287,26 @@ namespace Reborn.Core
             BattlePosition position, GuardianStar star, bool faceDown, out string reason)
         {
             if (!CanPlay(side, indices, lane, slot, star, out reason)) return false;
+            var preview = PreviewResult(side, indices);
+            if ((verifiedSpells.Count > 0 || verifiedEquips.Count > 0) &&
+                lane == FieldLane.Support &&
+                !faceDown && preview != null && preview.Kind != CardKind.Spell)
+                return Reject(out reason,
+                    "Carta sem ativacao face-up validada: use face-down ou uma acao especial");
+            bool resolveInstantSpell = verifiedSpells.Count > 0 &&
+                lane == FieldLane.Support && !faceDown &&
+                preview != null && preview.Kind == CardKind.Spell;
+            VerifiedSpellRule spellRule = null;
+            if (resolveInstantSpell && !verifiedSpells.TryGet(preview, out spellRule))
+                return Reject(out reason,
+                    "Magia sem efeito verificado: sete-a virada para baixo ou importe a regra original");
             var state = Side(side);
             // Only physical hand cards can go to the graveyard. Intermediate
             // fusion results are virtual and must never be buried as materials.
-            CardDefinition result = null;
-            int survivingOriginalIndex = -1;
-            foreach (var index in indices)
-            {
-                var card = state.Hand[index];
-                if (result == null)
-                {
-                    result = card; survivingOriginalIndex = index;
-                    continue;
-                }
-                if (fusions.TryFuse(result, card, out var fused))
-                {
-                    result = fused;
-                    survivingOriginalIndex = -1;
-                    Emit(MatchEventKind.Fusion, side, result.Id, lane, slot);
-                }
-                else
-                {
-                    result = card;
-                    survivingOriginalIndex = index;
-                    Emit(MatchEventKind.FusionFailed, side, card.Id, lane, slot);
-                }
-            }
+            var chain = PreviewHandChain(side, indices);
+            CardDefinition result = chain.Result;
+            int survivingOriginalIndex = HandIndexAt(indices, chain.SurvivorPosition, 0);
+            EmitChainSteps(side, chain, lane, slot);
             var spent = new List<CardDefinition>();
             foreach (var index in indices)
                 if (index != survivingOriginalIndex) spent.Add(state.Hand[index]);
@@ -297,12 +320,63 @@ namespace Reborn.Core
                 Emit(MatchEventKind.Graveyard, side, material.Id);
             }
             if (lane == FieldLane.Monster)
-                state.SetMonster(slot, new MonsterOnField(result, position, star, faceDown, Turn));
-            else state.SetSupport(slot, result, faceDown, Turn);
+            {
+                // PS1 placement state 8: a monster that ends a chain of two or
+                // more materials (fused, equipped or failed) is revealed; only a
+                // single hand card can be set face-down.
+                if (indices.Count > 1) faceDown = false;
+                var placed = new MonsterOnField(result, position, star, faceDown, Turn);
+                // Equips consumed inside the chain stay on the summoned monster.
+                ApplyPendingEquips(placed, chain);
+                state.SetMonster(slot, placed);
+            }
+            else if (!resolveInstantSpell)
+                state.SetSupport(slot, result, faceDown, Turn);
             hasPlayed = true;
             Emit(MatchEventKind.Play, side, result.Id, lane, slot);
+            if (resolveInstantSpell)
+            {
+                // The face-up PS1 spell resolves immediately and never remains
+                // on the support board. A virtual fusion result is not buried;
+                // only a surviving physical hand card enters the graveyard.
+                if (survivingOriginalIndex >= 0)
+                {
+                    state.Bury(result);
+                    Emit(MatchEventKind.Graveyard, side, result.Id, FieldLane.Support, slot);
+                }
+                Emit(MatchEventKind.SupportActivated, side, result.Id,
+                    FieldLane.Support, slot);
+                ApplyVerifiedSpell(side, spellRule);
+            }
             SignalChanged();
             return true;
+        }
+
+        /// <summary>
+        /// Read-only fallback for opponents with only support cards available.
+        /// The caller must still explicitly TryPlay exactly one card.
+        /// Unverified effects are never activated.
+        /// </summary>
+        public bool TryChooseSupportSet(DuelSide side, out int handIndex, out int slot)
+        {
+            handIndex = -1;
+            slot = -1;
+            if (Phase != MatchPhase.Main || CurrentSide != side || hasPlayed)
+                return false;
+            var hand = Side(side).Hand;
+            for (int h = 0; h < hand.Count; h++)
+            {
+                if (hand[h].Kind == CardKind.Monster) continue;
+                for (int field = 0; field < ZoneCount; field++)
+                {
+                    if (!CanPlay(side, new[] { h }, FieldLane.Support,
+                        field, GuardianStar.None, out _)) continue;
+                    handIndex = h;
+                    slot = field;
+                    return true;
+                }
+            }
+            return false;
         }
 
         public bool CanChangePosition(DuelSide side, int slot,
@@ -318,11 +392,7 @@ namespace Reborn.Core
             if (monster == null) return Reject(out reason, "Nao ha monstro nesta zona");
             if (monster.AttackedThisTurn)
                 return Reject(out reason, "Monstro que ja atacou nao pode mudar de posicao");
-            if (monster.PositionChangedThisTurn)
-                return Reject(out reason, "Posicao ja alterada neste turno");
-            if (monster.TurnPlaced == Turn)
-                return Reject(out reason, "Monstro invocado neste turno nao pode mudar de posicao");
-            if (monster.Position == newPosition && !monster.FaceDown)
+            if (monster.Position == newPosition)
                 return Reject(out reason, "Posicao ja selecionada");
             reason = "";
             return true;
@@ -342,8 +412,8 @@ namespace Reborn.Core
         }
 
         /// <summary>
-        /// Support cards can be prepared face-down. We do not simulate magic/
-        /// trap/equip effects without a validated resolver from the game data.
+        /// Read-only activation check. Face-down magic may be activated on a
+        /// subsequent turn; equip and trap behavior requires audited rules.
         /// </summary>
         public bool CanActivateSupport(DuelSide side, int slot, out string reason)
         {
@@ -351,16 +421,23 @@ namespace Reborn.Core
                 return Reject(out reason, "Fora do turno");
             if (slot < 0 || slot >= ZoneCount || Side(side).Support(slot) == null)
                 return Reject(out reason, "Nao ha suporte nesta zona");
-            if (!Side(side).SupportIsFaceDown(slot))
+            var owner = Side(side);
+            var card = owner.Support(slot);
+            if (!owner.SupportIsFaceDown(slot))
                 return Reject(out reason, "Somente suporte setado virado para baixo pode ser ativado");
-            if (Side(side).SupportSetTurn(slot) == Turn)
+            if (owner.SupportSetTurn(slot) == Turn)
                 return Reject(out reason, "Suporte recem-setado: aguarde seu proximo turno");
-            return Reject(out reason, "Efeito nao validado: ativacao indisponivel nesta versao");
+            if (!verifiedSpells.TryGet(card, out _))
+                return Reject(out reason, "Efeito nao verificado para esta magia, equip ou trap");
+            reason = "";
+            return true;
         }
 
         public bool TryBeginBattle(DuelSide side, out string reason)
         {
             if (!Active(side, MatchPhase.Main, out reason)) return false;
+            if (!hasPlayed)
+                return Reject(out reason, "Baixe uma carta antes de entrar em batalha");
             Phase = MatchPhase.Battle;
             Emit(MatchEventKind.BattleStarted, side);
             SignalChanged();
@@ -404,7 +481,8 @@ namespace Reborn.Core
             var own = Side(side);
             var enemy = Side(Other(side));
             forecast = new CombatForecast(own.Monster(fromSlot),
-                targetSlot < 0 ? null : enemy.Monster(targetSlot));
+                targetSlot < 0 ? null : enemy.Monster(targetSlot),
+                CurrentTerrainCardId);
             return true;
         }
 
@@ -412,6 +490,17 @@ namespace Reborn.Core
         {
             if (!TryPreviewAttack(side, fromSlot, targetSlot, out var forecast, out reason))
                 return false;
+            // Hidden traps are evaluated only when the real attack commits,
+            // never during a preview. No guardian bonus or LP damage is leaked
+            // when a trap cancels an attack before combat.
+            // Retail compares the trap threshold with Duel_CalcCardStats:
+            // ATK + Equip + terrain, without the Guardian Star bonus.
+            if (TryTriggerAttackTrap(side, fromSlot, targetSlot,
+                forecast.AttackerBase))
+            {
+                reason = "";
+                return true;
+            }
             var attacker = Side(side).Monster(fromSlot);
             var defender = targetSlot >= 0 ? Side(Other(side)).Monster(targetSlot) : null;
             // Set monsters are revealed only when they actually participate in combat.
@@ -469,6 +558,8 @@ namespace Reborn.Core
         {
             if (Phase == MatchPhase.Finished) return Reject(out reason, "Duelo terminado");
             if (CurrentSide != side) return Reject(out reason, "Nao e o turno deste jogador");
+            if (!hasPlayed)
+                return Reject(out reason, "Baixe ao menos uma carta antes de passar o turno");
             CurrentSide = Other(side);
             Turn++;
             hasPlayed = false;

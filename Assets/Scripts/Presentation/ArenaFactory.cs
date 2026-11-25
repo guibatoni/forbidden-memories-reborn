@@ -16,6 +16,7 @@ namespace Reborn.Presentation
         private bool handExpanded;
         private int highlightedHandIndex = -1;
         private bool hasPendingPlace;
+        private AttackAimLine attackAim;
         private FieldLane pendingLane;
         private DuelSide pendingSide = DuelSide.Player;
         private int pendingSlot;
@@ -276,6 +277,31 @@ namespace Reborn.Presentation
                     zone.SetCombatTarget(zone.Index == slot);
         }
 
+        /// <summary>
+        /// Displays a subtle arc only for a rules-approved player attack target.
+        /// A -1 target is the opposing player (direct attack).
+        /// </summary>
+        public void SetAttackAim(int attackerSlot, int targetSlot)
+        {
+            if (attackerSlot < 0 || attackerSlot >= DuelMatch.ZoneCount ||
+                targetSlot < -1 || targetSlot >= DuelMatch.ZoneCount)
+            {
+                if (attackAim != null) attackAim.Hide();
+                return;
+            }
+            if (attackAim == null)
+            {
+                var visual = new GameObject("Player_Legal_Attack_Aim");
+                visual.transform.SetParent(root, false);
+                attackAim = visual.AddComponent<AttackAimLine>();
+            }
+            var start = new Vector3((attackerSlot - 2) * 2.4f, 0.95f, -2f);
+            var end = targetSlot >= 0
+                ? new Vector3((targetSlot - 2) * 2.4f, 0.85f, 2f)
+                : new Vector3(0f, 0.85f, 6.2f);
+            attackAim.Show(root.TransformPoint(start), root.TransformPoint(end));
+        }
+
         /// <summary>Trajetoria de ataque: somente VFX, nunca altera regras nem camera.</summary>
         public void PlayMatchAttack(DuelSide side, int attackerSlot, int targetSlot)
         {
@@ -291,6 +317,75 @@ namespace Reborn.Presentation
             var projectile = visual.AddComponent<AttackProjectile>();
             projectile.Launch(root.TransformPoint(start),root.TransformPoint(end),
                 side == DuelSide.Player ? ArenaVisuals.Cyan : ArenaVisuals.Red);
+        }
+
+        /// <summary>
+        /// Completely procedural, original celebration of a resolved fusion.
+        /// No duplicated cards, no camera movement and no gameplay mutation.
+        /// </summary>
+        public void PlayFusionMaterialTrails(
+            IReadOnlyList<Vector3> materialOrigins,
+            FieldLane lane, int slot, bool animate,
+            DuelSide side = DuelSide.Player)
+        {
+            if (!animate || materialOrigins == null ||
+                materialOrigins.Count < 2 || slot < 0 || slot >= DuelMatch.ZoneCount)
+                return;
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent != (side == DuelSide.Opponent) ||
+                    zone.Lane != lane || zone.Index != slot)
+                    continue;
+                Vector3 center = zone.transform.position + Vector3.up*0.59f;
+                for (int i=0;i<materialOrigins.Count;i++)
+                {
+                    var visual = new GameObject("Fusion_Material_Stream_" + side + "_" + (i+1));
+                    visual.transform.SetParent(root,false);
+                    visual.AddComponent<FusionMaterialTrail>().Begin(
+                        materialOrigins[i],center,0.09f*i,
+                        side == DuelSide.Player ?
+                            ((i%2==0) ? cyan : gold) :
+                            ((i%2==0) ? gold : cyan));
+                }
+                return;
+            }
+        }
+
+        public void PlayFieldCombinationEffect(DuelSide side, int monsterSlot,
+            bool fused, bool animate)
+        {
+            if (!animate) return;
+            SpawnCeremony(side, monsterSlot,
+                fused ? FusionCeremonyVfx.Ceremony.Fusion :
+                    FusionCeremonyVfx.Ceremony.Replacement);
+        }
+
+        public void PlayRitualCeremony(DuelSide side, int monsterSlot,
+            bool animate)
+        {
+            if (!animate) return;
+            SpawnCeremony(side, monsterSlot, FusionCeremonyVfx.Ceremony.Ritual);
+        }
+
+        private void SpawnCeremony(DuelSide side, int monsterSlot,
+            FusionCeremonyVfx.Ceremony ceremony)
+        {
+            foreach (var zone in Zones)
+            {
+                if (zone.Lane != FieldLane.Monster ||
+                    zone.Opponent != (side == DuelSide.Opponent) ||
+                    zone.Index != monsterSlot) continue;
+                string name = ceremony == FusionCeremonyVfx.Ceremony.Ritual
+                    ? "Ritual_Invocation_Ceremony" :
+                    ceremony == FusionCeremonyVfx.Ceremony.Fusion
+                    ? "Field_Fusion_Spark" : "Field_Replacement_Spark";
+                var visual = new GameObject(name);
+                visual.transform.SetParent(root, false);
+                visual.transform.position = zone.transform.position +
+                    Vector3.up * 0.30f;
+                visual.AddComponent<FusionCeremonyVfx>().Begin(ceremony);
+                return;
+            }
         }
 
         public void ClearStagedPlacement() { hasPendingPlace = false; }
@@ -331,7 +426,9 @@ namespace Reborn.Presentation
         /// <summary>Render experimental duel without changing the approved camera.</summary>
         public void RefreshMatch(DuelMatch match)
         {
+            SetAttackAim(-1, -1);
             if (dynamicRoot == null || match == null) return;
+            int previousHandCount = HandViews.Count;
             HandViews.Clear();
             handExpanded = false;
             highlightedHandIndex = -1;
@@ -344,6 +441,9 @@ namespace Reborn.Presentation
             for (int i = 0; i < hand.Count; i++)
             {
                 var view = MakeHandCard("Match_Hand_" + (i+1), hand[i], i, hand.Count);
+                if (i >= previousHandCount)
+                    view.AnimateDrawFrom(new Vector3(-6.05f, 0.66f, -4.4f),
+                        0.065f * (i - previousHandCount));
                 HandViews.Add(view);
             }
             foreach (var side in new [] { DuelSide.Player, DuelSide.Opponent })
@@ -355,6 +455,13 @@ namespace Reborn.Presentation
                     var monster = state.Monster(i);
                     if (monster != null)
                     {
+                        if (!monster.FaceDown && monster.EquipCount > 0)
+                            ArenaVisuals.Label(
+                                "ATK " + monster.EffectiveAttack +
+                                " | DEF " + monster.EffectiveDefense,
+                                dynamicRoot,
+                                new Vector3((i-2)*2.4f, 0.65f, sign*2.95f),
+                                new Color(0.43f, 0.96f, 0.74f), 0.075f);
                         var placed = MakeCard(side+"_Monster_"+i,monster.Card,-1,
                             new Vector3((i-2)*2.4f,0.39f,sign*2.0f),
                             new Vector3(1.51f,0.12f,1.71f), monster.FaceDown);
@@ -367,13 +474,29 @@ namespace Reborn.Presentation
                     var support = state.Support(i);
                     if (support != null)
                     {
-                        var placed = MakeCard(side+"_Support_"+i,support,-1,
-                            new Vector3((i-2)*2.4f,0.39f,sign*4.35f),
-                            new Vector3(1.51f,0.12f,1.71f),
+                        bool overlayEquip = support.Kind == CardKind.Equip &&
+                            state.SupportIsFaceDown(i) && monster != null;
+                        var location = overlayEquip ?
+                            new Vector3((i-2)*2.4f,0.46f,sign*2.86f) :
+                            new Vector3((i-2)*2.4f,0.39f,sign*4.35f);
+                        // The actual card remains in Support[i] for effects
+                        // and later activation. The smaller visual offset
+                        // allows a set Equip to peek out above the monster.
+                        var placed = MakeCard(
+                            overlayEquip ? side+"_EquipOverlay_"+i :
+                                side+"_Support_"+i,
+                            support,-1,location,
+                            overlayEquip ? new Vector3(1.24f,0.12f,1.39f) :
+                                new Vector3(1.51f,0.12f,1.71f),
                             state.SupportIsFaceDown(i));
+                        if (overlayEquip)
+                            ArenaVisuals.Label("EQUIP SET",dynamicRoot,
+                                new Vector3((i-2)*2.4f,0.64f,sign*4.35f),
+                                ArenaVisuals.Gold,0.071f);
                         if (side == pendingSide && hasPendingPlace && pendingAnimate &&
                             pendingLane == FieldLane.Support && pendingSlot == i)
-                            placed.gameObject.AddComponent<CardMotion>().Play(pendingOrigin,placed.transform.position);
+                            placed.gameObject.AddComponent<CardMotion>().Play(
+                                pendingOrigin,placed.transform.position,0.68f);
                     }
                 }
             }
@@ -381,12 +504,13 @@ namespace Reborn.Presentation
         }
 
         /// <summary>Pure presentation: impact does not change duel state.</summary>
-        public void PlayMatchDestruction(DuelSide side, int slot)
+        public void PlayMatchDestruction(DuelSide side, int slot,
+            FieldLane lane = FieldLane.Monster)
         {
             foreach (var zone in Zones)
             {
                 if (zone.Opponent != (side == DuelSide.Opponent) ||
-                    zone.Lane != FieldLane.Monster || zone.Index != slot) continue;
+                    zone.Lane != lane || zone.Index != slot) continue;
                 var fx = new GameObject("Combat_Destruction_Particles");
                 fx.transform.SetParent(root,false);
                 fx.transform.position = zone.transform.position + Vector3.up * 0.5f;
@@ -409,9 +533,158 @@ namespace Reborn.Presentation
             }
         }
 
+        /// <summary>
+        /// Small original procedural magic burst. It does not animate or
+        /// execute a card effect, which is committed by DuelMatch before this.
+        /// </summary>
+        public void PlaySpellActivation(DuelSide side, int slot)
+        {
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent != (side == DuelSide.Opponent) ||
+                    zone.Lane != FieldLane.Support || zone.Index != slot) continue;
+                var fx = new GameObject("Spell_Activation_Burst");
+                fx.transform.SetParent(root, false);
+                fx.transform.position = zone.transform.position + Vector3.up * 0.46f;
+                var particles = fx.AddComponent<ParticleSystem>();
+                particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = particles.main;
+                main.loop = false;
+                main.playOnAwake = false;
+                main.duration = 0.52f;
+                main.startLifetime = 0.64f;
+                main.startSpeed = 1.4f;
+                main.startSize = 0.12f;
+                main.maxParticles = 64;
+                main.startColor = side == DuelSide.Player ?
+                    ArenaVisuals.Cyan : ArenaVisuals.Gold;
+                var emission = particles.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new[] {new ParticleSystem.Burst(0f, 35)});
+                var shape = particles.shape;
+                shape.shapeType = ParticleSystemShapeType.Circle;
+                shape.radius = 0.33f;
+                particles.GetComponent<ParticleSystemRenderer>().sharedMaterial =
+                    side == DuelSide.Player ? cyan : gold;
+                particles.Play();
+                Object.Destroy(fx, 1.7f);
+                return;
+            }
+        }
+
+        /// <summary>
+        /// Non-licensed, original equip constellation. The monster remains
+        /// stationary; only the light rings move to its field position.
+        /// </summary>
+        public void PlayEquipActivation(DuelSide side, int slot)
+        {
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent != (side == DuelSide.Opponent) ||
+                    zone.Lane != FieldLane.Monster || zone.Index != slot) continue;
+                var fx = new GameObject("Original_Equip_Constellation");
+                fx.transform.SetParent(root, false);
+                fx.transform.position = zone.transform.position + Vector3.up * 0.42f;
+                var particles = fx.AddComponent<ParticleSystem>();
+                particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = particles.main;
+                main.loop = false;
+                main.playOnAwake = false;
+                main.duration = 0.54f;
+                main.startLifetime = 0.72f;
+                main.startSpeed = 1.35f;
+                main.startSize = 0.12f;
+                main.maxParticles = 85;
+                main.startColor = ArenaVisuals.Gold;
+                var emission = particles.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new[] {
+                    new ParticleSystem.Burst(0f, 42),
+                    new ParticleSystem.Burst(0.17f, 20)
+                });
+                var shape = particles.shape;
+                shape.shapeType = ParticleSystemShapeType.Circle;
+                shape.radius = 0.65f;
+                particles.GetComponent<ParticleSystemRenderer>().sharedMaterial = gold;
+                particles.Play();
+                Object.Destroy(fx, 1.7f);
+                return;
+            }
+        }
+
+        /// <summary>Short, original visual for one field affecting both players.</summary>
+        public void PlayTerrainShift(string terrainId)
+        {
+            var visual = new GameObject("Global_Terrain_" + TerrainRules.Name(terrainId));
+            visual.transform.SetParent(root, false);
+            visual.transform.localPosition = new Vector3(0f, 0.34f, 0f);
+            var particles = visual.AddComponent<ParticleSystem>();
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = particles.main;
+            main.loop = false;
+            main.playOnAwake = false;
+            main.duration = 1.2f;
+            main.startLifetime = 1.15f;
+            main.startSpeed = 1.7f;
+            main.startSize = 0.15f;
+            main.maxParticles = 125;
+            main.startColor = terrainId == "330" ? new Color(0.26f,0.81f,0.49f) :
+                terrainId == "331" ? new Color(0.72f,0.60f,0.41f) :
+                terrainId == "332" ? new Color(0.67f,0.65f,0.97f) :
+                terrainId == "333" ? new Color(0.59f,0.83f,0.37f) :
+                terrainId == "334" ? new Color(0.23f,0.78f,0.98f) :
+                new Color(0.64f,0.36f,0.90f);
+            var shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 3.8f;
+            var emission = particles.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] {new ParticleSystem.Burst(0f, 100)});
+            particles.GetComponent<ParticleSystemRenderer>().sharedMaterial = cyan;
+            particles.Play();
+            Object.Destroy(visual, 2.8f);
+        }
+
+        /// <summary>Visual response on the *hidden* trap's own support slot.</summary>
+        public void PlayTrapBurst(DuelSide defenderSide, int supportSlot)
+        {
+            foreach (var zone in Zones)
+            {
+                if (zone.Opponent != (defenderSide == DuelSide.Opponent) ||
+                    zone.Lane != FieldLane.Support || zone.Index != supportSlot)
+                    continue;
+                var visual = new GameObject("Trap_Intercept");
+                visual.transform.SetParent(root, false);
+                visual.transform.position = zone.transform.position + Vector3.up * 0.40f;
+                var particles = visual.AddComponent<ParticleSystem>();
+                particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = particles.main;
+                main.loop = false;
+                main.playOnAwake = false;
+                main.duration = 0.42f;
+                main.startLifetime = 0.67f;
+                main.startSpeed = 2.1f;
+                main.startSize = 0.12f;
+                main.maxParticles = 76;
+                main.startColor = ArenaVisuals.Red;
+                var shape = particles.shape;
+                shape.shapeType = ParticleSystemShapeType.Hemisphere;
+                shape.radius = 0.43f;
+                var emission = particles.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new[] {new ParticleSystem.Burst(0f, 55)});
+                particles.GetComponent<ParticleSystemRenderer>().sharedMaterial = gold;
+                particles.Play();
+                Object.Destroy(visual, 1.7f);
+                return;
+            }
+        }
+
         public void Refresh(DuelSession session)
         {
+            SetAttackAim(-1, -1);
             if (dynamicRoot == null) return;
+            int previousHandCount = HandViews.Count;
             HandViews.Clear();
             handExpanded = false;
             highlightedHandIndex = -1;
@@ -424,6 +697,9 @@ namespace Reborn.Presentation
             for (int i = 0; i < session.Hand.Count; i++)
             {
                 var view = MakeHandCard("Hand_" + (i+1), session.Hand[i], i, session.Hand.Count);
+                if (i >= previousHandCount)
+                    view.AnimateDrawFrom(new Vector3(-6.05f, 0.66f, -4.4f),
+                        0.065f * (i - previousHandCount));
                 HandViews.Add(view);
             }
             for (int i = 0; i < 5; i++)

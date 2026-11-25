@@ -11,6 +11,7 @@ namespace Reborn.Presentation
     {
         private Vector3 from;
         private Vector3 to;
+        private Vector3 sideways;
         private Vector3 restingScale;
         private Quaternion restingRotation;
         private Quaternion floatingRotation;
@@ -22,6 +23,7 @@ namespace Reborn.Presentation
         {
             from = fromWorld;
             to = toWorld;
+            sideways = Vector3.Cross(to-from, Vector3.up).normalized;
             duration = Mathf.Max(0.01f, seconds);
             elapsed = 0f;
             restingScale = transform.localScale;
@@ -40,13 +42,18 @@ namespace Reborn.Presentation
             float t = Mathf.Clamp01(elapsed / duration);
             // Travel quickly out of the hand, then ease toward the slot.
             float eased = 1f - Mathf.Pow(1f - t, 3f);
-            float arc = Mathf.Sin(t * Mathf.PI) * 0.88f;
+            float arc = Mathf.Sin(t * Mathf.PI) * 0.96f;
+            // Original soft S-curve: the card leaves the hand as if
+            // guided by a magnetic ribbon rather than a straight slide.
+            // Lateral movement always becomes zero exactly at the slot.
+            float cross = Mathf.Sin(t*Mathf.PI) *
+                Mathf.Sin(t*Mathf.PI*1.72f)*0.19f;
             // Very small final settle gives weight to the placement without
             // bouncing the card out of its legal field zone.
             float settle = t > 0.75f ?
                 Mathf.Sin((t - 0.75f) * 4f * Mathf.PI) * 0.05f : 0f;
             transform.position = Vector3.Lerp(from, to, eased) +
-                Vector3.up * (arc + settle);
+                Vector3.up * (arc + settle) + sideways * cross;
             transform.rotation = Quaternion.Slerp(
                 floatingRotation, restingRotation, eased);
             float zoom = Mathf.Lerp(0.89f, 1f, eased) +

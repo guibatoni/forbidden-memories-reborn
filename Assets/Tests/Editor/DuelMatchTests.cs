@@ -42,6 +42,29 @@ namespace Reborn.Tests
 
         private static void Begin(DuelMatch match, DuelSide side)
         {
+            // Scenario setup may advance to later turns; satisfy the new
+            // mandatory placement with a harmless free board slot first.
+            if (!match.PlayedThisTurn)
+            {
+                var owner = match.Side(side);
+                bool placed = false;
+                for (int i = 0; i < owner.Hand.Count && !placed; i++)
+                {
+                    var card = owner.Hand[i];
+                    var lane = card.Kind == CardKind.Monster ?
+                        FieldLane.Monster : FieldLane.Support;
+                    for (int slot = 4; slot >= 0; slot--)
+                    {
+                        if (!match.CanPlay(side, new[] {i}, lane, slot,
+                            card.StarA, out _)) continue;
+                        Assert.IsTrue(match.TryPlay(side, new[] {i}, lane, slot,
+                            BattlePosition.Defense, card.StarA, out _));
+                        placed = true;
+                        break;
+                    }
+                }
+                Assert.IsTrue(placed, "Test setup needs at least one legal hand play");
+            }
             Assert.IsTrue(match.TryBeginBattle(side, out var error), error);
         }
 
@@ -65,26 +88,568 @@ namespace Reborn.Tests
         }
 
 
-        [Test]
-        public void SetMonsterFlipsOnLaterTurnAndCannotMoveAfterAttack()
+        private static CardDefinition TypedMonster(
+            string id, int attack, int defense, string type)
         {
-            var match = Match(Monster("mine", 2100, 1400), Monster("enemy", 1200, 900));
+            return new CardDefinition(id, "Test " + id,
+                CardKind.Monster, attack, defense, "",
+                GuardianStar.None, GuardianStar.None, "", "", "", type);
+        }
+
+        [Test]
+        public void AllSixFieldTypesIncludeCorrectBoostsAndPenalties()
+        {
+            Assert.AreEqual(500,TerrainRules.Bonus("330",
+                TypedMonster("beast",900,900,"Beast-Warrior")));
+            Assert.AreEqual(500,TerrainRules.Bonus("331",
+                TypedMonster("dinosaur",900,900,"Dinosaur")));
+            Assert.AreEqual(500,TerrainRules.Bonus("332",
+                TypedMonster("dragon",900,900,"Dragon")));
+            Assert.AreEqual(500,TerrainRules.Bonus("333",
+                TypedMonster("warrior",900,900,"Warrior")));
+            Assert.AreEqual(500,TerrainRules.Bonus("334",
+                TypedMonster("sea",900,900,"Sea Serpent")));
+            Assert.AreEqual(-500,TerrainRules.Bonus("334",
+                TypedMonster("machine",900,900,"Machine")));
+            Assert.AreEqual(-500,TerrainRules.Bonus("335",
+                TypedMonster("fairy",900,900,"Fairy")));
+            Assert.AreEqual(0,TerrainRules.Bonus("335",
+                TypedMonster("unknown",900,900,"")));
+        }
+
+        [Test]
+        public void TerrainSpellsReplaceGlobalFieldAndChangeBothCombatSides()
+        {
+            var game = new DuelMatch(
+                Deck(TypedMonster("dragon",1600,1000,"Dragon"),Support("332")),
+                Deck(TypedMonster("wizard",1300,900,"Spellcaster"),Support("335")),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core());
+            Play(game,DuelSide.Player);
+            End(game,DuelSide.Player);
+            Play(game,DuelSide.Opponent);
+            End(game,DuelSide.Opponent);
+            Assert.IsTrue(game.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,GuardianStar.None,
+                false,out _));
+            Assert.AreEqual("Mountain",game.CurrentTerrainName);
+            Begin(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPreviewAttack(DuelSide.Player,0,0,
+                out var forecast,out _));
+            Assert.AreEqual(2100,forecast.EffectiveAttack);
+            End(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,GuardianStar.None,
+                false,out _));
+            Assert.AreEqual("Yami",game.CurrentTerrainName);
+            Begin(game,DuelSide.Opponent);
+            Assert.IsTrue(game.TryPreviewAttack(DuelSide.Opponent,0,0,
+                out var newForecast,out _));
+            Assert.AreEqual(500,newForecast.AttackerTerrainBonus);
+            Assert.AreEqual(0,newForecast.DefenderTerrainBonus);
+        }
+
+        [Test]
+        public void AttackTrapThresholdIgnoresGuardianStarBonusLikeRetail()
+        {
+            // Retail compares Duel_CalcCardStats (ATK + Equip + terrain) with
+            // the threshold: 1600 + Mars>Jupiter bonus is 2100 in battle,
+            // but Invisible Wire (2000) still springs on the 1600 base.
+            var game = new DuelMatch(
+                Deck(Monster("attacker",1600,900,GuardianStar.Mars,GuardianStar.Sun)),
+                Deck(Support("684",CardKind.Trap),
+                    Monster("target",1200,1000,GuardianStar.Jupiter,GuardianStar.Moon)),
+                null,null,null,null,AttackTrapCatalog.OriginalPs1());
+            Play(game,DuelSide.Player,0,BattlePosition.Attack,GuardianStar.Mars);
+            End(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Defense,GuardianStar.None,
+                true,out var reason),reason);
+            End(game,DuelSide.Opponent);
+            Begin(game,DuelSide.Player); End(game,DuelSide.Player);
+            Play(game,DuelSide.Opponent,0,BattlePosition.Defense,GuardianStar.Jupiter);
+            End(game,DuelSide.Opponent);
+            Begin(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPreviewAttack(DuelSide.Player,0,0,
+                out var forecast,out reason),reason);
+            Assert.AreEqual(2100,forecast.EffectiveAttack);
+            Assert.IsTrue(game.TryAttack(DuelSide.Player,0,0,out reason),reason);
+            Assert.IsNull(game.Player.Monster(0));
+            Assert.IsNotNull(game.Opponent.Monster(0));
+            Assert.IsTrue(game.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="684"));
+        }
+
+        [Test]
+        public void HiddenTrapsUseLowestEligibleThresholdWithoutRevealingOthers()
+        {
+            var game = new DuelMatch(
+                Deck(Monster("attacker",1400,900)),
+                Deck(Support("686",CardKind.Trap),Support("683",CardKind.Trap)),
+                null,null,null,null,AttackTrapCatalog.OriginalPs1());
+            Play(game,DuelSide.Player); End(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Defense,GuardianStar.None,
+                true,out _));
+            End(game,DuelSide.Opponent);
+            Begin(game,DuelSide.Player); End(game,DuelSide.Player);
+            Assert.IsTrue(game.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,1,BattlePosition.Defense,GuardianStar.None,
+                true,out _));
+            End(game,DuelSide.Opponent);
+            Begin(game,DuelSide.Player);
+            var count = game.Events.Count;
+            Assert.IsTrue(game.TryPreviewAttack(DuelSide.Player,0,-1,
+                out var publicForecast,out _));
+            Assert.AreEqual(1400,publicForecast.DamageToDefender);
+            Assert.AreEqual(count,game.Events.Count);
+            Assert.IsTrue(game.TryAttack(DuelSide.Player,0,-1,out _));
+            Assert.IsNull(game.Player.Monster(0));
+            Assert.AreEqual(8000,game.Opponent.Life);
+            Assert.IsNotNull(game.Opponent.Support(0));
+            Assert.IsNull(game.Opponent.Support(1));
+            Assert.IsTrue(game.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="683"));
+        }
+
+        [Test]
+        public void GoblinFanReflectsBurnAndSimochiChangesHealingToDamage()
+        {
+            var duel = new DuelMatch(
+                Deck(Monster("mine",1300,1000),Support("343"),Support("339")),
+                Deck(Support("687",CardKind.Trap),Support("688",CardKind.Trap)),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+                null,null,ReactiveTrapCatalog.OriginalPs1());
+            Play(duel,DuelSide.Player);
+            End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(7950,duel.Player.Life);
+            Assert.AreEqual(8000,duel.Opponent.Life);
+            Assert.IsNull(duel.Opponent.Support(0));
+            End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,1,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(7450,duel.Player.Life);
+            Assert.IsNull(duel.Opponent.Support(1));
+            Assert.AreEqual(2,duel.Events.Count(e=>
+                e.Kind==MatchEventKind.TrapTriggered));
+            Assert.IsTrue(duel.Opponent.Graveyard.Any(c=>c.Id=="687"));
+            Assert.IsTrue(duel.Opponent.Graveyard.Any(c=>c.Id=="688"));
+        }
+
+        [Test]
+        public void UnrelatedReactiveTrapDoesNotTriggerOrRevealOnBurn()
+        {
+            var duel = new DuelMatch(
+                Deck(Monster("mine",900,1000),Support("343")),
+                Deck(Support("688",CardKind.Trap)),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+                null,null,ReactiveTrapCatalog.OriginalPs1());
+            Play(duel,DuelSide.Player);End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Support,0,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(7950,duel.Opponent.Life);
+            Assert.IsTrue(duel.Opponent.SupportIsFaceDown(0));
+            Assert.IsFalse(duel.Events.Any(e=>
+                e.Kind==MatchEventKind.TrapTriggered));
+        }
+
+        [Test]
+        public void VerifiedOriginalMagicHealsAndAutomaticallyLeavesSupportZone()
+        {
+            var duel = new DuelMatch(
+                Deck(Support("339")), Deck(Monster("enemy", 1000, 1000)),
+                null, null, VerifiedSpellCatalog.OriginalPs1Core());
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player, new[]{0},
+                FieldLane.Support, 1, BattlePosition.Attack,
+                GuardianStar.None, false, out var reason), reason);
+            // Retail heals up to max_life_points (= starting 8000): at full
+            // LP the card is spent and nothing is restored.
+            Assert.AreEqual(8000, duel.Player.Life);
+            Assert.IsNull(duel.Player.Support(1));
+            Assert.AreEqual("339", duel.Player.Graveyard.Last().Id);
+            Assert.IsFalse(duel.Events.Any(e => e.Kind ==
+                MatchEventKind.LifeChanged));
+            Assert.IsTrue(duel.PlayedThisTurn);
+        }
+
+        [Test]
+        public void HealingStopsAtStartingLifeLikeRetail()
+        {
+            var duel = new DuelMatch(
+                Deck(Monster("mine", 1000, 1000), Support("342")),
+                Deck(Support("343"), Monster("enemy", 1000, 1000)),
+                null, null, VerifiedSpellCatalog.OriginalPs1Core());
+            Play(duel, DuelSide.Player);
+            End(duel, DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent, new[]{0},
+                FieldLane.Support, 0, BattlePosition.Attack,
+                GuardianStar.None, false, out var reason), reason);
+            Assert.AreEqual(7950, duel.Player.Life);
+            End(duel, DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player, new[]{0},
+                FieldLane.Support, 0, BattlePosition.Attack,
+                GuardianStar.None, false, out reason), reason);
+            Assert.AreEqual(8000, duel.Player.Life, "Dian Keto stops at max LP");
+            Assert.IsTrue(duel.Events.Any(e => e.Kind ==
+                MatchEventKind.LifeChanged && e.Value == 50));
+        }
+
+        [Test]
+        public void UnverifiedEffectTextCannotActivateOrConsumeCards()
+        {
+            var raw = new CardDefinition("700","Untrusted",CardKind.Spell,
+                0,0,"",GuardianStar.None,GuardianStar.None,
+                "Wipe every card", "external-note", "unverified");
+            var duel = new DuelMatch(Deck(raw),Deck(Monster("enemy",1000,1000)),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core());
+            int before = duel.Events.Count;
+            Assert.IsFalse(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(before,duel.Events.Count);
+            Assert.AreEqual(5,duel.Player.Hand.Count);
+            Assert.IsFalse(duel.PlayedThisTurn);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,true,out _));
+            Assert.IsFalse(duel.CanActivateSupport(DuelSide.Player,0,out _));
+        }
+
+        [Test]
+        public void PreviouslySetMagicActivatesOnlyAfterItsPlacementTurn()
+        {
+            var duel = new DuelMatch(
+                Deck(Support("343")), Deck(Monster("enemy",1000,1000)),
+                null,null,VerifiedSpellCatalog.OriginalPs1Core());
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,2,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            Assert.IsFalse(duel.CanActivateSupport(DuelSide.Player,2,out _));
+            End(duel,DuelSide.Player);
+            Play(duel,DuelSide.Opponent);
+            End(duel,DuelSide.Opponent);
+            int events = duel.Events.Count;
+            Assert.IsTrue(duel.CanActivateSupport(DuelSide.Player,2,out _));
+            Assert.AreEqual(events,duel.Events.Count);
+            Assert.IsTrue(duel.TryActivateSupport(DuelSide.Player,2,out _));
+            Assert.AreEqual(7950,duel.Opponent.Life);
+            Assert.IsNull(duel.Player.Support(2));
+            Assert.IsFalse(duel.PlayedThisTurn);
+            Assert.IsFalse(duel.TryActivateSupport(DuelSide.Player,2,out _));
+        }
+
+        [Test]
+        public void RaigekiAndDarkHoleOnlyDestroyTheExpectedFields()
+        {
+            var catalogue = VerifiedSpellCatalog.OriginalPs1Core();
+            var lightning = new DuelMatch(
+                Deck(Monster("own",1800,1800),Support("337")),
+                Deck(Monster("foe",1800,1600)),null,null,catalogue);
+            Play(lightning,DuelSide.Player);
+            End(lightning,DuelSide.Player);
+            Play(lightning,DuelSide.Opponent);
+            End(lightning,DuelSide.Opponent);
+            Assert.IsTrue(lightning.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.IsNotNull(lightning.Player.Monster(0));
+            Assert.IsNull(lightning.Opponent.Monster(0));
+            var dark = new DuelMatch(
+                Deck(Monster("my",700,700),Support("336")),
+                Deck(Monster("foe",800,800)),null,null,catalogue);
+            Play(dark,DuelSide.Player);
+            End(dark,DuelSide.Player);
+            Play(dark,DuelSide.Opponent);
+            End(dark,DuelSide.Opponent);
+            Assert.IsTrue(dark.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,1,BattlePosition.Attack,
+                GuardianStar.None,false,out _));
+            Assert.AreEqual(0,dark.Player.MonsterCount);
+            Assert.AreEqual(0,dark.Opponent.MonsterCount);
+            Assert.IsTrue(dark.Player.Graveyard.Any(c=>c.Id=="my"));
+            Assert.IsTrue(dark.Opponent.Graveyard.Any(c=>c.Id=="foe"));
+        }
+
+        [Test]
+        public void VerifiedSpellCannotTurnInertTrapOrEquipFaceUp()
+        {
+            var catalogue = VerifiedSpellCatalog.OriginalPs1Core();
+            foreach(var kind in new[]{CardKind.Trap,CardKind.Equip,
+                CardKind.Ritual})
+            {
+                var duel = new DuelMatch(
+                    Deck(Support("special",kind)),
+                    Deck(Monster("enemy",1000,1000)),null,null,catalogue);
+                Assert.IsFalse(duel.TryPlay(DuelSide.Player,new[]{0},
+                    FieldLane.Support,0,BattlePosition.Attack,
+                    GuardianStar.None,false,out _));
+                Assert.IsFalse(duel.PlayedThisTurn);
+                Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                    FieldLane.Support,0,BattlePosition.Attack,
+                    GuardianStar.None,true,out _));
+            }
+        }
+
+        [Test]
+        public void EquipApplicationStacksBonusesAndCombatUsesModifiedAttack()
+        {
+            var equip = new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+            var second = new CardDefinition("668","Bright Castle",CardKind.Equip,0,0,"");
+            var duel = new DuelMatch(
+                Deck(Monster("own",1700,1200),equip,second),
+                Deck(Monster("enemy",900,900)),
+                null,null,null,VerifiedEquipCatalog.OriginalPs1Foundation());
+            Play(duel,DuelSide.Player);
+            End(duel,DuelSide.Player);
+            Play(duel,DuelSide.Opponent);
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryEquipFromHand(DuelSide.Player,0,0,out var why),why);
+            var monster=duel.Player.Monster(0);
+            Assert.AreEqual(2700,monster.EffectiveAttack);
+            Assert.AreEqual(2200,monster.EffectiveDefense);
+            Assert.AreEqual(1,monster.EquipCount);
+            Assert.IsTrue(duel.TryPreviewAttack(DuelSide.Player,0,0,
+                out _, out _) == false, "Battle must be entered explicitly");
+            Begin(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPreviewAttack(DuelSide.Player,0,0,
+                out var forecast,out why),why);
+            Assert.AreEqual(2700,forecast.EffectiveAttack);
+            Assert.AreEqual(1000,forecast.AttackerEquipBonus);
+            Assert.AreEqual(1800,forecast.DamageToDefender);
+            End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Monster,1,BattlePosition.Attack,GuardianStar.None,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryEquipFromHand(DuelSide.Player,0,0,out why),why);
+            Assert.AreEqual(3200,duel.Player.Monster(0).EffectiveAttack);
+            Assert.AreEqual(2700,duel.Player.Monster(0).EffectiveDefense);
+            Assert.AreEqual(2,duel.Player.Monster(0).EquipCount);
+            Assert.IsNull(duel.Player.Support(0));
+            Assert.AreEqual(2,duel.Player.Graveyard.Count);
+        }
+
+        [Test]
+        public void IncompatibleAndHiddenEquipTargetsAreRejectedWithoutMutation()
+        {
+            var rules = new VerifiedEquipCatalog();
+            rules.AddTargets("315",500,500,new[]{"001"});
+            var equip = new CardDefinition("315","Dragon Treasure",CardKind.Equip,0,0,"");
+            var duel = new DuelMatch(
+                Deck(Monster("hidden",900,800),equip),
+                Deck(Monster("enemy",900,800)),null,null,null,rules);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,0,BattlePosition.Defense,
+                GuardianStar.None,true,out _));
+            End(duel,DuelSide.Player);
+            Play(duel,DuelSide.Opponent);
+            End(duel,DuelSide.Opponent);
+            var events=duel.Events.Count;
+            Assert.IsFalse(duel.TryEquipFromHand(DuelSide.Player,0,0,out _));
+            Assert.AreEqual(events,duel.Events.Count);
+            Assert.IsTrue(duel.Player.Monster(0).FaceDown);
+            Assert.AreEqual(0,duel.Player.Monster(0).EquipCount);
+            Assert.IsFalse(duel.PlayedThisTurn);
+        }
+
+        [Test]
+        public void PreparedEquipCanTargetFaceupMonsterOnLaterTurn()
+        {
+            var magic = new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+            var duel = new DuelMatch(
+                Deck(Monster("own",1600,1400),magic),
+                Deck(Monster("enemy",1000,1000)),
+                null,null,null,VerifiedEquipCatalog.OriginalPs1Foundation());
+            Play(duel,DuelSide.Player);
+            End(duel,DuelSide.Player);
+            Play(duel,DuelSide.Opponent);
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,BattlePosition.Attack,
+                GuardianStar.None,true,out _));
+            Assert.IsFalse(duel.CanEquipFromSupport(DuelSide.Player,0,0,out _,out _));
+            End(duel,DuelSide.Player);
+            Assert.IsTrue(duel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Monster,1,BattlePosition.Attack,GuardianStar.None,out _));
+            End(duel,DuelSide.Opponent);
+            Assert.IsTrue(duel.TryEquipFromSupport(DuelSide.Player,0,0,out _));
+            Assert.AreEqual(2600,duel.Player.Monster(0).EffectiveAttack);
+            Assert.IsNull(duel.Player.Support(0));
+            Assert.IsFalse(duel.PlayedThisTurn);
+            Assert.IsFalse(duel.TryEquipFromSupport(DuelSide.Player,0,0,out _));
+        }
+
+        [Test]
+        public void FieldFusionStartsWithTableCardThenConsumesHandInSelectionOrder()
+        {
+            var recipes = new FusionCatalog();
+            var first = Monster("firstResult", 1900, 1700);
+            var final = Monster("finalResult", 3000, 2800, GuardianStar.Mercury);
+            recipes.Add("base", "a", first);
+            recipes.Add("firstResult", "b", final);
+            var match = new DuelMatch(
+                Deck(Monster("base", 800, 900), Monster("a", 500, 600),
+                    Monster("b", 700, 800)),
+                Deck(Monster("enemy", 1000, 1000)), recipes);
+            Play(match, DuelSide.Player, 0);
+            End(match, DuelSide.Player);
+            Play(match, DuelSide.Opponent, 0);
+            End(match, DuelSide.Opponent);
+            var cards = new[] { 0, 1 };
+            int count = match.Events.Count;
+            Assert.AreEqual(final, match.PreviewFieldResult(
+                DuelSide.Player, cards, 0));
+            Assert.AreEqual(count, match.Events.Count);
+            Assert.IsTrue(match.CanPlayOnField(DuelSide.Player, cards, 0,
+                GuardianStar.Mercury, out var preview, out var reason), reason);
+            Assert.AreEqual(final, preview);
+            Assert.IsTrue(match.TryPlayOnField(DuelSide.Player, cards, 0,
+                BattlePosition.Attack, GuardianStar.Mercury, true,
+                out var result, out bool fused, out reason), reason);
+            Assert.IsTrue(fused);
+            Assert.AreEqual(final, result);
+            Assert.AreEqual(final, match.Player.Monster(0).Card);
+            Assert.IsFalse(match.Player.Monster(0).FaceDown);
+            Assert.AreEqual(3, match.Player.Graveyard.Count);
+            Assert.IsFalse(match.TryPlayOnField(DuelSide.Player, new[] { 0 }, 0,
+                BattlePosition.Attack, GuardianStar.None, false,
+                out _, out _, out _));
+        }
+
+        [Test]
+        public void UnverifiedFieldEquipIsDiscardedWithoutEffectAndReplacementIsLegal()
+        {
+            var match = new DuelMatch(
+                Deck(Monster("old", 2600, 2100),
+                    Support("equip", CardKind.Equip), Monster("replacement", 1200, 900)),
+                Deck(Monster("enemy", 1000, 1000)));
+            Play(match, DuelSide.Player);
+            End(match, DuelSide.Player);
+            Play(match, DuelSide.Opponent);
+            End(match, DuelSide.Opponent);
+            long events = match.Events.Count;
+            // 0.30 (PS1 state 7): an unverified Equip finds no recipe and no
+            // compatibility, so it is thrown away and "old" stays unchanged.
+            var chain = match.PreviewFieldChain(DuelSide.Player, new[] { 0 }, 0);
+            Assert.AreEqual("old", chain.Result.Id);
+            Assert.AreEqual(0, chain.SurvivorPosition);
+            Assert.AreEqual(0, chain.PendingAttackGain);
+            Assert.AreEqual(events, match.Events.Count);
+            // The replacement path (monster over monster, no recipe).
+            Assert.IsTrue(match.TryPlayOnField(DuelSide.Player, new[] { 1 },
+                0, BattlePosition.Defense, GuardianStar.None, true,
+                out var result, out bool fused, out _));
+            Assert.IsFalse(fused);
+            Assert.AreEqual("replacement", result.Id);
+            Assert.AreEqual(BattlePosition.Defense, match.Player.Monster(0).Position);
+            Assert.IsFalse(match.Player.Monster(0).FaceDown,
+                "PS1 reveals the last card of a material chain");
+            Assert.AreEqual("old", match.Player.Graveyard[0].Id);
+        }
+
+        [Test]
+        public void FullMonsterFieldCanStillUseMandatoryHandPlayByReplacingOne()
+        {
+            var match = Match(Monster("player", 1500, 1000),
+                Monster("opponent", 1200, 1300));
+            for (int slot = 0; slot < DuelMatch.ZoneCount; slot++)
+            {
+                Play(match, DuelSide.Player, slot);
+                End(match, DuelSide.Player);
+                Play(match, DuelSide.Opponent, slot);
+                End(match, DuelSide.Opponent);
+            }
+            Assert.AreEqual(5, match.Player.MonsterCount);
+            Assert.IsFalse(match.CanPlay(DuelSide.Player, new[] { 0 },
+                FieldLane.Monster, 0, GuardianStar.None, out _));
+            Assert.IsFalse(match.TryEndTurn(DuelSide.Player, out _));
+            Assert.IsTrue(match.TryChooseFieldCombination(DuelSide.Player, false,
+                out int hand, out int slotChosen, out var result));
+            Assert.IsTrue(match.CanPlayOnField(DuelSide.Player, new[] { hand },
+                slotChosen, result.StarA, out _, out _));
+            Assert.IsTrue(match.TryPlayOnField(DuelSide.Player, new[] { hand },
+                slotChosen, BattlePosition.Attack, result.StarA, false,
+                out _, out _, out _));
+            Assert.AreEqual(5, match.Player.MonsterCount);
+            End(match, DuelSide.Player);
+        }
+
+        [Test]
+        public void MandatoryPlayAndRepeatablePositionChangesUntilAttack()
+        {
+            var match = Match(Monster("mine", 2300, 1500), Monster("enemy", 500, 900));
+            Assert.IsFalse(match.TryEndTurn(DuelSide.Player, out var rejected));
+            StringAssert.Contains("Baixe", rejected);
+            Assert.IsFalse(match.TryBeginBattle(DuelSide.Player, out _));
+            Play(match, DuelSide.Player);
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _));
+            Begin(match, DuelSide.Player);
+            Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, -1, out _));
+            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
+            End(match, DuelSide.Player);
+            Assert.AreEqual(DuelSide.Opponent, match.CurrentSide);
+        }
+
+        [Test]
+        public void SetMonsterRemainsHiddenOnPositionChangesUntilItAttacks()
+        {
+            var match = new DuelMatch(
+                Deck(Monster("mine", 2100, 1400), Support("turn2Spell")),
+                Deck(Monster("enemy", 1200, 900)));
             Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] { 0 },
                 FieldLane.Monster, 0, BattlePosition.Defense,
                 GuardianStar.None, true, out _));
             Assert.IsTrue(match.Player.Monster(0).FaceDown);
-            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Attack, out _));
+            Assert.IsTrue(match.Player.Monster(0).FaceDown,
+                "ATK stance must not expose a facedown monster");
+            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _),
+                "Choosing an identical stance is not a reveal action");
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Defense, out _));
+            Assert.IsTrue(match.Player.Monster(0).FaceDown);
             End(match, DuelSide.Player);
             Play(match, DuelSide.Opponent);
             End(match, DuelSide.Opponent);
             Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Attack, out _));
-            Assert.IsFalse(match.Player.Monster(0).FaceDown);
-            Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
+            Assert.IsTrue(match.Player.Monster(0).FaceDown,
+                "FaceDown persists across turns and DEF -> ATK");
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Defense, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _));
             Begin(match, DuelSide.Player);
+            Assert.IsTrue(match.Player.Monster(0).FaceDown,
+                "Beginning Battle is not a reveal event");
             Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, 0, out _));
+            Assert.IsFalse(match.Player.Monster(0).FaceDown,
+                "A facedown attacker is revealed by a resolved attack");
             Assert.IsTrue(match.Player.Monster(0).AttackedThisTurn);
             Assert.IsFalse(match.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Defense, out _));
@@ -111,6 +676,38 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void FacedownTargetCanSwitchToAttackWithoutRevealingUntilHit()
+        {
+            var match = Match(Monster("attacker", 1700, 800),
+                Monster("concealed", 2300, 1700));
+            Play(match, DuelSide.Player);
+            End(match, DuelSide.Player);
+            Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] { 0 },
+                FieldLane.Monster, 0, BattlePosition.Defense,
+                GuardianStar.None, true, out _));
+            Assert.IsTrue(match.TryChangePosition(DuelSide.Opponent, 0,
+                BattlePosition.Attack, out _));
+            Assert.IsTrue(match.Opponent.Monster(0).FaceDown);
+            Assert.IsFalse(match.CanChangePosition(DuelSide.Opponent, 0,
+                BattlePosition.Attack, out _),
+                "Selecting an already active stance must be a no-op");
+            End(match, DuelSide.Opponent);
+            Begin(match, DuelSide.Player);
+            int before = match.Events.Count;
+            Assert.IsTrue(match.TryPreviewAttack(DuelSide.Player, 0, 0,
+                out _, out _));
+            Assert.AreEqual(before, match.Events.Count);
+            Assert.IsTrue(match.Opponent.Monster(0).FaceDown,
+                "Attack prediction must not reveal the target");
+            Assert.IsTrue(match.TryAttack(DuelSide.Player, 0, 0, out _));
+            Assert.IsTrue(match.Events.Count > before);
+            Assert.IsNotNull(match.Opponent.Monster(0),
+                "Strong target should survive to verify its revealed state");
+            Assert.IsFalse(match.Opponent.Monster(0).FaceDown,
+                "A facedown target is revealed when attacked");
+        }
+
+        [Test]
         public void SupportsRequirePriorFacedownSetAndVerifiedEffect()
         {
             var match = new DuelMatch(Deck(Support("spell")), Deck(Monster("enemy", 1000, 1000)));
@@ -124,7 +721,7 @@ namespace Reborn.Tests
             Play(match, DuelSide.Opponent);
             End(match, DuelSide.Opponent);
             Assert.IsFalse(match.CanActivateSupport(DuelSide.Player, 2, out var reason));
-            StringAssert.Contains("nao validado", reason);
+            StringAssert.Contains("nao verificado", reason);
             Assert.IsTrue(match.Player.SupportIsFaceDown(2));
         }
 
@@ -168,6 +765,7 @@ namespace Reborn.Tests
             long count = match.Events.Count;
             Assert.IsFalse(SimpleOpponentAi.TryChoosePlay(match,out _,out _));
             Assert.AreEqual(count,match.Events.Count);
+            Play(match,DuelSide.Player);
             End(match,DuelSide.Player);
             count = match.Events.Count;
             Assert.IsTrue(SimpleOpponentAi.TryChoosePlay(match,out int hand,out int slot));
@@ -178,11 +776,33 @@ namespace Reborn.Tests
         }
 
         [Test]
+        public void OpponentSupportFallbackSatisfiesMandatoryPlayWithoutEffects()
+        {
+            var match = new DuelMatch(Deck(Support("opening")),
+                Deck(Support("spell"), Support("trap", CardKind.Trap),
+                    Support("equip", CardKind.Equip), Support("ritual", CardKind.Ritual),
+                    Support("spell2")));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player, new[] {0}, FieldLane.Support,
+                0, BattlePosition.Attack, GuardianStar.None, true, out _));
+            End(match, DuelSide.Player);
+            Assert.IsTrue(match.TryChooseSupportSet(DuelSide.Opponent,
+                out int hand, out int zone));
+            Assert.IsFalse(match.TryEndTurn(DuelSide.Opponent, out _));
+            Assert.IsTrue(match.TryPlay(DuelSide.Opponent, new[] {hand},
+                FieldLane.Support, zone, BattlePosition.Defense,
+                GuardianStar.None, true, out _));
+            Assert.IsTrue(match.Opponent.SupportIsFaceDown(zone));
+            Assert.IsFalse(match.CanActivateSupport(DuelSide.Opponent,zone,out _));
+            End(match, DuelSide.Opponent);
+        }
+
+        [Test]
         public void AiHasNoSummonWhenOpponentHandHasNoMonster()
         {
             var match = new DuelMatch(Deck(Monster("p",1000,900)),
                 Deck(Support("s1"),Support("s2"),Support("s3"),
                     Support("s4"),Support("s5")));
+            Play(match,DuelSide.Player);
             End(match,DuelSide.Player);
             Assert.IsFalse(SimpleOpponentAi.TryChoosePlay(match,out _,out _));
             Assert.IsFalse(match.PlayedThisTurn);
@@ -209,7 +829,10 @@ namespace Reborn.Tests
         [Test]
         public void AiSelectsDirectAttackOnlyWhenEnemyHasNoMonster()
         {
-            var match = Match(Monster("p",1200,1000), Monster("o",1800,1000));
+            var match = new DuelMatch(
+                Deck(Support("opening")), Deck(Monster("o",1800,1000)));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+                BattlePosition.Attack,GuardianStar.None,true,out _));
             End(match,DuelSide.Player);
             Play(match,DuelSide.Opponent,0);
             Begin(match,DuelSide.Opponent);
@@ -588,6 +1211,7 @@ namespace Reborn.Tests
             End(match,DuelSide.Player);
             Assert.AreEqual(DuelSide.Opponent,match.CurrentSide);
             Assert.AreEqual(4,match.Player.Hand.Count);
+            Play(match,DuelSide.Opponent);
             End(match,DuelSide.Opponent);
             Assert.AreEqual(DuelSide.Player,match.CurrentSide);
             Assert.AreEqual(5,match.Player.Hand.Count);
@@ -599,6 +1223,8 @@ namespace Reborn.Tests
         public void CannotPlayAfterBeginningBattle()
         {
             var match = Match(Monster("p",1800,1000),Monster("o",1000,1000));
+            Assert.IsFalse(match.TryBeginBattle(DuelSide.Player,out _));
+            Play(match,DuelSide.Player);
             Begin(match,DuelSide.Player);
             Assert.IsFalse(match.TryPlay(DuelSide.Player,new [] {0},FieldLane.Monster,0,
                 BattlePosition.Attack,GuardianStar.None,out _));
@@ -659,7 +1285,9 @@ namespace Reborn.Tests
         [Test]
         public void SimpleOpponentAiCompletesAnOpponentTurn()
         {
-            var match=Match(Monster("p",500,500),Monster("o",1900,900));
+            var match=new DuelMatch(Deck(Support("opening")),Deck(Monster("o",1900,900)));
+            Assert.IsTrue(match.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+                BattlePosition.Attack,GuardianStar.None,true,out _));
             End(match,DuelSide.Player);
             SimpleOpponentAi.TakeTurn(match);
             Assert.AreEqual(DuelSide.Player,match.CurrentSide);

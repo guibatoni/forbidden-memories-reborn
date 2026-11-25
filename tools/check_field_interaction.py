@@ -38,7 +38,8 @@ checks = {
     "no illegal selection persists after returning to main": "selectedAttacker = false;" in zone,
     "summon animation still starts from staged hand": "Play(pendingOrigin,placed.transform.position)" in factory and
         "AddComponent<CardMotion>()" in factory,
-    "summon arc uses gentle travel ease": "Mathf.Sin(t * Mathf.PI) * 0.88f" in motion and
+    "summon arc uses gentle travel ease": "Mathf.Sin(t * Mathf.PI) * 0.96f" in motion and
+        "sideways * cross" in motion and
         "1f - Mathf.Pow(1f - t, 3f)" in motion,
     "summon retains target orientation": "restingRotation = transform.rotation;" in motion and
         "transform.rotation = restingRotation;" in motion,

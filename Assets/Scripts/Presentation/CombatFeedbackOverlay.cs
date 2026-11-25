@@ -42,11 +42,23 @@ namespace Reborn.Presentation
             if (hud == null || !hud.DuelModeActive || !hud.AnimationsEnabled) return;
             if (evt.Kind == MatchEventKind.LifeChanged && evt.Value != 0)
             {
-                Add(evt.Side,"-" + Mathf.Abs(evt.Value) + " LP",new Color(1f,0.46f,0.31f));
+                Add(evt.Side,(evt.Value > 0 ? "+" : "-") +
+                    Mathf.Abs(evt.Value) + " LP",
+                    evt.Value > 0 ? new Color(0.42f,1f,0.65f) :
+                        new Color(1f,0.46f,0.31f));
             }
             else if (evt.Kind == MatchEventKind.Destroy)
             {
                 Add(evt.Side,"DESTRUIDO",new Color(1f,0.8f,0.36f));
+            }
+            else if (evt.Kind == MatchEventKind.TrapTriggered)
+            {
+                Add(evt.Side,"TRAP #" + evt.CardId + "!",new Color(1f,0.47f,0.46f));
+            }
+            else if (evt.Kind == MatchEventKind.TerrainChanged)
+            {
+                Add(evt.Side,"TERRENO " + TerrainRules.Name(evt.CardId),
+                    new Color(0.45f,0.92f,0.74f));
             }
             else if (evt.Kind == MatchEventKind.Attack && evt.Value >= 0)
             {

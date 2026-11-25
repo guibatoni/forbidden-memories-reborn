@@ -31,15 +31,916 @@ internal static class Program
     }
     private static void Battle(DuelMatch m, DuelSide side)
     {
+        // Tests that jump to a later turn still have to supply the required
+        // placement. Put a harmless card in a free rear slot for fixture setup.
+        if (!m.PlayedThisTurn)
+        {
+            bool placed = false;
+            var hand = m.Side(side).Hand;
+            for (int h = 0; h < hand.Count && !placed; h++)
+            {
+                var card = hand[h];
+                var lane = card.Kind == CardKind.Monster ?
+                    FieldLane.Monster : FieldLane.Support;
+                for (int slot = 4; slot >= 0; slot--)
+                {
+                    if (!m.CanPlay(side,new[]{h},lane,slot,card.StarA,out _)) continue;
+                    if (!m.TryPlay(side,new[]{h},lane,slot,
+                        BattlePosition.Defense,card.StarA,out var placementReason))
+                        throw new Exception(placementReason);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) throw new Exception("Smoke fixture has no valid mandatory play");
+        }
         if (!m.TryBeginBattle(side,out var reason)) throw new Exception(reason);
     }
     private static void End(DuelMatch m, DuelSide side)
     {
         if (!m.TryEndTurn(side,out var reason)) throw new Exception(reason);
     }
+    private static void CheckOriginalStarterChoices()
+    {
+        var catalog = new List<CardDefinition>();
+        for (int id = 1; id <= 722; id++)
+        {
+            CardKind kind = id <= 690 ? CardKind.Monster :
+                id <= 719 ? CardKind.Spell : CardKind.Equip;
+            int atk = id <= 200 ? 300 : id <= 400 ? 600 :
+                id <= 600 ? 900 : 1600;
+            int def = id <= 200 ? 350 : id <= 400 ? 650 :
+                id <= 600 ? 900 : 1100;
+            catalog.Add(new CardDefinition(id.ToString("000"),
+                "Synthetic #" + id, kind, kind == CardKind.Monster ? atk : 0,
+                kind == CardKind.Monster ? def : 0, ""));
+        }
+        var weights = new List<int[]>();
+        for (int group=0;group<7;group++)
+        {
+            var row = new int[722];
+            int start = group == 0 ? 1 : group == 1 ? 201 :
+                group == 2 ? 401 : group == 3 ? 601 :
+                group == 4 ? 691 : group == 5 ? 705 : 720;
+            int count = group < 2 ? 8 : group == 6 ? 3 : 4;
+            int baseWeight = 2048/count;
+            for (int i=0;i<count;i++) row[start-1+i]=baseWeight;
+            row[start-1]+=2048-baseWeight*count;
+            weights.Add(row);
+        }
+        var source = new StarterDeckCatalog(catalog,weights);
+        var options = source.FourChoices(new Random(9917));
+        Check(options.Count == 4 && options.All(d => d.Count == 40),
+            "four independent original-pool starter proposals, 40 cards each");
+        var signatures = new HashSet<string>();
+        foreach(var deck in options)
+        {
+            Check(deck.GroupBy(c=>c.Id).All(g=>g.Count()<=3),
+                "starter caps duplicated physical cards at three copies");
+            Check(deck.Count(c=>c.Kind==CardKind.Monster &&
+                c.Attack+c.Defense<1100)==16 &&
+                deck.Count(c=>c.Kind==CardKind.Monster &&
+                c.Attack+c.Defense>=1100 && c.Attack+c.Defense<1600)==16 &&
+                deck.Count(c=>c.Kind==CardKind.Monster &&
+                c.Attack+c.Defense>=1600 && c.Attack+c.Defense<2100)==4 &&
+                deck.Count(c=>c.Kind==CardKind.Monster &&
+                c.Attack+c.Defense>=2100)==1 &&
+                deck.Count(c=>c.Kind==CardKind.Spell)==2 &&
+                deck.Count(c=>c.Kind==CardKind.Equip)==1,
+                "starter distribution matches authentic 16+16+4+1+1+1+1");
+            signatures.Add(string.Join(",", deck.Select(c=>c.Id)
+                .OrderBy(x=>x,StringComparer.Ordinal)));
+        }
+        Check(signatures.Count==4,
+            "four starter choices have distinct physical card sets");
+        var corrupt = weights.Select(w=>(int[])w.Clone()).ToList();
+        corrupt[0][0]=0;
+        try
+        {
+            new StarterDeckCatalog(catalog,corrupt);
+            throw new Exception("FAIL corrupt starter weights were accepted");
+        }
+        catch(ArgumentException)
+        {
+            Check(true,"corrupt original starter rows rejected");
+        }
+    }
+
+    private static void CheckVerifiedMagicEngine()
+    {
+        var spells = VerifiedSpellCatalog.OriginalPs1Core();
+        Check(spells.Count == 18 &&
+            spells.TryGet(S("338"), out var recovery) &&
+            recovery.Amount == 200 &&
+            recovery.Operation == VerifiedSpellOperation.RestoreLife &&
+            !spells.TryGet(S("701"), out _),
+            "0.21 PS1 rule catalog retains exact verified magic and terrain IDs");
+
+        var healing = new DuelMatch(Deck(S("338")), Deck(M("enemy",1000,900)),
+            null, null, spells);
+        Check(healing.TryPlay(DuelSide.Player, new[]{0}, FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out var why) &&
+            healing.Player.Life == 8000 &&
+            healing.Player.Support(0) == null &&
+            healing.Player.Graveyard.Count == 1 &&
+            healing.Player.Graveyard[0].Id == "338" &&
+            healing.Events.Any(e=>e.Kind==MatchEventKind.SupportActivated &&
+                e.CardId=="338") &&
+            !healing.Events.Any(e=>e.Kind==MatchEventKind.LifeChanged),
+            "0.30 Mooyan Curry at full LP is spent without exceeding max LP (retail)");
+        Check(!healing.TryPlay(DuelSide.Player,new[]{0},FieldLane.Monster,1,
+            BattlePosition.Attack,GuardianStar.None,out _),
+            "0.19 instant spell still consumes exactly one mandatory play");
+
+        var fakeEffect = new CardDefinition("701","Synthetic unverified",
+            CardKind.Spell,0,0,"",GuardianStar.None,GuardianStar.None,
+            "Destroy all cards and win","untrusted-text","not-a-verified-rule");
+        var unknown = new DuelMatch(Deck(fakeEffect), Deck(M("enemy",1500,1200)),
+            null,null,spells);
+        int beforeEvents=unknown.Events.Count;
+        int beforeHand=unknown.Player.Hand.Count;
+        Check(!unknown.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            unknown.Events.Count==beforeEvents &&
+            unknown.Player.Hand.Count==beforeHand &&
+            !unknown.PlayedThisTurn &&
+            unknown.Player.Support(0)==null,
+            "0.19 unknown face-up spell is rejected atomically; text cannot execute");
+        Check(unknown.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _) &&
+            unknown.Player.Support(0)?.Id=="701" &&
+            !unknown.CanActivateSupport(DuelSide.Player,0,out _),
+            "0.19 unknown spell can be prepared facedown without fabricating an effect");
+
+        var prepared = new DuelMatch(Deck(S("343")),
+            Deck(M("rival",1000,1000)),null,null,spells);
+        Check(prepared.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _) &&
+            !prepared.CanActivateSupport(DuelSide.Player,0,out _),
+            "0.19 facedown Sparks remains hidden and cannot activate in placement turn");
+        End(prepared,DuelSide.Player);
+        Play(prepared,DuelSide.Opponent);
+        End(prepared,DuelSide.Opponent);
+        int supportEvents = prepared.Events.Count;
+        Check(prepared.CanActivateSupport(DuelSide.Player,0,out _) &&
+            prepared.Events.Count==supportEvents &&
+            prepared.TryActivateSupport(DuelSide.Player,0,out _) &&
+            prepared.Opponent.Life==7950 &&
+            prepared.Player.Support(0)==null &&
+            prepared.Player.Graveyard.Count==1 &&
+            !prepared.PlayedThisTurn &&
+            prepared.Events.Any(e=>e.Kind==MatchEventKind.SupportActivated &&
+                e.CardId=="343"),
+            "0.19 previously set Sparks activates later without spending a second placement");
+        Check(!prepared.TryActivateSupport(DuelSide.Player,0,out _),
+            "0.19 spent spell cannot be activated twice");
+
+        var lightning = new DuelMatch(
+            Deck(M("mine",1900,1600),S("337")),
+            Deck(M("enemy",2000,1400)),null,null,spells);
+        Play(lightning,DuelSide.Player);
+        End(lightning,DuelSide.Player);
+        Play(lightning,DuelSide.Opponent);
+        End(lightning,DuelSide.Opponent);
+        Check(lightning.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            lightning.Player.Monster(0)!=null &&
+            lightning.Opponent.Monster(0)==null &&
+            lightning.Opponent.Graveyard.Any(c=>c.Id=="enemy") &&
+            lightning.Events.Any(e=>e.Kind==MatchEventKind.Destroy &&
+                e.Side==DuelSide.Opponent && e.Lane==FieldLane.Monster),
+            "0.19 Raigeki destroys opponent monsters but not allied monsters");
+
+        var dark = new DuelMatch(
+            Deck(M("own",900,1200),S("336")),
+            Deck(M("foe",1000,1000)),null,null,spells);
+        Play(dark,DuelSide.Player);
+        End(dark,DuelSide.Player);
+        Play(dark,DuelSide.Opponent);
+        End(dark,DuelSide.Opponent);
+        Check(dark.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            dark.Player.MonsterCount==0 &&
+            dark.Opponent.MonsterCount==0 &&
+            dark.Player.Graveyard.Any(c=>c.Id=="own") &&
+            dark.Opponent.Graveyard.Any(c=>c.Id=="foe"),
+            "0.19 Dark Hole wipes both monster rows and buries physical cards");
+
+        var lethal = new DuelMatch(Deck(S("343")),Deck(M("other",800,800)),
+            null,null,spells);
+        lethal.Opponent.Life=40;
+        Check(lethal.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            lethal.Opponent.Life==0 &&
+            lethal.Phase==MatchPhase.Finished &&
+            lethal.Winner==DuelSide.Player,
+            "0.19 magical damage can finish a duel without an attack");
+
+        var noRules = new DuelMatch(Deck(S("343")),Deck(M("other",800,800)));
+        Check(noRules.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            noRules.Opponent.Life==8000 &&
+            noRules.Player.Support(0)!=null,
+            "0.19 synthetic training mode never executes Original PS1 spells");
+    }
+
+    private static void CheckVerifiedEquipEngine()
+    {
+        var rules = VerifiedEquipCatalog.OriginalPs1Foundation();
+        var megamorph = new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+        var castle = new CardDefinition("668","Bright Castle",CardKind.Equip,0,0,"");
+        Check(rules.Count == 2 &&
+            rules.CanApply(megamorph,M("001",1200,900),out var megaRule) &&
+            megaRule.AttackGain == 1000 && megaRule.DefenseGain == 1000 &&
+            rules.CanApply(castle,M("050",500,500),out var castleRule) &&
+            castleRule.AttackGain == 500 && castleRule.DefenseGain == 500,
+            "0.20 PS1 universal Megamorph and Bright Castle are explicitly verified");
+
+        var specific = new VerifiedEquipCatalog();
+        specific.AddTargets("315",500,500,new[]{"001","002"});
+        var treasure = new CardDefinition("315","Dragon Treasure",CardKind.Equip,0,0,"");
+        Check(specific.CanApply(treasure,M("001",1000,1000),out _) &&
+            !specific.CanApply(treasure,M("003",1000,1000),out _) &&
+            !specific.CanApply(megamorph,M("001",1000,1000),out _),
+            "0.20 monster-ID equip allowlist never guesses compatibility by name or type");
+
+        var match = new DuelMatch(
+            Deck(M("own",1700,900),megamorph,castle),
+            Deck(M("enemy",900,900)),null,null,null,rules);
+        Play(match,DuelSide.Player);
+        End(match,DuelSide.Player);
+        Play(match,DuelSide.Opponent);
+        End(match,DuelSide.Opponent);
+        int handBefore = match.Player.Hand.Count;
+        int graveBefore = match.Player.Graveyard.Count;
+        Check(match.CanEquipFromHand(DuelSide.Player,0,0,out _,out _) &&
+            match.Player.Monster(0).EffectiveAttack == 1700 &&
+            match.Events.Count > 0,
+            "0.20 read-only equip preview leaves monster unmodified");
+        Check(match.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            match.Player.Monster(0).EffectiveAttack == 2700 &&
+            match.Player.Monster(0).EffectiveDefense == 1900 &&
+            match.Player.Monster(0).EquipCount == 1 &&
+            match.Player.Hand.Count == handBefore-1 &&
+            match.Player.Graveyard.Count == graveBefore+1 &&
+            match.Player.Graveyard.Last().Id == "657" &&
+            match.Player.Support(0) == null &&
+            match.Events.Any(e=>e.Kind==MatchEventKind.Equipped &&
+                e.CardId=="657" && e.Value==1000),
+            "0.20 Megamorph adds +1000 ATK/DEF and vanishes, consuming exactly one hand play");
+        Check(!match.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            !match.CanEquipFromHand(DuelSide.Player,0,0,out _,out _),
+            "0.20 cannot consume a second hand play in the same turn");
+        Battle(match,DuelSide.Player);
+        Check(match.TryPreviewAttack(DuelSide.Player,0,0,out var equippedForecast,out _) &&
+            equippedForecast.AttackerBase == 2700 &&
+            equippedForecast.AttackerEquipBonus == 1000 &&
+            equippedForecast.DamageToDefender == 1800,
+            "0.20 combat prediction includes equipped ATK without changing LP/events");
+        Check(match.TryAttack(DuelSide.Player,0,0,out _) &&
+            match.Opponent.Life == 6200,
+            "0.20 resolved combat uses the same equipped attack power");
+        End(match,DuelSide.Player);
+        // Opponent has lost its first monster: place the next in a new zone.
+        Check(match.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Monster,0,BattlePosition.Defense,
+            GuardianStar.None,out _),"0.20 fixture opponent placement after combat");
+        End(match,DuelSide.Opponent);
+        Check(match.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            match.Player.Monster(0).EffectiveAttack == 3200 &&
+            match.Player.Monster(0).EffectiveDefense == 2400 &&
+            match.Player.Monster(0).EquipCount == 2 &&
+            match.Player.Graveyard.Any(c=>c.Id=="668"),
+            "0.20 stacking two retail equips preserves both bonuses");
+
+        var concealed = new DuelMatch(
+            Deck(M("hidden",1500,1500),megamorph),
+            Deck(M("foe",950,950)),null,null,null,rules);
+        Check(concealed.TryPlay(DuelSide.Player,new[]{0},FieldLane.Monster,0,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.20 facedown monster set");
+        End(concealed,DuelSide.Player);
+        Play(concealed,DuelSide.Opponent);
+        End(concealed,DuelSide.Opponent);
+        int concealedEvents=concealed.Events.Count;
+        int concealedHand=concealed.Player.Hand.Count;
+        Check(!concealed.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            concealed.Player.Monster(0).FaceDown &&
+            concealed.Player.Monster(0).EquipCount==0 &&
+            concealed.Events.Count==concealedEvents &&
+            concealed.Player.Hand.Count==concealedHand &&
+            !concealed.PlayedThisTurn,
+            "0.20 hidden monster cannot be boosted or revealed by rejected equip");
+
+        var saved = new DuelMatch(
+            Deck(M("own",1600,1300),megamorph),
+            Deck(M("enemy",600,600)),null,null,null,rules);
+        Play(saved,DuelSide.Player);
+        End(saved,DuelSide.Player);
+        Play(saved,DuelSide.Opponent);
+        End(saved,DuelSide.Opponent);
+        Check(saved.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,1,
+            BattlePosition.Attack,GuardianStar.None,true,out _) &&
+            saved.Player.SupportIsFaceDown(1) &&
+            !saved.CanEquipFromSupport(DuelSide.Player,1,0,out _,out _),
+            "0.20 set equip is not activatable in same turn");
+        End(saved,DuelSide.Player);
+        Check(saved.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Monster,1,BattlePosition.Attack,
+            GuardianStar.None,out _),"0.20 fixture set equip next turn");
+        End(saved,DuelSide.Opponent);
+        Check(saved.CanEquipFromSupport(DuelSide.Player,1,0,out _,out _) &&
+            saved.TryEquipFromSupport(DuelSide.Player,1,0,out _) &&
+            saved.Player.Support(1)==null &&
+            saved.Player.Monster(0).EffectiveAttack==2600 &&
+            !saved.PlayedThisTurn &&
+            !saved.TryEquipFromSupport(DuelSide.Player,1,0,out _),
+            "0.20 next-turn set equip activates exactly once, without consuming placement");
+
+        var unknown = new VerifiedEquipCatalog();
+        var failed = new DuelMatch(
+            Deck(M("mine",1100,1100),megamorph),
+            Deck(M("rival",800,800)),null,null,null,unknown);
+        Play(failed,DuelSide.Player);
+        End(failed,DuelSide.Player);
+        Play(failed,DuelSide.Opponent);
+        End(failed,DuelSide.Opponent);
+        int eventsBefore=failed.Events.Count;
+        Check(!failed.TryEquipFromHand(DuelSide.Player,0,0,out _) &&
+            failed.Events.Count==eventsBefore &&
+            !failed.PlayedThisTurn &&
+            failed.Player.Monster(0).EquipCount==0 &&
+            failed.Player.Hand.Any(c=>c.Id=="657"),
+            "0.20 missing verified compatibility never consumes physical cards");
+    }
+
+    private static CardDefinition Typed(string id, int atk, int def, string type)
+        => new CardDefinition(id, id, CardKind.Monster, atk, def,
+            "synthetic", GuardianStar.None, GuardianStar.None, "", "", "", type);
+
+    private static CardDefinition Trap(string id)
+        => new CardDefinition(id, id, CardKind.Trap, 0, 0, "synthetic");
+
+    private static void CheckTerrainAndTraps()
+    {
+        Check(TerrainRules.Bonus("332", Typed("dragon",1000,1000,"Dragon")) == 500 &&
+            TerrainRules.Bonus("332", Typed("warrior",1000,1000,"Warrior")) == 0 &&
+            TerrainRules.Bonus("335", Typed("fairy",1000,1000,"Fairy")) == -500 &&
+            TerrainRules.Bonus("334", Typed("machine",1000,1000,"Machine")) == -500 &&
+            TerrainRules.Bonus("334", Typed("thunder",1000,1000,"Thunder")) == 500 &&
+            TerrainRules.Bonus("330", Typed("beast",1000,1000,"Beast-Warrior")) == 500 &&
+            TerrainRules.Bonus("335", Typed("missing",1000,1000,"")) == 0,
+            "0.21 six fields include positive and negative type bonuses; unknown types not guessed");
+
+        var terrainDuel = new DuelMatch(
+            Deck(Typed("dragon",1800,1500,"Dragon"),S("332"),S("330")),
+            Deck(Typed("wizard",1500,1400,"Spellcaster"),S("335")),
+            null,null,VerifiedSpellCatalog.OriginalPs1Core());
+        Play(terrainDuel,DuelSide.Player);
+        End(terrainDuel,DuelSide.Player);
+        Play(terrainDuel,DuelSide.Opponent);
+        End(terrainDuel,DuelSide.Opponent);
+        Check(terrainDuel.TryPlay(DuelSide.Player,new[]{0},
+            FieldLane.Support,0,BattlePosition.Attack,GuardianStar.None,
+            false,out _) && terrainDuel.CurrentTerrainCardId == "332" &&
+            terrainDuel.Player.Support(0) == null &&
+            terrainDuel.Player.Graveyard.Any(c=>c.Id=="332") &&
+            terrainDuel.Events.Any(e=>e.Kind==MatchEventKind.TerrainChanged &&
+                e.CardId=="332"),
+            "0.21 Mountain activates immediately, becomes one global terrain and goes to graveyard");
+        Battle(terrainDuel,DuelSide.Player);
+        Check(terrainDuel.TryPreviewAttack(DuelSide.Player,0,0,
+            out var mountainForecast,out _) &&
+            mountainForecast.AttackerBase == 2300 &&
+            mountainForecast.AttackerTerrainBonus == 500 &&
+            mountainForecast.DefenderTerrainBonus == 0,
+            "0.21 global terrain affects combat forecast before attack");
+        End(terrainDuel,DuelSide.Player);
+        Check(terrainDuel.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Support,0,BattlePosition.Attack,GuardianStar.None,
+            false,out _) && terrainDuel.CurrentTerrainCardId=="335",
+            "0.21 opponent Yami replaces Mountain across both players");
+        Battle(terrainDuel,DuelSide.Opponent);
+        Check(terrainDuel.TryPreviewAttack(DuelSide.Opponent,0,0,
+            out var yamiForecast,out _) &&
+            yamiForecast.AttackerTerrainBonus==500 &&
+            yamiForecast.DefenderTerrainBonus==0 &&
+            yamiForecast.AttackerBase==2000,
+            "0.21 opponent field bonus is applied to both sides rather than only caster");
+
+        var allTraps=AttackTrapCatalog.OriginalPs1();
+        Check(allTraps.Count==6 &&
+            allTraps.TryMatch(Trap("681"),500,out int limit) && limit==500 &&
+            !allTraps.TryMatch(Trap("681"),501,out _) &&
+            allTraps.TryMatch(Trap("685"),3000,out _) &&
+            !allTraps.TryMatch(Trap("685"),3001,out _) &&
+            allTraps.TryMatch(Trap("686"),25000,out _),
+            "0.21 traps #681-686 use inclusive retail attack thresholds");
+
+        var protect = new DuelMatch(
+            Deck(M("attacker",1450,1000)),
+            Deck(Trap("686"),Trap("683"),M("foe",800,850)),
+            null,null,null,null,allTraps);
+        Play(protect,DuelSide.Player);
+        End(protect,DuelSide.Player);
+        Check(protect.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,1,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.21 opponent sets Widespread Ruin without revealing its content");
+        End(protect,DuelSide.Opponent);
+        Battle(protect,DuelSide.Player); End(protect,DuelSide.Player);
+        Check(protect.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,2,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.21 opponent sets Bear Trap on another turn");
+        End(protect,DuelSide.Opponent);
+        Battle(protect,DuelSide.Player);
+        int eventsBefore=protect.Events.Count;
+        int hpBefore=protect.Opponent.Life;
+        Check(protect.TryPreviewAttack(DuelSide.Player,0,-1,out var cleanPreview,out _) &&
+            protect.Events.Count==eventsBefore &&
+            protect.Opponent.SupportIsFaceDown(1) &&
+            protect.Opponent.SupportIsFaceDown(2) &&
+            cleanPreview.DamageToDefender==1450,
+            "0.21 preview does not reveal either hidden trap");
+        Check(protect.TryAttack(DuelSide.Player,0,-1,out _) &&
+            protect.Player.Monster(0)==null &&
+            protect.Opponent.Life==hpBefore &&
+            protect.Opponent.Support(2)==null &&
+            protect.Opponent.Support(1)?.Id=="686" &&
+            protect.Opponent.Graveyard.Any(c=>c.Id=="683") &&
+            protect.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="683"),
+            "0.21 lowest eligible trap interrupts direct attack, kills attacker and leaves broader trap set");
+        Check(!protect.TryAttack(DuelSide.Player,0,-1,out _),
+            "0.21 destroyed attacker cannot declare a second attack");
+
+        var tooWeak = new DuelMatch(Deck(M("strong",1050,800)),
+            Deck(Trap("681"),M("small",800,900)),
+            null,null,null,null,allTraps);
+        Play(tooWeak,DuelSide.Player); End(tooWeak,DuelSide.Player);
+        Check(tooWeak.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,0,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.21 one narrow trap placed");
+        End(tooWeak,DuelSide.Opponent);
+        Battle(tooWeak,DuelSide.Player);
+        Check(tooWeak.TryAttack(DuelSide.Player,0,-1,out _) &&
+            tooWeak.Opponent.Life==6950 &&
+            tooWeak.Opponent.Support(0)?.Id=="681" &&
+            !tooWeak.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered),
+            "0.21 a trap below attack power stays hidden and ordinary battle resolves");
+    }
+
+    private static void CheckReactiveTraps()
+    {
+        var catalog=ReactiveTrapCatalog.OriginalPs1();
+        Check(catalog.Count==2 &&
+            catalog.Matches(Trap("687"),
+                ReactiveTrapOperation.ReflectDirectSpellDamage) &&
+            catalog.Matches(Trap("688"),
+                ReactiveTrapOperation.ReverseSpellHealing) &&
+            !catalog.Matches(Trap("689"),
+                ReactiveTrapOperation.ReflectDirectSpellDamage),
+            "0.22 reactive traps are exactly Goblin Fan and Simochi");
+
+        var game=new DuelMatch(
+            Deck(M("mine",1000,800), S("343"), S("339")),
+            Deck(Trap("687"),Trap("688"),M("foe",900,900)),
+            null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+            null,AttackTrapCatalog.OriginalPs1(),catalog);
+        Play(game,DuelSide.Player); End(game,DuelSide.Player);
+        Check(game.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,1,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.22 opponent prepares Goblin Fan in prior turn");
+        End(game,DuelSide.Opponent);
+        int events=game.Events.Count;
+        int grave=game.Opponent.Graveyard.Count;
+        Check(game.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            game.Player.Life==7950 && game.Opponent.Life==8000 &&
+            game.Opponent.Support(1)==null &&
+            game.Opponent.Graveyard.Count==grave+1 &&
+            game.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="687") &&
+            game.Events.Count>events,
+            "0.22 Goblin Fan redirects Sparks burn to original caster and consumes trap once");
+        End(game,DuelSide.Player);
+        Check(game.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,2,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.22 opponent sets Simochi independently");
+        End(game,DuelSide.Opponent);
+        Check(game.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            game.Player.Life==7450 && game.Opponent.Life==8000 &&
+            game.Opponent.Support(2)==null &&
+            game.Opponent.Graveyard.Any(c=>c.Id=="688") &&
+            game.Events.Any(e=>e.Kind==MatchEventKind.TrapTriggered &&
+                e.CardId=="688"),
+            "0.22 Simochi converts Red Medicine +500 into -500 LP to healing caster");
+
+        var unrelated=new DuelMatch(
+            Deck(M("mine",800,600),S("343")),
+            Deck(Trap("688"),M("foe",600,600)),
+            null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+            null,null,catalog);
+        Play(unrelated,DuelSide.Player);End(unrelated,DuelSide.Player);
+        Check(unrelated.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Support,0,
+            BattlePosition.Defense,GuardianStar.None,true,out _),
+            "0.22 unrelated Simochi is prepared");
+        End(unrelated,DuelSide.Opponent);
+        Check(unrelated.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,1,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            unrelated.Opponent.Life==7950 &&
+            unrelated.Opponent.Support(0)?.Id=="688",
+            "0.22 Simochi must not trigger on a burn spell");
+        var fake=new DuelMatch(Deck(S("343")),
+            Deck(Trap("689"),Trap("690")),
+            null,null,VerifiedSpellCatalog.OriginalPs1Core(),
+            null,null,catalog);
+        // Synthetic placeholders #689/#690 cannot execute through 0.22
+        Check(!catalog.Matches(Trap("690"),
+                ReactiveTrapOperation.ReverseSpellHealing) &&
+            fake.Opponent.Support(0)==null,
+            "0.22 Reverse Trap/Fake Trap are never assigned invented effects");
+
+        var safe=new DuelMatch(Deck(S("343")),
+            Deck(Trap("687")),null,null,
+            VerifiedSpellCatalog.OriginalPs1Core(),null,null,catalog);
+        Check(safe.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,false,out _) &&
+            safe.Opponent.Life==7950 &&
+            safe.Player.Life==8000,
+            "0.22 no set opponent trap means ordinary burn behavior unchanged");
+    }
+
+    private static void CheckNewFusionAndAutoSlotRules()
+    {
+        // Explicit recipes only: this is synthetic CI data, not a ROM import.
+        var alpha = M("fusion-alpha",850,650);
+        var beta = M("fusion-beta",1000,600);
+        var combined = M("fusion-result",2200,1300);
+        var recipes = new FusionCatalog();
+        recipes.Add(alpha.Id,beta.Id,combined);
+        var duel = new DuelMatch(Deck(alpha,beta,M("other",900,900)),
+            Deck(M("rival",900,800)),recipes);
+        int before = duel.Events.Count;
+        Check(duel.FusionRecipeCount == 1 &&
+            duel.CountHandFusionSteps(DuelSide.Player,new[]{0,1})==1 &&
+            duel.CountHandFusionSteps(DuelSide.Player,new[]{1,0})==1 &&
+            duel.CountHandFusionSteps(DuelSide.Player,new[]{0,2})==0 &&
+            duel.CountHandFusionSteps(DuelSide.Player,new[]{0,0})==0 &&
+            duel.PreviewResult(DuelSide.Player,new[]{0,1}).Id==combined.Id &&
+            duel.Events.Count==before && !duel.PlayedThisTurn,
+            "0.24 ordered hand fusion preview uses actual recipe without spending cards");
+        Check(duel.TryPlay(DuelSide.Player,new[]{0,1},FieldLane.Monster,0,
+            BattlePosition.Defense,GuardianStar.None,true,out _) &&
+            duel.Player.Monster(0).Card.Id==combined.Id &&
+            duel.Player.Monster(0).Position==BattlePosition.Defense &&
+            !duel.Player.Monster(0).FaceDown &&
+            duel.Player.Hand.Count==3 &&
+            duel.Player.Monster(1)==null &&
+            duel.Events.Any(e=>e.Kind==MatchEventKind.Fusion),
+            "0.24 two materials fuse in one turn, keep DEF and are revealed (PS1 state 8)");
+
+        var slots = new DuelMatch(Deck(alpha,beta,M("next",1000,1000)),
+            Deck(M("rival",800,800)),recipes);
+        Check(slots.TryPlay(DuelSide.Player,new[]{0},FieldLane.Monster,0,
+            BattlePosition.Attack,GuardianStar.None,out _),
+            "0.24 occupied slot fixture");
+        End(slots,DuelSide.Player);
+        Play(slots,DuelSide.Opponent);
+        End(slots,DuelSide.Opponent);
+        Check(!slots.CanPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,0,GuardianStar.None,out _) &&
+            slots.CanPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,1,GuardianStar.None,out _) &&
+            slots.TryPlay(DuelSide.Player,new[]{0},FieldLane.Monster,1,
+                BattlePosition.Attack,GuardianStar.None,out _) &&
+            slots.Player.Monster(0).Card.Id == alpha.Id &&
+            slots.Player.Monster(1).Card.Id == beta.Id,
+            "0.24 first free slot is 2 when slot 1 occupied, without overwriting first monster");
+
+        var field = new DuelMatch(Deck(alpha,beta),
+            Deck(M("enemy",700,700)),recipes);
+        Play(field,DuelSide.Player);End(field,DuelSide.Player);
+        Play(field,DuelSide.Opponent);End(field,DuelSide.Opponent);
+        Check(field.PreviewFieldResult(DuelSide.Player,new[]{0},0)?.Id ==
+            combined.Id &&
+            field.TryPlayOnField(DuelSide.Player,new[]{0},0,
+                BattlePosition.Attack,GuardianStar.None,false,
+                out var result,out var fused,out _) &&
+            fused && result.Id==combined.Id &&
+            field.Player.Monster(0).Card.Id==combined.Id,
+            "0.24 on-field fusion accepts actual own monster as material #1");
+
+        var equip=new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+        var equipMatch = new DuelMatch(
+            Deck(M("owned",1400,1200),equip),
+            Deck(M("opponent",900,900)),null,null,null,
+            VerifiedEquipCatalog.OriginalPs1Foundation());
+        Play(equipMatch,DuelSide.Player);End(equipMatch,DuelSide.Player);
+        Play(equipMatch,DuelSide.Opponent);End(equipMatch,DuelSide.Opponent);
+        Check(equipMatch.CanPlay(DuelSide.Player,new[]{0},
+                FieldLane.Support,0,GuardianStar.None,out _) &&
+            equipMatch.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+                BattlePosition.Defense,GuardianStar.None,true,out _) &&
+            equipMatch.Player.Monster(0).EffectiveAttack==1400 &&
+            equipMatch.Player.Support(0)?.Id=="657" &&
+            equipMatch.Player.SupportIsFaceDown(0),
+            "0.24 setting Equip over occupied monster does not apply bonus prematurely");
+        End(equipMatch,DuelSide.Player);
+        Check(equipMatch.TryPlay(DuelSide.Opponent,new[]{0},
+            FieldLane.Monster,1,BattlePosition.Attack,
+            GuardianStar.None,out _),"0.24 equip next turn fixture");
+        End(equipMatch,DuelSide.Opponent);
+        Check(equipMatch.TryEquipFromSupport(DuelSide.Player,0,0,out _) &&
+            equipMatch.Player.Monster(0).EffectiveAttack==2400 &&
+            equipMatch.Player.Support(0)==null &&
+            !equipMatch.PlayedThisTurn,
+            "0.24 set-over-monster Equip activates on next turn with +1000 and no extra placement");
+    }
+
+    private static void CheckAvailableFusionAssistant()
+    {
+        // Synthetic IDs: exercising the rules engine, not pretending these
+        // pairings belong to the user's retail ISO.
+        var first = M("hero", 1000, 700);
+        var second = M("supporter", 800, 600);
+        var result = M("fusion-win", 2300, 1800);
+        var rules = new FusionCatalog();
+        rules.Add(first.Id, second.Id, result);
+
+        var handMatch = new DuelMatch(Deck(first, second, M("other", 900, 500)),
+            Deck(M("enemy",1000,800)), rules);
+        int eventCount = handMatch.Events.Count;
+        int originalHand = handMatch.Player.Hand.Count;
+        var choices = handMatch.FindAvailableFusions(DuelSide.Player);
+        Check(choices.Count == 1 && !choices[0].UsesField &&
+            choices[0].FirstHandIndex == 0 &&
+            choices[0].SecondHandIndex == 1 &&
+            choices[0].FieldSlot == -1 &&
+            choices[0].Result.Id == result.Id &&
+            handMatch.Events.Count == eventCount &&
+            handMatch.Player.Hand.Count == originalHand &&
+            !handMatch.PlayedThisTurn,
+            "0.25 fusion assistant lists only validated, playable hand pairs without any mutation");
+        Check(handMatch.FindAvailableFusions(DuelSide.Opponent).Count == 0,
+            "0.25 fusion assistant cannot inspect or suggest opponent private hand during player turn");
+        Check(handMatch.TryPlay(DuelSide.Player,
+            new[] {choices[0].FirstHandIndex,choices[0].SecondHandIndex},
+            FieldLane.Monster,0,BattlePosition.Defense,GuardianStar.None,true,
+            out var reason) && handMatch.Player.Monster(0).Card.Id == result.Id &&
+            !handMatch.Player.Monster(0).FaceDown &&
+            handMatch.Player.Monster(0).Position == BattlePosition.Defense &&
+            handMatch.FindAvailableFusions(DuelSide.Player).Count == 0,
+            "0.25 selecting a suggested hand fusion performs exactly one real placement");
+
+        var fieldMatch = new DuelMatch(Deck(first,second),
+            Deck(M("enemy",1000,800)),rules);
+        Play(fieldMatch,DuelSide.Player);
+        End(fieldMatch,DuelSide.Player);
+        Play(fieldMatch,DuelSide.Opponent);
+        End(fieldMatch,DuelSide.Opponent);
+        int previousEvents = fieldMatch.Events.Count;
+        int previousHand = fieldMatch.Player.Hand.Count;
+        var fields = fieldMatch.FindAvailableFusions(DuelSide.Player);
+        Check(fields.Count == 1 && fields[0].UsesField &&
+            fields[0].FieldSlot == 0 &&
+            fields[0].FirstHandIndex == 0 &&
+            fields[0].SecondHandIndex == -1 &&
+            fields[0].Result.Id == result.Id &&
+            fieldMatch.Events.Count == previousEvents &&
+            fieldMatch.Player.Hand.Count == previousHand,
+            "0.25 field assistant considers own field monster first and preserves read-only state");
+        Check(fieldMatch.TryPlayOnField(DuelSide.Player,
+            new[] {fields[0].FirstHandIndex}, fields[0].FieldSlot,
+            BattlePosition.Attack,GuardianStar.None,false,
+            out var fieldResult,out var fused,out _) &&
+            fused && fieldResult.Id == result.Id,
+            "0.25 field suggestion commits a verified on-table fusion");
+
+        var none = new DuelMatch(Deck(first,second),Deck(M("enemy",1000,800)));
+        Check(none.FusionRecipeCount == 0 &&
+            none.FindAvailableFusions(DuelSide.Player).Count == 0,
+            "0.25 missing imported recipes never generate invented fusion advice");
+    }
+
+    private static void CheckAdaptiveVerifiedFusionChains()
+    {
+        // Learning 2.0 may choose a strong, fully verified three-card chain.
+        // Legacy remains pair-only to preserve controlled AI comparisons.
+        var a = M("ai-chain-a", 150, 150);
+        var b = M("ai-chain-b", 170, 170);
+        var c = M("ai-chain-c", 190, 190);
+        var ab = M("ai-chain-ab", 1100, 850);
+        var abc = M("ai-chain-abc", 6500, 5500);
+        var recipes = new FusionCatalog();
+        recipes.Add(a.Id,b.Id,ab);
+        recipes.Add(ab.Id,c.Id,abc);
+        var duel = new DuelMatch(Deck(M("player-defender",700,600)),
+            Deck(a,b,c),recipes);
+        Play(duel,DuelSide.Player);
+        End(duel,DuelSide.Player);
+        var legacy = new AdaptiveOpponentBrain(new Random(162),
+            AiBrainVersion.Legacy);
+        legacy.StartDuel(new AiLearningState("test:legacy-fusion"));
+        Check(legacy.TryChoosePlacement(duel,out var oldPlan) &&
+            oldPlan.HandIndices.Count <= 2,
+            "0.27 legacy AI remains pair-only for regression comparisons");
+
+        var learning = new AdaptiveOpponentBrain(new Random(162),
+            AiBrainVersion.Learning2);
+        learning.StartDuel(new AiLearningState("test:learning-fusion"));
+        int eventsBefore = duel.Events.Count;
+        int handBefore = duel.Opponent.Hand.Count;
+        Check(learning.TryChoosePlacement(duel,out var chosen) &&
+            chosen.Result.Id == abc.Id &&
+            chosen.HandIndices.SequenceEqual(new[]{0,1,2}) &&
+            duel.CanPlay(DuelSide.Opponent,chosen.HandIndices,
+                FieldLane.Monster,chosen.Slot,chosen.Star,out _) &&
+            duel.Events.Count == eventsBefore &&
+            duel.Opponent.Hand.Count == handBefore &&
+            !duel.PlayedThisTurn,
+            "0.27 Learning 2.0 picks a verified three-card chain without mutating duel");
+        Check(duel.TryPlay(DuelSide.Opponent,chosen.HandIndices,
+            FieldLane.Monster,chosen.Slot,chosen.Position,chosen.Star,out _) &&
+            duel.Opponent.Monster(chosen.Slot).Card.Id == abc.Id &&
+            duel.Events.Count(e=>e.Kind==MatchEventKind.Fusion)==2,
+            "0.27 opponent executes selected chain through authoritative duel engine");
+    }
+
+    private static void CheckVerifiedFusionChains()
+    {
+        // Only supplied synthetic recipes are considered, never guessed.
+        var a = M("chain-a", 500, 500);
+        var b = M("chain-b", 600, 600);
+        var c = M("chain-c", 700, 700);
+        var d = M("chain-d", 800, 800);
+        var ab = M("chain-ab", 1200, 1000);
+        var abc = M("chain-abc", 1800, 1400);
+        var abcd = M("chain-abcd", 2600, 2000);
+        var catalog = new FusionCatalog();
+        catalog.Add(a.Id, b.Id, ab);
+        catalog.Add(ab.Id, c.Id, abc);
+        catalog.Add(abc.Id, d.Id, abcd);
+        var match = new DuelMatch(Deck(a,b,c,d), Deck(M("enemy",1000,1000)), catalog);
+        int beforeEvents = match.Events.Count;
+        int beforeHand = match.Player.Hand.Count;
+        var available = match.FindAvailableFusions(DuelSide.Player);
+        Check(available.Count == 3 &&
+            available[0].MaterialCount == 2 &&
+            available[1].MaterialCount == 3 &&
+            available[2].MaterialCount == 4 &&
+            available[2].FusionSteps == 3 &&
+            available[2].HandIndices.SequenceEqual(new[]{0,1,2,3}) &&
+            available[2].Result.Id == abcd.Id &&
+            match.Events.Count == beforeEvents &&
+            match.Player.Hand.Count == beforeHand,
+            "0.26 verified 2/3/4-material hand chains and pure preview");
+
+        var four = available[2];
+        Check(match.TryPlay(DuelSide.Player,four.HandIndices,FieldLane.Monster,0,
+            BattlePosition.Attack,abcd.StarA,out _) &&
+            match.Player.Monster(0).Card.Id == abcd.Id &&
+            match.Events.Count(e=>e.Kind==MatchEventKind.Fusion)==3,
+            "0.26 ordered suggestion commits three real hand fusions");
+
+        var fieldRules = new FusionCatalog();
+        var field = M("on-field",1000,1000);
+        var fa = M("field-a", 1500, 1100);
+        var fab = M("field-ab",2000,1400);
+        var fabc = M("field-abc",2800,1900);
+        fieldRules.Add(field.Id,a.Id,fa);
+        fieldRules.Add(fa.Id,b.Id,fab);
+        fieldRules.Add(fab.Id,c.Id,fabc);
+        var duel = new DuelMatch(Deck(field,a,b,c),Deck(M("other",1000,1000)),
+            fieldRules);
+        Play(duel,DuelSide.Player);
+        End(duel,DuelSide.Player);
+        Play(duel,DuelSide.Opponent);
+        End(duel,DuelSide.Opponent);
+        int fieldEvents = duel.Events.Count;
+        var suggestions = duel.FindAvailableFusions(DuelSide.Player);
+        var longest = suggestions.Single(x=>x.UsesField && x.HandIndices.Count==3);
+        Check(longest.FieldSlot == 0 && longest.FusionSteps == 3 &&
+            longest.HandIndices.SequenceEqual(new[]{0,1,2}) &&
+            longest.Result.Id == fabc.Id &&
+            duel.Events.Count == fieldEvents,
+            "0.26 field-first verified triple chain is read-only and ordered");
+        Check(duel.TryPlayOnField(DuelSide.Player,longest.HandIndices,
+            longest.FieldSlot,BattlePosition.Defense,fabc.StarA,true,
+            out var played,out var fused,out _) &&
+            fused && played.Id == fabc.Id &&
+            duel.Player.Monster(0).Card.Id == fabc.Id &&
+            !duel.Player.Monster(0).FaceDown,
+            "0.26 field chain follows real placement and reveal rules");
+    }
+
+    private static void CheckIntermediateFieldFusionConcealment()
+    {
+        // One successful intermediate recipe, followed by an incompatible
+        // material. 0.30: the PS1 reveals the last card of any chain.
+        var original = M("field-a", 1100, 900);
+        var ingredient = M("hand-b", 500, 500);
+        var finalOriginal = M("hand-last", 1400, 1200);
+        var intermediate = M("fused-temporary", 2000, 1600);
+        var rules = new FusionCatalog();
+        rules.Add(original.Id, ingredient.Id, intermediate);
+        var duel = new DuelMatch(Deck(original, ingredient, finalOriginal),
+            Deck(M("enemy", 1000, 900)), rules);
+        Play(duel,DuelSide.Player);
+        End(duel,DuelSide.Player);
+        Play(duel,DuelSide.Opponent);
+        End(duel,DuelSide.Opponent);
+        int previousEvents = duel.Events.Count;
+        Check(duel.CountFieldFusionSteps(DuelSide.Player,new[]{0,1},0) == 1 &&
+            duel.PreviewFieldResult(DuelSide.Player,new[]{0,1},0)?.Id ==
+                finalOriginal.Id &&
+            duel.Events.Count == previousEvents &&
+            !duel.FinalFieldResultIsFusion(DuelSide.Player,new[]{0,1},0),
+            "0.25 preview distinguishes successful intermediate from final failed combination");
+        Check(duel.TryPlayOnField(DuelSide.Player,new[]{0,1},0,
+            BattlePosition.Defense,GuardianStar.None,true,
+            out var resolved,out var finalFusion,out _) &&
+            !finalFusion && resolved.Id == finalOriginal.Id &&
+            !duel.Player.Monster(0).FaceDown &&
+            duel.Player.Monster(0).Position == BattlePosition.Defense &&
+            duel.Events.Any(e=>e.Kind==MatchEventKind.Fusion) &&
+            duel.Events.Any(e=>e.Kind==MatchEventKind.FusionFailed),
+            "0.25 final hand survivor of a field chain is revealed in DEF (PS1 state 8)");
+    }
+
+    private static void CheckOriginalChainRules()
+    {
+        // 0.30: PS1 placement order (fusion > in-chain Equip > failure that
+        // keeps a monster over an unmatched non-monster). Synthetic recipes;
+        // "657" is the verified universal Megamorph (+1000/+1000).
+        var a = M("chain-a",1200,1000);
+        var b = M("chain-b",1100,900);
+        var f = M("chain-f",2500,2000);
+        var recipes = new FusionCatalog();
+        recipes.Add(a.Id,b.Id,f);
+        var megamorph = new CardDefinition("657","Megamorph",CardKind.Equip,0,0,"");
+        var equips = VerifiedEquipCatalog.OriginalPs1Foundation();
+
+        var keep = FusionChainResolver.Resolve(new[]{a,S("chain-spell")},recipes,equips);
+        Check(keep.Result.Id == a.Id && keep.SurvivorPosition == 0 &&
+            keep.Steps[0].Kind == FusionStepKind.DiscardedNext,
+            "0.30 monster survives an unmatched spell (PS1 state 7)");
+        var replace = FusionChainResolver.Resolve(new[]{a,M("chain-x",900,900)},recipes,equips);
+        Check(replace.Result.Id == "chain-x" && replace.SurvivorPosition == 1,
+            "0.30 unmatched monster pair keeps the later monster");
+        var equipped = FusionChainResolver.Resolve(new[]{megamorph,a},recipes,equips);
+        Check(equipped.Result.Id == a.Id && equipped.PendingAttackGain == 1000 &&
+            equipped.SuccessfulFusions == 0 && equipped.HasProductiveStep,
+            "0.30 verified Equip selected before a monster equips it in-chain");
+        var reset = FusionChainResolver.Resolve(new[]{a,megamorph,b},recipes,equips);
+        Check(reset.Result.Id == f.Id && reset.PendingAttackGain == 0,
+            "0.30 a later fusion replaces the card and drops earlier Equip gains");
+
+        var hand = new DuelMatch(Deck(a,megamorph),Deck(M("chain-op",900,900)),
+            recipes,null,null,equips);
+        Check(hand.TryPlay(DuelSide.Player,new[]{0,1},FieldLane.Monster,0,
+                BattlePosition.Attack,GuardianStar.None,out _) &&
+            hand.Player.Monster(0).Card.Id == a.Id &&
+            hand.Player.Monster(0).EffectiveAttack == 2200 &&
+            hand.Player.Graveyard.Count == 1 &&
+            hand.Player.Graveyard[0].Id == "657",
+            "0.30 hand monster + Megamorph summons the equipped monster");
+
+        var field = new DuelMatch(Deck(a,S("chain-junk")),Deck(M("chain-op",900,900)),
+            recipes,null,null,equips);
+        Play(field,DuelSide.Player);End(field,DuelSide.Player);
+        Play(field,DuelSide.Opponent);End(field,DuelSide.Opponent);
+        var stays = field.Player.Monster(0);
+        Check(field.TryPlayOnField(DuelSide.Player,new[]{0},0,
+                BattlePosition.Defense,GuardianStar.None,true,
+                out var kept,out bool keptFusion,out _) &&
+            !keptFusion && kept.Id == a.Id &&
+            ReferenceEquals(stays,field.Player.Monster(0)) &&
+            field.Player.Monster(0).Position == BattlePosition.Attack &&
+            field.Player.Graveyard.Count == 1 &&
+            field.Player.Graveyard[0].Id == "chain-junk" &&
+            field.PlayedThisTurn,
+            "0.30 field monster stays in place when a spell finds no recipe");
+    }
+
     private static void Main()
     {
+        CheckOriginalChainRules();
+        CheckOriginalStarterChoices();
+        CheckAvailableFusionAssistant();
+        CheckVerifiedFusionChains();
+        CheckAdaptiveVerifiedFusionChains();
+        CheckIntermediateFieldFusionConcealment();
+        CheckNewFusionAndAutoSlotRules();
+        CheckTerrainAndTraps();
+        CheckReactiveTraps();
+        CheckVerifiedEquipEngine();
+        CheckVerifiedMagicEngine();
         var m = Match(M("mine",2000,1500),M("theirs",1200,800));
+        Check(!m.TryEndTurn(DuelSide.Player,out _),
+            "START cannot pass before one card has been played");
+        Check(!m.TryBeginBattle(DuelSide.Player,out _),
+            "battle cannot begin before mandatory placement");
         Check(m.Player.Hand.Count==5 && m.Opponent.Hand.Count==5 && m.Player.DeckCount==35,
             "two hands and deck counts");
         Check(!m.TryPlay(DuelSide.Player, new [] {0},FieldLane.Support,0,
@@ -80,12 +981,161 @@ internal static class Program
             "fusion by explicit data");
         Check(m2.Events.Select(e=>e.Sequence).SequenceEqual(m2.Events.Select(e=>e.Sequence).OrderBy(v=>v)),
             "ordered engine events");
+        // Prototype 0.16 — field card FIRST, followed by up to five hand
+        // materials. Intermediate results are virtual (never buried).
+        var fieldRecipes = new FusionCatalog();
+        fieldRecipes.Add("base", "a", M("f1", 1400, 1200));
+        fieldRecipes.Add("f1", "b", M("f2", 1700, 1450));
+        fieldRecipes.Add("f2", "c", M("f3", 2200, 1550));
+        fieldRecipes.Add("f3", "d", M("f4", 2500, 1600));
+        fieldRecipes.Add("f4", "e", M("f5", 3000, 2300, GuardianStar.Mercury));
+        var fieldGame = new DuelMatch(
+            Deck(M("base", 900, 850), M("a", 400, 400),
+                M("b", 500, 500), M("c", 600, 600),
+                M("d", 700, 700), M("e", 800, 800)),
+            Deck(M("enemy", 900, 850)), fieldRecipes);
+        Check(fieldGame.TryPlay(DuelSide.Player, new[]{0},
+            FieldLane.Monster, 0, BattlePosition.Defense,
+            GuardianStar.None, true, out _), "0.16 setup: field material set");
+        End(fieldGame, DuelSide.Player);
+        Play(fieldGame, DuelSide.Opponent);
+        End(fieldGame, DuelSide.Opponent);
+        var fiveMaterials = new[]{0,1,2,3,4};
+        int previewEventCount = fieldGame.Events.Count;
+        int previewGraveCount = fieldGame.Player.Graveyard.Count;
+        var fieldPreview = fieldGame.PreviewFieldResult(DuelSide.Player,
+            fiveMaterials, 0);
+        Check(fieldPreview?.Id == "f5" &&
+            fieldGame.CanPlayOnField(DuelSide.Player, fiveMaterials, 0,
+                GuardianStar.Mercury, out var legalResult, out _) &&
+            legalResult.Id == "f5",
+            "field first plus five hand cards produces ordered sixth-card result");
+        Check(fieldGame.Events.Count == previewEventCount &&
+            fieldGame.Player.Graveyard.Count == previewGraveCount &&
+            fieldGame.Player.Hand.Count == 5,
+            "field fusion preview is read-only");
+        Check(!fieldGame.CanPlayOnField(DuelSide.Player,
+            new[]{0,0},0,GuardianStar.None,out _,out _) &&
+            !fieldGame.CanPlayOnField(DuelSide.Player,
+                new[]{5},0,GuardianStar.None,out _,out _) &&
+            !fieldGame.CanPlayOnField(DuelSide.Player,
+                new[]{0},-1,GuardianStar.None,out _,out _),
+            "duplicate, invalid and out-of-range field materials are rejected");
+        Check(fieldGame.TryPlayOnField(DuelSide.Player,
+            fiveMaterials, 0, BattlePosition.Attack, GuardianStar.Mercury,
+            true, out var fieldOutcome, out bool combined, out _) &&
+            combined && fieldOutcome.Id == "f5" &&
+            fieldGame.Player.Monster(0).Card.Id == "f5" &&
+            !fieldGame.Player.Monster(0).FaceDown &&
+            fieldGame.Player.Monster(0).Star == GuardianStar.Mercury,
+            "validated six-material field fusion sets correct face-up result and star");
+        Check(fieldGame.Player.Hand.Count == 0 &&
+            fieldGame.Player.Graveyard.Count == previewGraveCount + 6 &&
+            fieldGame.Events.Count(e => e.Kind == MatchEventKind.Fusion &&
+                e.Side == DuelSide.Player) == 5,
+            "only six physical materials buried; no virtual intermediate results");
+        Check(!fieldGame.CanPlayOnField(DuelSide.Player,
+            new[]{0},0,GuardianStar.None,out _,out _) &&
+            !fieldGame.TryPlayOnField(DuelSide.Player,
+                new[]{0},0,BattlePosition.Attack,GuardianStar.None,false,
+                out _,out _,out _),
+            "field fusion consumes the same one mandatory placement action");
+
+        // A failed recipe replaces the older field monster with the last
+        // selected hand monster; unsupported Equip effects never run.
+        // 0.30 (PS1 placement state 7): an unmatched non-monster is thrown
+        // away and the field monster stays, with no bonus and no effect.
+        var failedField = new DuelMatch(
+            Deck(M("old", 2400, 1800), S("unverifiedEquip"),
+                M("new", 1300, 900)), Deck(M("op", 1000, 1000)));
+        Play(failedField,DuelSide.Player);
+        End(failedField,DuelSide.Player);
+        Play(failedField,DuelSide.Opponent);
+        End(failedField,DuelSide.Opponent);
+        int failedBefore = failedField.Events.Count;
+        var supportChain = failedField.PreviewFieldChain(DuelSide.Player,
+            new[]{0},0);
+        Check(supportChain != null && supportChain.Result.Id == "old" &&
+            supportChain.SurvivorPosition == 0 &&
+            supportChain.PendingAttackGain == 0 &&
+            !supportChain.HasProductiveStep &&
+            failedField.PreviewFieldResult(DuelSide.Player,new[]{0},0)?.Id == "old",
+            "unverified equip on occupied monster cannot fabricate an effect");
+        Check(failedField.Events.Count == failedBefore &&
+            failedField.Player.Monster(0).Card.Id == "old" &&
+            failedField.Player.Graveyard.Count == 0,
+            "invalid support combination preserves full duel state");
+        Check(failedField.TryPlayOnField(DuelSide.Player,new[]{1},
+            0,BattlePosition.Defense,GuardianStar.None,true,
+            out var failResult,out bool wasFusion,out _) &&
+            !wasFusion && failResult.Id == "new" &&
+            !failedField.Player.Monster(0).FaceDown &&
+            failedField.Player.Graveyard.Count == 1,
+            "failed monster fusion replaces old field material without inventing a result");
+        Check(failedField.Player.Hand.Count == 4 &&
+            failedField.Player.Graveyard[0].Id == "old",
+            "failed field combination preserves surviving hand card as on-field material");
+
+        // A failed first field pair must continue with the next hand card,
+        // allowing a later successful recipe (rather than pre-fusing hand).
+        var restarted = new FusionCatalog();
+        restarted.Add("handA","handB",M("afterFailure",2100,1800));
+        var restartMatch = new DuelMatch(
+            Deck(M("fieldOld",1600,1200),M("handA",600,500),M("handB",700,600)),
+            Deck(M("op",900,800)), restarted);
+        Play(restartMatch,DuelSide.Player);
+        End(restartMatch,DuelSide.Player);
+        Play(restartMatch,DuelSide.Opponent);
+        End(restartMatch,DuelSide.Opponent);
+        Check(restartMatch.PreviewFieldResult(DuelSide.Player,
+            new[]{0,1},0)?.Id=="afterFailure",
+            "failed field-first pair can later fuse with the next ordered material");
+        Check(restartMatch.TryPlayOnField(DuelSide.Player,new[]{0,1},0,
+            BattlePosition.Attack,GuardianStar.None,false,out var restartedResult,
+            out bool restartedFusion,out _) && restartedFusion &&
+            restartedResult.Id=="afterFailure" &&
+            restartMatch.Player.Graveyard.Count==3,
+            "field-first failure then success keeps all physical originals accounted for");
+
+        // Five occupied monster slots must NOT block the required hand play:
+        // replacement is a legal alternative to a sixth zone.
+        var fullBoard = Match(M("own",1400,1300),M("enemy",1100,950));
+        for (int slot=0;slot<DuelMatch.ZoneCount;slot++)
+        {
+            Check(fullBoard.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,slot,BattlePosition.Defense,GuardianStar.None,out _),
+                "player fills one legal monster slot");
+            End(fullBoard,DuelSide.Player);
+            Check(fullBoard.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Monster,slot,BattlePosition.Defense,GuardianStar.None,out _),
+                "opponent fills one legal monster slot");
+            End(fullBoard,DuelSide.Opponent);
+        }
+        Check(fullBoard.Player.MonsterCount==5 &&
+            !fullBoard.CanPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,0,GuardianStar.None,out _) &&
+            !fullBoard.TryEndTurn(DuelSide.Player,out _),
+            "full board still requires exactly one legal hand placement");
+        Check(fullBoard.TryChooseFieldCombination(DuelSide.Player,false,
+            out int fullHand,out int fullSlot,out var fullResult) &&
+            fullBoard.TryPlayOnField(DuelSide.Player,new[]{fullHand},fullSlot,
+                BattlePosition.Attack,fullResult.StarA,false,
+                out _,out _,out _) &&
+            fullBoard.Player.MonsterCount==5,
+            "full field can replace an own monster without adding a sixth slot");
+        End(fullBoard,DuelSide.Player);
+        Check(fullBoard.CurrentSide==DuelSide.Opponent,
+            "full-board replacement satisfies mandatory turn action");
+
         var m3=Match(M("big",8500,500),M("small",500,500));
         Play(m3,DuelSide.Player);Battle(m3,DuelSide.Player);
         m3.TryAttack(DuelSide.Player,0,-1,out _);
         Check(m3.Phase==MatchPhase.Finished && m3.Winner==DuelSide.Player,
             "win by zero life");
-        var aiMatch = Match(M("player",1200,1000),M("opponent",1800,1000));
+        var aiMatch = Match(S("opening"),M("opponent",1800,1000));
+        Check(aiMatch.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _),
+            "player may spend the mandatory play on support");
         End(aiMatch,DuelSide.Player);
         Check(SimpleOpponentAi.TryChoosePlay(aiMatch,out int aiHand,out int aiZone),
             "AI can expose one playable monster without moving it");
@@ -101,6 +1151,115 @@ internal static class Program
             aiMatch.TryAttack(DuelSide.Opponent,fromSlot,toSlot,out _) &&
             aiMatch.Player.Life == 6200,
             "AI attack applies damage only when the engine is invoked");
+
+        // Any supported card kind counts as the one compulsory placement:
+        // the opponent must set a support when the hand has no monsters.
+        var supportOnlyAi = new DuelMatch(
+            Deck(S("myOpening")),
+            Deck(S("spellA"),S("trapB"),S("equipC"),S("ritualD"),S("spellE")));
+        Check(supportOnlyAi.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _),
+            "opening support counts as one player turn action");
+        End(supportOnlyAi,DuelSide.Player);
+        Check(supportOnlyAi.TryChooseSupportSet(DuelSide.Opponent,
+            out int fallbackHand, out int fallbackSlot) &&
+            fallbackHand >= 0 && fallbackSlot >= 0,
+            "opponent can find a legal support-only mandatory play");
+        SimpleOpponentAi.TakeTurn(supportOnlyAi);
+        Check(supportOnlyAi.CurrentSide == DuelSide.Player &&
+            supportOnlyAi.Opponent.Support(fallbackSlot) != null &&
+            supportOnlyAi.Opponent.SupportIsFaceDown(fallbackSlot),
+            "support-only opponent sets a card instead of skipping turn");
+
+        // PS1-specific ritual: three exact on-field monsters (any face);
+        // the ritual result does not have to be in the 40-card deck or hand.
+        var ritualBook = new RitualCatalog();
+        var summonedByRitual = M("ritual-result", 3200, 2500,
+            GuardianStar.Mercury);
+        ritualBook.Add("ritual-spell",
+            new[] {"alpha", "beta", "gamma"}, summonedByRitual);
+        var ritualGame = new DuelMatch(
+            Deck(M("alpha", 700, 600), M("beta", 800, 700),
+                M("gamma", 900, 800),
+                new CardDefinition("ritual-spell", "Ritual", CardKind.Ritual,
+                    0, 0, "Original 3 material invocation")),
+            Deck(M("rival", 1000, 1000)), new FusionCatalog(), ritualBook);
+        Check(!ritualGame.TryEndTurn(DuelSide.Player,out _),
+            "PS1 ritual also respects mandatory hand play");
+        for (int i = 0; i < 3; i++)
+        {
+            Check(ritualGame.TryPlay(DuelSide.Player,new[] {0},
+                FieldLane.Monster,i,BattlePosition.Attack,
+                GuardianStar.None,out _),
+                "place ritual requirement in its own field slot");
+            End(ritualGame,DuelSide.Player);
+            Check(ritualGame.TryPlay(DuelSide.Opponent,new[] {0},
+                FieldLane.Monster,i,BattlePosition.Defense,
+                GuardianStar.None,out _),
+                "opponent advances without skipping its one compulsory play");
+            End(ritualGame,DuelSide.Opponent);
+        }
+        Check(ritualGame.Player.Hand[0].Id=="ritual-spell" &&
+            ritualGame.PreviewRitual(DuelSide.Player,0)==summonedByRitual,
+            "PS1 ritual preview requires three named face-up field monsters");
+        int eventsBeforeRitual = ritualGame.Events.Count;
+        Check(!ritualGame.CanSummonRitual(DuelSide.Player,0,4,
+            GuardianStar.Mercury,out _,out _) &&
+            !ritualGame.CanSummonRitual(DuelSide.Player,0,0,
+                GuardianStar.None,out _,out _),
+            "ritual rejects a non-tribute zone and invalid guardian star");
+        Check(ritualGame.CanSummonRitual(DuelSide.Player,0,0,
+            GuardianStar.Mercury,out var ritualPreview,out _) &&
+            ritualPreview.Id=="ritual-result" &&
+            ritualGame.Events.Count==eventsBeforeRitual,
+            "ritual preview is fully read-only");
+        Check(ritualGame.TrySummonRitual(DuelSide.Player,0,0,
+            BattlePosition.Attack,GuardianStar.Mercury,
+            out var ritualOutcome,out _) &&
+            ritualOutcome.Id=="ritual-result" &&
+            ritualGame.Player.Monster(0).Card.Id=="ritual-result" &&
+            ritualGame.Player.Monster(1)==null &&
+            ritualGame.Player.Monster(2)==null &&
+            ritualGame.Player.Graveyard.Count==4 &&
+            ritualGame.PlayedThisTurn,
+            "ritual consumes exactly 3 field tributes plus ritual card and places result");
+        Check(!ritualGame.TrySummonRitual(DuelSide.Player,0,0,
+            BattlePosition.Attack,GuardianStar.Mercury,out _,out _),
+            "ritual respects single hand placement limit per turn");
+
+        // Retail PS1 permits triple-copy rituals: three equal card IDs must
+        // still be three DIFFERENT physical monsters on the duel field.
+        var triples = new RitualCatalog();
+        triples.Add("triple-ritual",new[]{"blue","blue","blue"},
+            M("ultimate",4500,3800));
+        var tripleDuel = new DuelMatch(
+            Deck(M("blue",3000,2500),M("blue",3000,2500),
+                M("blue",3000,2500),
+                new CardDefinition("triple-ritual","Triple",
+                    CardKind.Ritual,0,0,"")),
+            Deck(M("enemy",500,500)),new FusionCatalog(),triples);
+        for (int tributeSlot=0;tributeSlot<3;tributeSlot++)
+        {
+            Check(tripleDuel.TryPlay(DuelSide.Player,new[]{0},
+                FieldLane.Monster,tributeSlot,BattlePosition.Attack,
+                GuardianStar.None,out _),
+                "triple-copy ritual places one separate physical monster");
+            End(tripleDuel,DuelSide.Player);
+            Check(tripleDuel.TryPlay(DuelSide.Opponent,new[]{0},
+                FieldLane.Monster,tributeSlot,BattlePosition.Defense,
+                GuardianStar.None,out _),
+                "triple-copy ritual setup preserves opponent compulsory play");
+            End(tripleDuel,DuelSide.Opponent);
+        }
+        Check(tripleDuel.TrySummonRitual(DuelSide.Player,0,2,
+                BattlePosition.Attack,GuardianStar.None,
+                out var tripleResult,out _) &&
+              tripleResult.Id=="ultimate" &&
+              tripleDuel.Player.Monster(0)==null &&
+              tripleDuel.Player.Monster(1)==null &&
+              tripleDuel.Player.Monster(2).Card.Id=="ultimate" &&
+              tripleDuel.Player.Graveyard.Count==4,
+              "triple-copy PS1 ritual accepts duplicate IDs in separate field slots");
 
         var standardDeck = DemoDeck.Create();
         var shuffledA = DeckRandomizer.Shuffle(standardDeck, new Random(154));
@@ -164,6 +1323,7 @@ internal static class Program
         var adaptiveMatch = Match(M("player",1500,1300),M("opponent",2600,1900));
         Check(!brain.TryChoosePlacement(adaptiveMatch, out _),
             "adaptive brain refuses placement outside opponent turn");
+        Play(adaptiveMatch, DuelSide.Player);
         End(adaptiveMatch, DuelSide.Player);
         int adaptiveEvents = adaptiveMatch.Events.Count;
         Check(brain.TryChoosePlacement(adaptiveMatch, out var adaptivePlan) &&
@@ -329,7 +1489,10 @@ internal static class Program
             favorableDefender.Player.Monster(0) == null,
             "shared forecast agrees with actual combat destruction");
 
-        var targetSafety = Match(M("p",900,900),M("o",1400,900));
+        var targetSafety = Match(S("setup"),M("o",1400,900));
+        Check(targetSafety.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _),
+            "set support counts as mandatory play without blocking direct attacks");
         End(targetSafety,DuelSide.Player);
         targetSafety.TryPlay(DuelSide.Opponent,new[]{0},FieldLane.Monster,0,
             BattlePosition.Attack,GuardianStar.None,out _);
@@ -346,7 +1509,7 @@ internal static class Program
         // attacker can go direct. Greedy attack scoring could waste the
         // stronger attacker on a defender without inflicting LP damage.
         var sequenceMatch = new DuelMatch(
-            Deck(M("wall", 200, 1800)),
+            Deck(M("wall", 200, 1800), S("passSetup")),
             Deck(M("small", 2100, 900), M("strong", 3200, 1500)));
         Check(sequenceMatch.TryPlay(DuelSide.Player, new[] {0},
             FieldLane.Monster, 0, BattlePosition.Defense,
@@ -356,6 +1519,9 @@ internal static class Program
             FieldLane.Monster, 0, BattlePosition.Attack,
             GuardianStar.None, out _), "first AI attacker is summoned");
         End(sequenceMatch, DuelSide.Opponent);
+        Check(sequenceMatch.TryPlay(DuelSide.Player, new[]{0},
+            FieldLane.Support, 0, BattlePosition.Attack, GuardianStar.None,
+            true, out _), "player sets support instead of skipping turn");
         End(sequenceMatch, DuelSide.Player);
         Check(sequenceMatch.TryPlay(DuelSide.Opponent, new[] {0},
             FieldLane.Monster, 1, BattlePosition.Attack,
@@ -466,9 +1632,15 @@ internal static class Program
             0, BattlePosition.Defense, GuardianStar.None, true, out _) &&
             fluid.Player.Monster(0).FaceDown,
             "one monster can be set face-down in defense");
-        Check(!fluid.TryChangePosition(DuelSide.Player, 0,
-            BattlePosition.Attack, out _),
-            "newly summoned monster cannot change position during its placement turn");
+        Check(fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Attack, out _) &&
+            fluid.Player.Monster(0).FaceDown &&
+            !fluid.TryChangePosition(DuelSide.Player, 0,
+                BattlePosition.Attack, out _) &&
+            fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Defense, out _) &&
+            fluid.Player.Monster(0).FaceDown,
+            "new facedown monster can toggle ATK/DEF repeatedly without revealing");
         Check(!fluid.CanPlay(DuelSide.Player, new[] { 0 },
             FieldLane.Support, 0, GuardianStar.None, out _),
             "one hand placement per turn remains enforced");
@@ -481,15 +1653,21 @@ internal static class Program
             fluid.TryChangePosition(DuelSide.Player, 0,
                 BattlePosition.Attack, out _) &&
             fluid.Player.Monster(0).Position == BattlePosition.Attack &&
-            !fluid.Player.Monster(0).FaceDown,
-            "set monster can be flipped to attack only on its owner's later turn");
-        Check(!fluid.TryChangePosition(DuelSide.Player, 0,
-            BattlePosition.Defense, out _),
-            "a monster cannot change position twice in one turn");
+            fluid.Player.Monster(0).FaceDown,
+            "set monster remains hidden when switched to ATK on a later turn");
+        Check(fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Defense, out _) &&
+            fluid.TryChangePosition(DuelSide.Player, 0,
+            BattlePosition.Attack, out _),
+            "Q/E can alternate positions repeatedly");
+        Check(fluid.TryPlay(DuelSide.Player, new[]{0},
+            FieldLane.Support, 0, BattlePosition.Attack, GuardianStar.None,
+            true, out _), "a second-turn support card satisfies required placement");
         Battle(fluid, DuelSide.Player);
         Check(fluid.TryAttack(DuelSide.Player, 0, 0, out _) &&
-            fluid.Player.Monster(0).AttackedThisTurn,
-            "flipped monster can attack after legal reposition");
+            fluid.Player.Monster(0).AttackedThisTurn &&
+            !fluid.Player.Monster(0).FaceDown,
+            "attack itself reveals the previously hidden attacker");
         Check(!fluid.TryChangePosition(DuelSide.Player, 0,
             BattlePosition.Defense, out _),
             "attacker cannot switch back to defense after attacking");
@@ -545,7 +1723,7 @@ internal static class Program
 
         // Existing enemy defense may switch into attack on a later turn.
         var opponentFlip = new DuelMatch(
-            Deck(M("playerWall", 400, 1400)),
+            Deck(M("playerWall", 400, 1400), S("turn2Support")),
             Deck(M("aiSet", 2500, 1700)));
         Check(opponentFlip.TryPlay(DuelSide.Player, new[] {0},FieldLane.Monster,
             0,BattlePosition.Defense,GuardianStar.None,true,out _),
@@ -554,10 +1732,13 @@ internal static class Program
         Check(opponentFlip.TryPlay(DuelSide.Opponent,new[] {0},FieldLane.Monster,
             0,BattlePosition.Defense,GuardianStar.None,true,out _),
             "AI can set a monster in face-down defense");
-        Check(!opponentFlip.TryChangePosition(DuelSide.Opponent,0,
+        Check(opponentFlip.CanChangePosition(DuelSide.Opponent,0,
             BattlePosition.Attack,out _),
-            "AI cannot flip its new set monster in the same turn");
+            "the same unrestricted pre-attack toggle applies to a freshly set monster");
         End(opponentFlip,DuelSide.Opponent);
+        Check(opponentFlip.TryPlay(DuelSide.Player,new[]{0},FieldLane.Support,0,
+            BattlePosition.Attack,GuardianStar.None,true,out _),
+            "player sets support before ending the following turn");
         End(opponentFlip,DuelSide.Player);
         var tacticalFlip = new AdaptiveOpponentBrain(new Random(203));
         tacticalFlip.StartDuel(new AiLearningState("tactical:flip"));
@@ -565,11 +1746,11 @@ internal static class Program
             out int switchSlot, out var nextMode) &&
             switchSlot == 0 && nextMode == BattlePosition.Attack &&
             opponentFlip.TryChangePosition(DuelSide.Opponent,switchSlot,nextMode,out _) &&
-            !opponentFlip.Opponent.Monster(0).FaceDown,
-            "AI switches previously set defense into attack without reading a concealed target");
-        Check(!opponentFlip.TryChangePosition(DuelSide.Opponent,0,
+            opponentFlip.Opponent.Monster(0).FaceDown,
+            "AI switches previously set DEF into ATK while remaining hidden");
+        Check(opponentFlip.TryChangePosition(DuelSide.Opponent,0,
             BattlePosition.Defense,out _),
-            "AI cannot switch the same monster twice in one turn");
+            "AI can return to defense before attacking");
 
         // Prototype 0.14.1 inverted and responsive 3D hand fan geometry.
         // These checks are pure C# and can run in CI without a Unity Editor.

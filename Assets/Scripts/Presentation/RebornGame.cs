@@ -25,12 +25,50 @@ namespace Reborn.Presentation
             GameContentBundle imported;
             string importStatus;
             bool loaded = OriginalContentLoader.TryLoad(out imported, out importStatus);
+            // The complete local export wins. Without it, reuse the already
+            // indexed Original profile straight from DUELTRACE on Windows.
+            // A malformed existing export is never silently overridden by a
+            // different ISO or DEMO catalog.
+            if (!loaded && !System.IO.File.Exists(OriginalContentLoader.ExpectedPath))
+                loaded = DueltraceLocalProfileLoader.TryLoad(out imported, out importStatus);
             OpponentDeckCatalog pools = null;
+            VerifiedEquipCatalog verifiedEquips = null;
+            if (loaded)
+            {
+                verifiedEquips = OriginalEquipLoader.Load(imported, out string equipStatus);
+                Debug.Log("REBORN: " + equipStatus);
+            }
             if (loaded)
             {
                 if (OpponentDeckLoader.TryLoad(imported, out pools, out string info))
                     Debug.Log("REBORN: " + info);
                 else Debug.LogWarning("REBORN: " + info);
+            }
+            // A true PS1 starter requires seven local weighted rows from
+            // the same disc. Four options are a Reborn choice UI, not four
+            // fixed retail decks.
+            StarterDeckCatalog starterCatalog = null;
+            string starterStatus = "";
+            IReadOnlyList<IReadOnlyList<CardDefinition>> starterOffers = null;
+            IReadOnlyList<CardDefinition> chosenStarter = null;
+            if (loaded)
+            {
+                if (StarterDeckLoader.TryLoad(imported, out starterCatalog,
+                    out starterStatus))
+                {
+                    try
+                    {
+                        starterOffers = starterCatalog.FourChoices(
+                            new System.Random(Guid.NewGuid().GetHashCode()));
+                        Debug.Log("REBORN: " + starterStatus);
+                    }
+                    catch (Exception ex)
+                    {
+                        starterStatus = "Falha ao sortear 4 decks: " + ex.Message;
+                        Debug.LogWarning("REBORN: " + starterStatus);
+                    }
+                }
+                else Debug.LogWarning("REBORN: " + starterStatus);
             }
             var storage = new AdaptiveAiStorage();
             var brain = new AdaptiveOpponentBrain(
@@ -44,14 +82,17 @@ namespace Reborn.Presentation
             arena.Build();
             var hud = gameObject.AddComponent<ArenaHud>();
             hud.Initialize(session, arena, loaded ? imported : null, importStatus);
+            hud.ConfigureContentAvailability(loaded);
             var interaction = gameObject.AddComponent<ArenaInteraction>();
             interaction.Initialize(session, arena, hud);
 
             DuelMatch CreateExperimentalMatch()
             {
-                var playerSource = loaded
-                    ? DemoDeck.RandomPracticeDeck(imported.Cards, new System.Random(Guid.NewGuid().GetHashCode()))
-                    : DemoDeck.Create();
+                var playerSource = chosenStarter ??
+                    (loaded
+                        ? DemoDeck.RandomPracticeDeck(imported.Cards,
+                            new System.Random(Guid.NewGuid().GetHashCode()))
+                        : DemoDeck.Create());
                 var playerDeck = DeckRandomizer.ShuffleNewMatch(playerSource);
                 IReadOnlyList<CardDefinition> opponentDeck;
                 string identity;
@@ -75,8 +116,22 @@ namespace Reborn.Presentation
                 }
                 brain.StartDuel(storage.Get(identity));
                 hud.SetAiInsight(brain.TacticLabel, brain.State.duels);
+                // Activate only published original-PS1 card-ID rules; imported
+                // mod descriptions never run as scripts or substitute rules.
+                bool originalPs1 = loaded &&
+                    imported.Edition.StartsWith("original-ps1",
+                        StringComparison.OrdinalIgnoreCase);
+                var effects = originalPs1 ?
+                    VerifiedSpellCatalog.OriginalPs1Core() :
+                    new VerifiedSpellCatalog();
+                var traps = originalPs1 ?
+                    AttackTrapCatalog.OriginalPs1() : new AttackTrapCatalog();
+                var reactions = originalPs1 ?
+                    ReactiveTrapCatalog.OriginalPs1() : new ReactiveTrapCatalog();
                 return new DuelMatch(playerDeck, opponentDeck,
-                    loaded ? imported.Fusions : DemoDeck.CreateSampleFusions());
+                    loaded ? imported.Fusions : DemoDeck.CreateSampleFusions(),
+                    loaded ? imported.Rituals : new RitualCatalog(), effects,
+                    verifiedEquips, traps, reactions);
             }
 
             var opponentDirector = gameObject.AddComponent<OpponentTurnDirector>();
@@ -114,7 +169,16 @@ namespace Reborn.Presentation
                     }
                     if (!hud.DuelModeActive || !hud.AnimationsEnabled || hud.Match != duel) return;
                     if (evt.Kind == MatchEventKind.Destroy)
-                        arena.PlayMatchDestruction(evt.Side, evt.Slot);
+                        arena.PlayMatchDestruction(evt.Side, evt.Slot,
+                            evt.Lane ?? FieldLane.Monster);
+                    else if (evt.Kind == MatchEventKind.SupportActivated)
+                        arena.PlaySpellActivation(evt.Side, evt.Slot);
+                    else if (evt.Kind == MatchEventKind.Equipped)
+                        arena.PlayEquipActivation(evt.Side, evt.Slot);
+                    else if (evt.Kind == MatchEventKind.TerrainChanged)
+                        arena.PlayTerrainShift(evt.CardId);
+                    else if (evt.Kind == MatchEventKind.TrapTriggered)
+                        arena.PlayTrapBurst(evt.Side, evt.Slot);
                 };
             }
 
@@ -130,6 +194,21 @@ namespace Reborn.Presentation
             // Launch straight into the playable duel; Sandbox stays available
             // through the optional HUD button rather than interrupting gameplay.
             hud.SetDuelMode(true);
+            if (loaded && imported.Fusions.Count == 0)
+                hud.Announce("Fusoes indisponiveis neste perfil. " +
+                    "Importe a ISO original para recuperar receitas verificadas.");
+            if (loaded)
+            {
+                hud.ConfigureStarterDeckChoices(starterOffers, choice =>
+                {
+                    if (starterOffers == null || choice < 0 ||
+                        choice >= starterOffers.Count) return;
+                    chosenStarter = starterOffers[choice];
+                    Debug.Log("REBORN: starter sorteado escolhido (opcao " +
+                        (choice + 1) + "). Nao muda ao reiniciar duelo.");
+                    ResetDuel();
+                }, starterStatus);
+            }
             hud.NewMatchRequested += ResetDuel;
             hud.NextOpponentRequested += () =>
             {
